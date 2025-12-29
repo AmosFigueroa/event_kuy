@@ -1,5 +1,4 @@
-
-export const APP_NAME = "EventHorizon";
+export const APP_NAME = "Event Bisdig";
 
 // The Google Apps Script Web App URL provided by the user
 export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxVmHhN45gsxkeCyHcey1WNdPwvXx-2pSxUnXBJSnUcKyCqHSLTL_RHFy1K3fUmVedV0A/exec"; 
