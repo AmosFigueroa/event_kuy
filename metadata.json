@@ -1,0 +1,5 @@
+{
+  "name": "Copy of EventHorizon Manager",
+  "description": "Platform manajemen acara yang komprehensif menampilkan dashboard admin/pengguna, verifikasi pembayaran manual, dan pembuatan konten bertenaga AI menggunakan Google Gemini.",
+  "requestFramePermissions": []
+}
