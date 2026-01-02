@@ -1,9 +1,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
-import { generateEventDescription } from '../services/geminiService';
+import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
 import { useNavigate } from 'react-router-dom';
 import CustomAlert from '../components/CustomAlert';
@@ -25,8 +25,10 @@ const AdminDashboard: React.FC = () => {
   // Toast State
   const [toast, setToast] = useState<{show: boolean, msg: string}>({show: false, msg: ''});
 
-  // Proof Viewer Modal State
-  const [viewingProof, setViewingProof] = useState<string | null>(null);
+  // Proof Viewer & AI Analysis State
+  const [viewingProof, setViewingProof] = useState<Registration | null>(null); // Changed to store full object
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiResult, setAiResult] = useState<PaymentAnalysisResult | null>(null);
 
   // Export Modal State
   const [showExportModal, setShowExportModal] = useState(false);
@@ -144,6 +146,42 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // --- AI ANALYSIS LOGIC ---
+  const handleAiAnalysis = async () => {
+      if (!viewingProof || !viewingProof.proofUrl) return;
+      
+      const event = events.find(e => e.id === viewingProof.eventId);
+      const expectedAmount = event ? event.price : 0;
+
+      setIsAnalyzing(true);
+      setAiResult(null);
+
+      try {
+          // Convert Image URL to Base64 (Using fetch)
+          // Note: This relies on the image URL allowing CORS or being accessible
+          const response = await fetch(viewingProof.proofUrl, { mode: 'cors' });
+          const blob = await response.blob();
+          const reader = new FileReader();
+          
+          reader.onloadend = async () => {
+              const base64data = (reader.result as string).split(',')[1];
+              try {
+                  const result = await analyzePaymentProof(base64data, expectedAmount);
+                  setAiResult(result);
+              } catch (aiErr: any) {
+                  setAiResult({ isValid: false, reason: "Gagal memproses AI: " + aiErr.message, confidence: 'LOW' });
+              } finally {
+                  setIsAnalyzing(false);
+              }
+          };
+          reader.readAsDataURL(blob);
+
+      } catch (err) {
+          setIsAnalyzing(false);
+          setAiResult({ isValid: false, reason: "Gagal mengambil gambar (CORS/Network). Cek manual.", confidence: 'LOW' });
+      }
+  };
+
   // ... (Keep existing Certificate Designer Logic, Canvas Handlers, etc.)
   const getCurrentCertElements = (isWizard: boolean) => {
       if (isWizard) return newEvent.certificateConfig?.elements || [];
@@ -232,7 +270,6 @@ const AdminDashboard: React.FC = () => {
   };
 
   // --- EVENT HANDLERS ---
-  // ... (Keep existing Event Handlers like handleGenerateDescription, handleBannerChange, etc.)
   const handleGenerateDescription = async () => {
     if (!newEvent.title || !newEvent.category) {
         showAlert('error', 'Info Kurang', 'Mohon isi Judul dan Kategori terlebih dahulu.');
@@ -333,7 +370,6 @@ const AdminDashboard: React.FC = () => {
       } catch (e: any) { showAlert('error', 'Error', e.message); }
   };
   
-  // MODIFIED: Use Toast for copy link
   const handleCopyScannerLink = (eventId: string) => {
       const link = `${window.location.origin}${window.location.pathname}#/scanner/${eventId}`;
       navigator.clipboard.writeText(link);
@@ -341,7 +377,6 @@ const AdminDashboard: React.FC = () => {
       setTimeout(() => setToast({show: false, msg: ''}), 3000);
   };
 
-  // ... (Keep existing Export, Payment, Cert settings, Status update handlers)
   const handleExportData = async () => {
       if (!selectedEventFilter) return; 
       setExportLoading(true);
@@ -405,8 +440,14 @@ const AdminDashboard: React.FC = () => {
     try { 
         await updateRegistrationStatus(id, status); 
         setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r)); 
+        if (viewingProof) {
+            setViewingProof(null); // Close modal if open
+            setAiResult(null);
+        }
+        showAlert('success', 'Berhasil', `Status diubah menjadi ${status}`);
     } catch (e) { showAlert('error', 'Gagal', "Gagal update status"); }
   };
+
   const handleSendCertificate = async (id: string) => { 
       setProcessingCert(id);
       try {
@@ -433,9 +474,9 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
-  // ... (Keep renderElementToolbar, renderCanvasElement, renderDesigner, renderEventsList, renderRegistrations, etc.)
+  // ... (Keep renderElementToolbar, renderCanvasElement, renderDesigner, renderEventsList, etc.)
   const renderElementToolbar = (activeId: string | null, isWizard: boolean) => {
-      // ... (Same implementation as provided previously)
+      // ... (Same implementation as provided previously - Omitted for brevity as it's UI logic only)
       if (!activeId) return <div className="text-gray-400 text-sm text-center italic mt-10">Pilih elemen di kanvas untuk mengedit properti</div>;
       const elements = getCurrentCertElements(isWizard);
       const el = elements.find(e => e.id === activeId);
@@ -519,6 +560,7 @@ const AdminDashboard: React.FC = () => {
     </div>
   );
 
+  // MODIFIED: renderRegistrations with Improved Action Buttons & Modal Link
   const renderRegistrations = () => {
     const filteredRegistrations = registrations.filter(r => {
       if (selectedEventFilter === 'ALL') return true;
@@ -542,7 +584,23 @@ const AdminDashboard: React.FC = () => {
                                 <td className="p-4 text-sm font-bold text-gray-600 max-w-xs truncate" title={reg.eventTitle}>{reg.eventTitle}</td>
                                 <td className="p-4 text-center">{reg.checkInStatus === 'CHECKED_IN' ? (<div className="inline-flex flex-col items-center"><span className="text-[10px] font-black text-green-600 bg-green-100 px-2 py-0.5 rounded border border-green-200 uppercase">SUDAH HADIR</span>{reg.checkInTime && <span className="text-[10px] text-gray-400">{new Date(reg.checkInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>}</div>) : (<span className="text-[10px] font-bold text-gray-400">-</span>)}</td>
                                 <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase border ${reg.status === RegistrationStatus.APPROVED ? 'bg-green-100 text-green-700 border-green-200' : reg.status === RegistrationStatus.REJECTED ? 'bg-red-100 text-red-700 border-red-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200'}`}>{reg.status}</span></td>
-                                <td className="p-4"><div className="flex justify-center gap-2"><button onClick={() => setViewingProof(reg.proofUrl)} title="Lihat Bukti" className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><ImageIcon className="w-4 h-4"/></button>{reg.status === RegistrationStatus.PENDING && (<><button onClick={() => handleStatusUpdate(reg.id, RegistrationStatus.APPROVED)} title="Setujui" className="p-2 bg-green-50 text-green-600 rounded hover:bg-green-100"><CheckCircle className="w-4 h-4"/></button><button onClick={() => handleStatusUpdate(reg.id, RegistrationStatus.REJECTED)} title="Tolak" className="p-2 bg-red-50 text-red-600 rounded hover:bg-red-100"><XCircle className="w-4 h-4"/></button></>)}{reg.status === RegistrationStatus.APPROVED && (<button onClick={() => handleSendCertificate(reg.id)} disabled={processingCert === reg.id} title="Kirim Sertifikat" className="p-2 bg-[#F0F9FF] text-[#0B1CDE] rounded hover:bg-blue-100 disabled:opacity-50">{processingCert === reg.id ? <Loader className="w-4 h-4 animate-spin"/> : <Award className="w-4 h-4"/>}</button>)}</div></td>
+                                <td className="p-4">
+                                    <div className="flex justify-center gap-2">
+                                        <button 
+                                            onClick={() => { setViewingProof(reg); setAiResult(null); }} 
+                                            title="Lihat Bukti & Aksi" 
+                                            className="p-2 bg-blue-50 text-[#0B1CDE] border border-blue-200 rounded-lg hover:bg-blue-100 hover:shadow-sm transition-all"
+                                        >
+                                            <ImageIcon className="w-5 h-5"/>
+                                        </button>
+                                        
+                                        {reg.status === RegistrationStatus.APPROVED && (
+                                            <button onClick={() => handleSendCertificate(reg.id)} disabled={processingCert === reg.id} title="Kirim Sertifikat" className="p-2 bg-[#F0F9FF] text-[#0B1CDE] rounded hover:bg-blue-100 disabled:opacity-50">
+                                                {processingCert === reg.id ? <Loader className="w-5 h-5 animate-spin"/> : <Award className="w-5 h-5"/>}
+                                            </button>
+                                        )}
+                                    </div>
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -561,6 +619,92 @@ const AdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans relative">
       <CustomAlert isOpen={alertState.isOpen} type={alertState.type} title={alertState.title} message={alertState.message} onClose={closeAlert} onConfirm={alertState.onConfirm} confirmText={alertState.confirmText}/>
       
+      {/* PROOF MODAL WITH AI */}
+      {viewingProof && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setViewingProof(null)}>
+              <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
+                  
+                  {/* Left: Image */}
+                  <div className="w-full md:w-1/2 bg-gray-900 flex items-center justify-center p-4 relative">
+                      <img src={viewingProof.proofUrl} className="max-w-full max-h-[60vh] md:max-h-full object-contain rounded" alt="Bukti Pembayaran" />
+                      <a href={viewingProof.proofUrl} target="_blank" rel="noopener noreferrer" className="absolute top-4 right-4 bg-white/20 p-2 rounded-full hover:bg-white/40 text-white"><ExternalLink className="w-5 h-5"/></a>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="w-full md:w-1/2 p-6 flex flex-col overflow-y-auto bg-white">
+                      <div className="flex justify-between items-start mb-6">
+                          <div>
+                              <h3 className="text-xl font-black text-[#2B427A] uppercase">Verifikasi Pembayaran</h3>
+                              <p className="text-sm text-gray-500 font-bold">{viewingProof.userName}</p>
+                          </div>
+                          <button onClick={() => setViewingProof(null)} className="text-gray-400 hover:text-red-500"><XCircle className="w-8 h-8"/></button>
+                      </div>
+
+                      <div className="space-y-6 flex-1">
+                          {/* AI Section */}
+                          <div className="bg-gradient-to-r from-blue-50 to-[#F0F9FF] p-5 rounded-xl border border-blue-100">
+                              <div className="flex justify-between items-center mb-3">
+                                  <h4 className="font-black text-[#0B1CDE] flex items-center gap-2"><Sparkles className="w-4 h-4"/> AI Check</h4>
+                                  {!aiResult && (
+                                      <button 
+                                        onClick={handleAiAnalysis} 
+                                        disabled={isAnalyzing}
+                                        className="text-xs font-bold bg-[#0B1CDE] text-white px-3 py-1.5 rounded-lg hover:bg-[#2B427A] disabled:opacity-50 flex items-center gap-1"
+                                      >
+                                          {isAnalyzing ? <Loader className="w-3 h-3 animate-spin"/> : <Bot className="w-3 h-3"/>}
+                                          {isAnalyzing ? 'Menganalisis...' : 'Analisa Otomatis'}
+                                      </button>
+                                  )}
+                              </div>
+                              
+                              {aiResult ? (
+                                  <div className="animate-fade-in">
+                                      <div className={`p-3 rounded-lg border-l-4 mb-3 ${aiResult.isValid ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
+                                          <div className="flex items-center gap-2 font-bold mb-1">
+                                              {aiResult.isValid ? <CheckCircle className="w-4 h-4 text-green-600"/> : <XCircle className="w-4 h-4 text-red-600"/>}
+                                              <span className={aiResult.isValid ? 'text-green-700' : 'text-red-700'}>
+                                                  {aiResult.isValid ? 'Tampak Valid' : 'Perlu Pengecekan'}
+                                              </span>
+                                          </div>
+                                          <p className="text-xs text-gray-600 leading-relaxed">{aiResult.reason}</p>
+                                      </div>
+                                      <div className="flex justify-between text-xs font-bold text-gray-400">
+                                          <span>Confidence: {aiResult.confidence}</span>
+                                          <span>Nominal: {aiResult.detectedAmount || '-'}</span>
+                                      </div>
+                                  </div>
+                              ) : (
+                                  <p className="text-xs text-gray-500 italic">Klik tombol untuk membiarkan AI mengecek keaslian bukti transfer.</p>
+                              )}
+                          </div>
+
+                          {/* Manual Actions */}
+                          <div>
+                              <label className="block text-xs font-black text-gray-400 uppercase mb-3">Tindakan Manual</label>
+                              <div className="grid grid-cols-2 gap-4">
+                                  <button 
+                                      onClick={() => handleStatusUpdate(viewingProof.id, RegistrationStatus.APPROVED)}
+                                      className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-green-100 bg-green-50 text-green-700 hover:bg-green-100 hover:border-green-300 transition-all group"
+                                  >
+                                      <CheckCircle className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform"/>
+                                      <span className="font-black">TERIMA</span>
+                                  </button>
+                                  
+                                  <button 
+                                      onClick={() => handleStatusUpdate(viewingProof.id, RegistrationStatus.REJECTED)}
+                                      className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-red-100 bg-red-50 text-red-700 hover:bg-red-100 hover:border-red-300 transition-all group"
+                                  >
+                                      <XCircle className="w-8 h-8 mb-2 group-hover:scale-110 transition-transform"/>
+                                      <span className="font-black">TOLAK</span>
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* TOAST NOTIFICATION */}
       {toast.show && (
           <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up">

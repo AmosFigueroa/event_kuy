@@ -48,8 +48,6 @@ export const generateEventDescription = async (title: string, category: string, 
   } catch (error: any) {
     console.error("Error generating description:", error);
     
-    // Teruskan pesan error asli agar tampil di UI untuk debugging yang lebih baik
-    // Contoh: "API key expired", "Quota exceeded", dll.
     const errorMessage = error.message || error.toString();
     
     if (errorMessage.includes("API key")) {
@@ -78,4 +76,68 @@ export const generateEmailTemplate = async (eventType: string, status: string): 
        console.error("Error generating email template:", error);
        return "";
    }
+};
+
+export interface PaymentAnalysisResult {
+    isValid: boolean;
+    reason: string;
+    confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+    detectedAmount?: string;
 }
+
+export const analyzePaymentProof = async (imageBase64: string, expectedAmount: number): Promise<PaymentAnalysisResult> => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) throw new Error("API Key missing");
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    try {
+        const prompt = `
+            Anda adalah asisten verifikasi pembayaran otomatis. 
+            Tugas Anda adalah menganalisis gambar bukti transfer ini.
+            
+            Informasi yang diharapkan:
+            - Nominal yang harus dibayar: Rp ${expectedAmount.toLocaleString('id-ID')}
+            
+            Instruksi:
+            1. Periksa apakah gambar ini terlihat seperti bukti transfer bank/e-wallet yang sah (bukan gambar sembarang).
+            2. Cari nominal uang di dalam gambar. Apakah cocok dengan nominal yang diharapkan (atau lebih)?
+            3. Periksa status transaksi jika ada (harus BERHASIL/SUKSES).
+            
+            Berikan output HANYA dalam format JSON sebagai berikut, jangan ada teks lain:
+            {
+                "isValid": boolean, // true jika terlihat sah dan nominal cocok
+                "reason": string, // Penjelasan singkat dalam Bahasa Indonesia (maks 20 kata)
+                "confidence": "HIGH" | "MEDIUM" | "LOW", // Seberapa yakin Anda
+                "detectedAmount": string // Nominal yang terbaca (contoh: "50000" atau "Tidak terbaca")
+            }
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image', // Using vision model capabilities
+            contents: [
+                {
+                    inlineData: {
+                        mimeType: "image/jpeg",
+                        data: imageBase64
+                    }
+                },
+                { text: prompt }
+            ]
+        });
+
+        const text = response.text || "";
+        // Clean markdown code blocks if any
+        const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        return JSON.parse(jsonStr) as PaymentAnalysisResult;
+
+    } catch (error: any) {
+        console.error("AI Analysis Error:", error);
+        return {
+            isValid: false,
+            reason: "Gagal menganalisis gambar (Error Sistem). Cek manual.",
+            confidence: 'LOW'
+        };
+    }
+};

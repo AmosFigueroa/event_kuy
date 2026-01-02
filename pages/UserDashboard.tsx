@@ -14,9 +14,6 @@ const UserDashboard: React.FC = () => {
   const navigate = useNavigate();
   const session = getUserSession();
   
-  // QR Modal
-  const [showQr, setShowQr] = useState<string | null>(null);
-
   useEffect(() => {
     // Auth Check
     if (!session || session.role !== 'USER') {
@@ -62,6 +59,25 @@ const UserDashboard: React.FC = () => {
     } finally {
       setCertLoading(null);
     }
+  };
+
+  // Helper to check if certificate button should be shown (24 hours after event date)
+  const isCertificateUnlocked = (eventDateStr: string | undefined) => {
+      if (!eventDateStr) return false;
+      const eventDate = new Date(eventDateStr);
+      // Logic: Event Date + 24 Hours
+      const unlockDate = new Date(eventDate);
+      unlockDate.setHours(eventDate.getHours() + 24);
+      
+      return new Date() >= unlockDate;
+  };
+
+  const getUnlockDateString = (eventDateStr: string | undefined) => {
+      if (!eventDateStr) return "-";
+      const eventDate = new Date(eventDateStr);
+      const unlockDate = new Date(eventDate);
+      unlockDate.setHours(eventDate.getHours() + 24); // H+1
+      return unlockDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   const getStatusColor = (status: RegistrationStatus) => {
@@ -162,9 +178,9 @@ const UserDashboard: React.FC = () => {
         <div className="grid gap-8">
           {displayedTickets.map((ticket) => (
             <div key={ticket.id} className="group bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden hover:shadow-[8px_8px_0px_0px_#0B1CDE] transition-all duration-300">
-              <div className="flex flex-col md:flex-row">
+              <div className="flex flex-col md:flex-row h-full">
                 {/* Event Image (Left) */}
-                <div className="w-full md:w-56 h-48 md:h-auto bg-[#2B427A] relative overflow-hidden border-b-2 md:border-b-0 md:border-r-2 border-[#2B427A]">
+                <div className="w-full md:w-64 h-48 md:h-auto bg-[#2B427A] relative overflow-hidden border-b-2 md:border-b-0 md:border-r-2 border-[#2B427A] flex-shrink-0">
                   {ticket.eventDetails?.thumbnailUrl || ticket.eventDetails?.bannerUrl ? (
                      <img src={ticket.eventDetails.thumbnailUrl || ticket.eventDetails.bannerUrl} alt="Acara" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 mix-blend-overlay opacity-80" />
                   ) : (
@@ -179,59 +195,73 @@ const UserDashboard: React.FC = () => {
                 </div>
 
                 {/* Ticket Details (Middle) */}
-                <div className="flex-1 p-8">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="text-2xl font-black text-[#2B427A] mb-3 group-hover:text-[#0B1CDE] transition-colors uppercase leading-none">{ticket.eventTitle}</h3>
-                      <div className="space-y-2 text-sm text-gray-600 font-bold">
+                <div className="flex-1 p-6 flex flex-col justify-between">
+                  <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-2xl font-black text-[#2B427A] group-hover:text-[#0B1CDE] transition-colors uppercase leading-none">{ticket.eventTitle}</h3>
+                        {/* Status Badge (Desktop) */}
+                        <div className="hidden md:block">
+                            <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black border-2 uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,0.2)] ${getStatusColor(ticket.status)}`}>
+                                {getStatusIcon(ticket.status)} {getStatusText(ticket.status)}
+                            </span>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm text-gray-600 font-bold mt-4">
                          {ticket.eventDetails && (
                            <>
                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#0B1CDE]" /> {new Date(ticket.eventDetails.date).toDateString()} | {ticket.eventDetails.time}</div>
                              <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#0B1CDE]" /> {ticket.eventDetails.location}</div>
                            </>
                          )}
-                         <div className="pt-3 text-xs text-gray-400 font-mono uppercase tracking-widest">ID: {ticket.id.substring(0,8)}...</div>
+                         <div className="pt-2 text-xs text-gray-400 font-mono uppercase tracking-widest">ID: {ticket.id.substring(0,8)}...</div>
                       </div>
-                    </div>
-                    
-                    {/* Status Badge (Desktop) */}
-                    <div className="hidden md:block">
-                        <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black border-2 uppercase shadow-[2px_2px_0px_0px_rgba(0,0,0,0.2)] ${getStatusColor(ticket.status)}`}>
-                            {getStatusIcon(ticket.status)} {getStatusText(ticket.status)}
-                        </span>
-                    </div>
                   </div>
                   
-                  {/* QR BUTTON FOR ACTIVE APPROVED TICKETS */}
-                  {ticket.status === RegistrationStatus.APPROVED && ticket.eventDetails?.enableTicketScanner && (
-                     <button 
-                        onClick={() => setShowQr(ticket.id)}
-                        className="mt-6 flex items-center gap-2 bg-[#F0F9FF] text-[#2B427A] px-4 py-2 rounded-lg font-black border-2 border-[#2B427A] hover:bg-[#2B427A] hover:text-white transition-all text-sm uppercase"
-                     >
-                        <QrCode className="w-5 h-5" /> Tampilkan QR Code
-                     </button>
+                  {ticket.eventDetails && ticket.eventDetails.isOpen && (
+                       <a href={`/#/event/${createSlug(ticket.eventDetails.title) || ticket.eventId}`} className="text-sm text-[#2B427A] font-black hover:text-[#0B1CDE] flex items-center gap-1 mt-6 group/link uppercase tracking-wide self-start">
+                          LIHAT DETAIL <ArrowRight className="w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
+                       </a>
                   )}
                 </div>
 
-                {/* Actions (Right) */}
-                <div className="bg-[#F8FAFC] p-8 flex flex-col justify-center items-center gap-4 border-t-2 md:border-t-0 md:border-l-2 border-[#2B427A] md:w-72">
+                {/* Actions & QR (Right) */}
+                <div className="bg-[#F8FAFC] p-6 flex flex-col justify-center items-center gap-4 border-t-2 md:border-t-0 md:border-l-2 border-[#2B427A] md:w-80">
                     {ticket.status === RegistrationStatus.APPROVED ? (
                         <>
+                            {/* QR CODE SECTION */}
                             <div className="text-center w-full">
-                                <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Status Tiket</span>
+                                <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">STATUS TIKET</span>
+                                
                                 {ticket.checkInStatus === 'CHECKED_IN' ? (
-                                     <span className="text-xl font-black text-green-600 tracking-tighter bg-green-100 px-3 py-1 rounded block w-full">SUDAH CHECK-IN</span>
+                                     <span className="text-xl font-black text-green-600 tracking-tighter bg-green-100 px-4 py-2 rounded block w-full border border-green-200">SUDAH CHECK-IN</span>
                                 ) : (
-                                     <span className="text-3xl font-black text-[#0B1CDE] tracking-tighter">VALID</span>
+                                     <div className="flex flex-col items-center">
+                                         <h4 className="text-3xl font-black text-[#0B1CDE] tracking-tighter mb-4">VALID</h4>
+                                         {/* Embedded QR Code */}
+                                         <div className="bg-white p-2 rounded-lg border-2 border-[#2B427A] shadow-sm">
+                                             <QRCode value={ticket.id} size={100} fgColor="#2B427A" />
+                                         </div>
+                                         <p className="text-[10px] text-gray-400 font-bold mt-2 uppercase">Scan saat masuk</p>
+                                     </div>
                                 )}
                             </div>
-                            <button 
-                                onClick={() => requestCertificate(ticket.id)}
-                                disabled={certLoading === ticket.id}
-                                className="w-full text-sm bg-white border-2 border-[#0B1CDE] text-[#0B1CDE] hover:bg-[#0B1CDE] hover:text-white px-4 py-3 rounded-lg font-black transition-all shadow-[2px_2px_0px_0px_#0B1CDE] hover:translate-y-0.5 hover:shadow-none uppercase"
-                            >
-                                {certLoading === ticket.id ? 'MENGIRIM...' : 'KIRIM SERTIFIKAT'}
-                            </button>
+
+                            {/* CERTIFICATE BUTTON LOGIC */}
+                            {isCertificateUnlocked(ticket.eventDetails?.date) ? (
+                                <button 
+                                    onClick={() => requestCertificate(ticket.id)}
+                                    disabled={certLoading === ticket.id}
+                                    className="w-full text-sm bg-white border-2 border-[#0B1CDE] text-[#0B1CDE] hover:bg-[#0B1CDE] hover:text-white px-4 py-3 rounded-lg font-black transition-all shadow-[2px_2px_0px_0px_#0B1CDE] hover:translate-y-0.5 hover:shadow-none uppercase mt-2"
+                                >
+                                    {certLoading === ticket.id ? 'MENGIRIM...' : 'KIRIM SERTIFIKAT'}
+                                </button>
+                            ) : (
+                                <div className="mt-4 bg-gray-100 px-4 py-2 rounded-lg border border-gray-300 text-center w-full">
+                                    <p className="text-[10px] font-bold text-gray-500 uppercase">Sertifikat Tersedia Mulai</p>
+                                    <p className="text-xs font-black text-[#2B427A]">{getUnlockDateString(ticket.eventDetails?.date)}</p>
+                                </div>
+                            )}
                         </>
                     ) : ticket.status === RegistrationStatus.REJECTED ? (
                         <div className="text-center text-red-500 font-bold flex flex-col items-center p-4 bg-red-50 border-2 border-red-200 rounded-lg w-full">
@@ -244,39 +274,12 @@ const UserDashboard: React.FC = () => {
                             MENUNGGU PERSETUJUAN
                         </div>
                     )}
-                    
-                    {ticket.eventDetails && ticket.eventDetails.isOpen && (
-                         <a href={`/#/event/${createSlug(ticket.eventDetails.title) || ticket.eventId}`} className="text-sm text-[#2B427A] font-black hover:text-[#0B1CDE] flex items-center gap-1 mt-2 group/link uppercase tracking-wide">
-                            LIHAT DETAIL <ArrowRight className="w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
-                         </a>
-                    )}
                 </div>
               </div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* QR MODAL */}
-      {showQr && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowQr(null)}>
-              <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center animate-scale-up" onClick={e=>e.stopPropagation()}>
-                   <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-1">Tiket Masuk</h3>
-                   <p className="text-gray-500 font-bold text-sm mb-6">Tunjukkan QR ini kepada panitia saat kedatangan.</p>
-                   
-                   <div className="bg-white p-4 rounded-xl border-4 border-[#2B427A] inline-block mb-6 shadow-xl">
-                       <QRCode value={showQr} size={200} fgColor="#2B427A" />
-                   </div>
-                   
-                   <button 
-                       onClick={() => setShowQr(null)}
-                       className="w-full py-3 bg-gray-100 text-[#2B427A] font-bold rounded-lg hover:bg-gray-200 uppercase"
-                   >
-                       Tutup
-                   </button>
-              </div>
-          </div>
-      )}
     </div>
   );
 };

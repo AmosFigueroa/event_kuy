@@ -145,8 +145,8 @@ function loginUser(data) {
      var otp = Math.floor(100000 + Math.random() * 900000).toString();
      CacheService.getScriptCache().put("OTP_" + found.email, otp, 300); // 5 mins
      
-     var body = `<p>Halo Admin,</p><p>Kode OTP Dashboard:</p><h1>${otp}</h1>`;
-     _sendBrandedEmail(found.email, "🔒 Login OTP", "VERIFIKASI ADMIN", body);
+     var body = `<p>Halo Admin,</p><p>Gunakan kode berikut untuk masuk ke dashboard admin:</p><h1 style="color:#2B427A; letter-spacing: 5px;">${otp}</h1><p>Kode ini berlaku selama 5 menit.</p>`;
+     _sendBrandedEmail(found.email, "🔒 Login OTP Admin", "VERIFIKASI ADMIN", body);
      
      return { valid: false, requireOtp: true };
   }
@@ -161,8 +161,8 @@ function requestOtp(data) {
     var otp = Math.floor(100000 + Math.random() * 900000).toString(); 
     CacheService.getScriptCache().put("OTP_" + email, otp, 300); 
     
-    var body = `<p>Halo,</p><p>Kode OTP:</p><h1>${otp}</h1>`; 
-    _sendBrandedEmail(email, "🔑 Kode Login", "VERIFIKASI AKUN", body); 
+    var body = `<p>Halo,</p><p>Gunakan kode OTP berikut untuk masuk ke akun Anda:</p><h1 style="color:#2B427A; letter-spacing: 5px;">${otp}</h1><p>Jangan berikan kode ini kepada siapa pun.</p>`; 
+    _sendBrandedEmail(email, "🔑 Kode Login OTP", "VERIFIKASI AKUN", body); 
     
     return { sent: true }; 
 }
@@ -437,8 +437,15 @@ function registerEventParticipant(data) {
   var current = Number(events[eventRowIndex][10]) || 0;
   eSheet.getRange(eventRowIndex + 1, 11).setValue(current + 1);
   
-  var body = `<p>Halo <strong>${data.name}</strong>,</p><p>Terima kasih telah melakukan pendaftaran...</p>`;
-  _sendBrandedEmail(data.email, "✅ Pendaftaran Diterima", "MENUNGGU VERIFIKASI", body);
+  var body = `
+    <p>Halo <strong>${data.name}</strong>, 👋</p>
+    <p>Terima kasih telah mendaftar di acara <strong>"${eventTitle}"</strong>.</p>
+    <p>Data pendaftaran dan bukti pembayaran Anda telah kami terima. Tim kami sedang melakukan verifikasi (maksimal 1x24 jam).</p>
+    <p>Mohon cek email Anda secara berkala untuk update status tiket.</p>
+    <br/>
+    <p>Salam hangat,<br>Panitia ${eventTitle}</p>
+  `;
+  _sendBrandedEmail(data.email, "✅ Pendaftaran Diterima!", "MENUNGGU VERIFIKASI", body);
 
   return { status: "PENDING" };
 }
@@ -600,9 +607,67 @@ function exportParticipants(data) {
     return { csv: Utilities.base64Encode(csvContent), filename: "Export_Peserta_" + new Date().getTime() + ".csv" };
 }
 
-// ... (Rest of existing functions: updateRegistrationStatus, sendCertificate, sendBulkCertificates, payment settings, cert settings, DB helpers) ...
-function updateRegistrationStatus(data) { /* ... Same */ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { sheet.getRange(i + 1, 7).setValue(data.status); var email = rows[i][4]; var name = rows[i][3]; var evtTitle = rows[i][2]; var isApproved = data.status === 'APPROVED'; var statusTitle = isApproved ? 'PENDAFTARAN DISETUJUI' : 'PENDAFTARAN DITOLAK'; var statusColor = isApproved ? '#22c55e' : '#ef4444'; var body = `<p>Halo ${name},</p><div style="background-color: ${isApproved ? '#f0fdf4' : '#fef2f2'}; padding: 15px; border: 2px solid ${statusColor};">STATUS: ${isApproved ? 'VALID' : 'INVALID'}</div>`; try { _sendBrandedEmail(email, "Update Status Tiket", statusTitle, body); } catch(e){} return { status: data.status }; } } throw new Error("Registration not found"); }
-function sendCertificate(data) { /* ... Same */ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); var certLink = (data.baseUrl || "https://bisdig.upy.ac.id/hmp/") + "/#/certificate/" + data.id; for(var i=1; i<rows.length; i++) { if(rows[i][0] == data.id) { var body = `<p>Sertifikat Anda:</p>${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}`; _sendBrandedEmail(rows[i][4], "🎓 Sertifikat Anda Telah Terbit", "SERTIFIKAT", body); return { sent: true }; } } throw new Error("Not found"); }
+function updateRegistrationStatus(data) {
+  var sheet = _getSheet("Registrations");
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] == data.id) {
+      sheet.getRange(i + 1, 7).setValue(data.status);
+      var email = rows[i][4];
+      var name = rows[i][3];
+      var evtTitle = rows[i][2];
+      var isApproved = data.status === 'APPROVED';
+      var statusTitle = isApproved ? 'PENDAFTARAN DISETUJUI 🥳' : 'PENDAFTARAN DITOLAK 🚫';
+      
+      var body = "";
+      if (isApproved) {
+          body = `
+            <p>Halo <strong>${name}</strong>,</p>
+            <p>Selamat! Pembayaran Anda telah kami verifikasi.</p>
+            <p>Tiket Anda untuk acara <strong>"${evtTitle}"</strong> sekarang berstatus <strong>VALID</strong>.</p>
+            <p>Silakan login ke dashboard untuk melihat tiket dan QR Code masuk Anda.</p>
+            <br/>
+            <p>Sampai jumpa di acara!</p>
+          `;
+      } else {
+          body = `
+            <p>Halo <strong>${name}</strong>,</p>
+            <p>Mohon maaf, pendaftaran Anda untuk acara <strong>"${evtTitle}"</strong> belum dapat kami setujui.</p>
+            <p>Hal ini mungkin disebabkan karena bukti pembayaran tidak valid atau kuota telah penuh.</p>
+            <p>Silakan hubungi admin kami jika Anda merasa ini adalah kesalahan.</p>
+          `;
+      }
+      
+      try { _sendBrandedEmail(email, "Update Status Tiket", statusTitle, body); } catch(e){}
+      return { status: data.status };
+    }
+  }
+  throw new Error("Registration not found");
+}
+
+function sendCertificate(data) {
+  var sheet = _getSheet("Registrations");
+  var rows = sheet.getDataRange().getValues();
+  var certLink = (data.baseUrl || "https://bisdig.upy.ac.id/hmp/") + "/#/certificate/" + data.id;
+  
+  for(var i=1; i<rows.length; i++) {
+    if(rows[i][0] == data.id) {
+       var name = rows[i][3];
+       var evtTitle = rows[i][2];
+       var body = `
+         <p>Halo <strong>${name}</strong>,</p>
+         <p>Terima kasih telah berpartisipasi dalam acara <strong>"${evtTitle}"</strong>.</p>
+         <p>Sebagai bentuk apresiasi, kami lampirkan e-Sertifikat keikutsertaan Anda.</p>
+         ${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}
+         <p>Semoga ilmu yang didapatkan bermanfaat!</p>
+       `;
+       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat Anda Telah Terbit", "E-SERTIFIKAT", body);
+       return { sent: true };
+    }
+  }
+  throw new Error("Not found");
+}
+
 function sendBulkCertificates(data) { /* ... Same */ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); var idsToProcess = data.ids || []; var successCount = 0; var failCount = 0; var idMap = {}; for(var i=1; i<rows.length; i++) { idMap[rows[i][0]] = i; } idsToProcess.forEach(function(id) { var rowIndex = idMap[id]; if(rowIndex) { var row = rows[rowIndex]; if(row[6] === 'APPROVED') { try { var certLink = (data.baseUrl || "https://bisdig.upy.ac.id/hmp/") + "/#/certificate/" + id; var body = `<p>Sertifikat Anda:</p>${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}`; _sendBrandedEmail(row[4], "🎓 Sertifikat Anda Telah Terbit", "SERTIFIKAT", body); successCount++; } catch(e) { failCount++; } } } }); return { sent: successCount, failed: failCount }; }
 function savePaymentSettings(data) { /* ... Same */ var ss = _getDb(); var sheet = ss.getSheetByName("Settings"); if (!sheet) { sheet = ss.insertSheet("Settings"); sheet.appendRow(["Key", "Value"]); } var qrisUrl = data.currentQrisUrl || ""; if (data.qrisBase64) { try { var folder = _getAdminFolder(); var blob = Utilities.newBlob(Utilities.base64Decode(data.qrisBase64), "image/jpeg", "qris_master"); var file = folder.createFile(blob); file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); qrisUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); } catch(e) {} } var setSetting = function(key, val) { var data = sheet.getDataRange().getValues(); for(var i=0; i<data.length; i++) { if(data[i][0] == key) { sheet.getRange(i+1, 2).setValue(val); return; } } sheet.appendRow([key, val]); }; setSetting("BANK_ACCOUNTS_JSON", JSON.stringify(data.bankAccounts || [])); setSetting("QRIS_URL", qrisUrl); return { success: true, qrisUrl: qrisUrl }; }
 function getPaymentSettings() { /* ... Same */ var sheet = _getSheet("Settings"); if (!sheet) return { bankAccounts: [], qrisUrl: "" }; var data = sheet.getDataRange().getValues(); var settings = {}; data.forEach(function(r) { settings[r[0]] = r[1]; }); var bankAccounts = []; if (settings["BANK_ACCOUNTS_JSON"]) { try { bankAccounts = JSON.parse(settings["BANK_ACCOUNTS_JSON"]); } catch (e) { } } return { bankAccounts: bankAccounts, qrisUrl: settings["QRIS_URL"] || "" }; }
