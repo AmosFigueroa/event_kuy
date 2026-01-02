@@ -1,21 +1,38 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Ensure process is typed to avoid TS errors if @types/node is missing
-declare var process: {
-  env: {
-    API_KEY: string;
-  };
+// Helper to get API Key safely in Vite environment
+const getApiKey = (): string => {
+  // 1. Try standard Vite env var
+  try {
+    // Safe check for import.meta.env to prevent "Cannot read properties of undefined (reading 'VITE_API_KEY')"
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+      return import.meta.env.VITE_API_KEY;
+    }
+  } catch (e) {
+    // Ignore errors if import.meta is not supported or defined
+  }
+  
+  // 2. Try legacy process.env (rare in browser but possible with polyfills)
+  try {
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      // @ts-ignore
+      return process.env.API_KEY;
+    }
+  } catch (e) {}
+  
+  return "";
 };
 
+const API_KEY = getApiKey();
+
 export const generateEventDescription = async (title: string, category: string, keyDetails: string): Promise<string> => {
-  // Validasi keberadaan API Key sebelum inisialisasi
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    throw new Error("API Key tidak ditemukan. Pastikan konfigurasi environment (API_KEY) sudah benar.");
+  if (!API_KEY) {
+    throw new Error("API Key hilang. Tambahkan VITE_API_KEY di file .env Anda.");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: API_KEY });
     
   try {
     const prompt = `
@@ -38,7 +55,6 @@ export const generateEventDescription = async (title: string, category: string, 
       contents: prompt,
     });
 
-    // Validasi response text
     const text = response.text;
     if (!text) {
         throw new Error("AI tidak mengembalikan teks deskripsi.");
@@ -47,22 +63,18 @@ export const generateEventDescription = async (title: string, category: string, 
     return text.trim();
   } catch (error: any) {
     console.error("Error generating description:", error);
-    
     const errorMessage = error.message || error.toString();
-    
     if (errorMessage.includes("API key")) {
-        throw new Error("Masalah API Key: Pastikan Key valid dan memiliki akses ke model Gemini.");
+        throw new Error("Masalah API Key: Pastikan Key valid di .env.");
     }
-    
     throw new Error(errorMessage);
   }
 };
 
 export const generateEmailTemplate = async (eventType: string, status: string): Promise<string> => {
-   const apiKey = process.env.API_KEY;
-   if (!apiKey) return "";
+   if (!API_KEY) return "";
 
-   const ai = new GoogleGenAI({ apiKey });
+   const ai = new GoogleGenAI({ apiKey: API_KEY });
 
    try {
        const prompt = `Write a short, polite email subject and body in Indonesian for a user whose registration for a ${eventType} is now ${status}.`;
@@ -86,10 +98,15 @@ export interface PaymentAnalysisResult {
 }
 
 export const analyzePaymentProof = async (imageBase64: string, expectedAmount: number): Promise<PaymentAnalysisResult> => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key missing. Cek konfigurasi environment.");
+    if (!API_KEY) {
+        return {
+            isValid: false,
+            reason: "API Key tidak ditemukan. Konfigurasi VITE_API_KEY diperlukan.",
+            confidence: 'LOW'
+        };
+    }
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
 
     try {
         const prompt = `

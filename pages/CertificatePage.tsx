@@ -24,6 +24,10 @@ const CertificatePage: React.FC = () => {
   // Constants MUST match AdminDashboard canvas size to ensure WYSIWYG
   const CERT_WIDTH = 842; 
   const CERT_HEIGHT = 595;
+  // Frame thickness for preview (visual only)
+  const FRAME_PADDING = 20; 
+  const VISUAL_WIDTH = CERT_WIDTH + (FRAME_PADDING * 2);
+  const VISUAL_HEIGHT = CERT_HEIGHT + (FRAME_PADDING * 2);
 
   useEffect(() => {
     if (!id) return;
@@ -53,11 +57,12 @@ const CertificatePage: React.FC = () => {
     const handleResize = () => {
         if (containerRef.current) {
             const parentWidth = containerRef.current.offsetWidth;
-            const padding = 32; // Total horizontal padding
+            const padding = 24; // Total horizontal padding of container
             const availableWidth = parentWidth - padding;
             
-            // Calculate scale based on the Base Width (842px)
-            const newScale = Math.min(availableWidth / CERT_WIDTH, 1);
+            // Calculate scale based on the VISUAL WIDTH (Certificate + Frame)
+            // This ensures the frame fits in the screen
+            const newScale = Math.min(availableWidth / VISUAL_WIDTH, 1);
             setScale(newScale);
         }
     };
@@ -77,6 +82,7 @@ const CertificatePage: React.FC = () => {
 
     try {
         // High resolution scale for PDF generation (3x of 842px is plenty for A4)
+        // Note: We capture certRef, which is INSIDE the frame, so the frame is NOT captured.
         const canvas = await html2canvas(certRef.current, {
             scale: 4, 
             useCORS: true,
@@ -91,7 +97,16 @@ const CertificatePage: React.FC = () => {
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(`Sertifikat_${registration.userName.replace(/\s+/g, '_')}.pdf`);
+        
+        // FORMAT NAMA FILE: sertifikat_namaevent_namapeserta_nourutan
+        const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
+        const eventName = sanitize(registration.eventTitle);
+        const participantName = sanitize(registration.userName);
+        const refNumber = registration.id.substring(0, 8); // Menggunakan 8 digit pertama ID sebagai nomor urut/referensi
+
+        const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
+
+        pdf.save(fileName);
     } catch (e) {
         alert("Gagal mengunduh sertifikat.");
         console.error(e);
@@ -226,55 +241,76 @@ const CertificatePage: React.FC = () => {
       </div>
 
       <div 
-        className="w-full flex justify-center pb-10 overflow-hidden" 
+        className="w-full flex justify-center pb-10" 
         ref={containerRef}
       >
-          {/* Wrapper for scaling */}
-          <div style={{ width: CERT_WIDTH * scale, height: CERT_HEIGHT * scale, position: 'relative' }}>
+          {/* Scaling Wrapper */}
+          <div style={{ width: VISUAL_WIDTH * scale, height: VISUAL_HEIGHT * scale, position: 'relative' }}>
               
-              {/* The Actual Certificate Node */}
+              {/* THE VISUAL FRAME (Scale Applied Here) */}
+              {/* HTML2CANVAS Targets the CHILD (certRef), so this frame is ignored during download */}
               <div 
-                ref={certRef}
-                className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center origin-top-left"
-                style={{ 
-                    width: `${CERT_WIDTH}px`, 
-                    height: `${CERT_HEIGHT}px`, 
-                    boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                style={{
+                    width: VISUAL_WIDTH,
+                    height: VISUAL_HEIGHT,
                     transform: `scale(${scale})`,
-                    position: 'absolute',
-                    top: 0,
-                    left: 0
+                    transformOrigin: 'top left',
+                    backgroundColor: '#1a1a1a', // Dark Gray Frame
+                    padding: `${FRAME_PADDING}px`,
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', // Deep Shadow
+                    borderRadius: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative',
+                    // Frame Texture Effect
+                    backgroundImage: 'linear-gradient(45deg, #2a2a2a 25%, #1a1a1a 25%, #1a1a1a 50%, #2a2a2a 50%, #2a2a2a 75%, #1a1a1a 75%, #1a1a1a 100%)',
+                    backgroundSize: '20px 20px'
                 }}
               >
-                 {hasConfig ? (
-                     <>
-                         <div className="absolute inset-0 z-0">
-                             <img 
-                                src={certConfig.backgroundUrl} 
-                                alt="Certificate Background" 
-                                className="w-full h-full object-cover" 
-                                crossOrigin="anonymous" 
-                             />
-                         </div>
-                         {certConfig.elements.map(renderElement)}
-                     </>
-                 ) : (
-                     // Default Fallback Template
-                     <>
-                        <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
-                        <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
-                        <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
-                            <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
-                            <div className="relative px-12 pb-2 mb-8">
-                                 <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName.toUpperCase()}</h2>
-                                 <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
+                 {/* Gold Inner Border for the Frame */}
+                 <div className="absolute inset-4 border-2 border-[#DFFF00] rounded-lg opacity-50 pointer-events-none"></div>
+
+                 {/* The Actual Certificate Node (Clean for PDF) */}
+                 <div 
+                    ref={certRef}
+                    className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative shadow-xl"
+                    style={{ 
+                        width: `${CERT_WIDTH}px`, 
+                        height: `${CERT_HEIGHT}px`, 
+                        // No scale here, it inherits from parent or is captured natively
+                    }}
+                 >
+                     {hasConfig ? (
+                         <>
+                             <div className="absolute inset-0 z-0">
+                                 <img 
+                                    src={certConfig.backgroundUrl} 
+                                    alt="Certificate Background" 
+                                    className="w-full h-full object-cover" 
+                                    crossOrigin="anonymous" 
+                                 />
+                             </div>
+                             {certConfig.elements.map(renderElement)}
+                         </>
+                     ) : (
+                         // Default Fallback Template
+                         <>
+                            <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
+                            <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
+                            <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
+                                <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
+                                <div className="relative px-12 pb-2 mb-8">
+                                     <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName.toUpperCase()}</h2>
+                                     <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
+                                </div>
+                                <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
+                                     Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
+                                </p>
                             </div>
-                            <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
-                                 Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
-                            </p>
-                        </div>
-                     </>
-                 )}
+                         </>
+                     )}
+                 </div>
               </div>
           </div>
       </div>

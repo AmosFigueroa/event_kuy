@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -453,14 +453,14 @@ const AdminDashboard: React.FC = () => {
           const newEl: CertificateElement = {
               id: Date.now().toString(),
               type,
-              field: type === 'dynamic' ? 'userName' : (type === 'text' ? 'Teks Baru' : 'https://via.placeholder.com/100'),
+              field: type === 'dynamic' ? 'userName' : (type === 'text' ? 'Teks Baru' : 'https://via.placeholder.com/150'),
               label: 'Element Baru',
               x: 421, // Center of A4 width (842)
               y: 297, // Center of A4 height (595)
               fontSize: 24,
               fontFamily: 'Helvetica',
               align: 'center',
-              width: type === 'image' ? 100 : undefined,
+              width: type === 'image' ? 150 : undefined,
               color: '#000000',
               fontWeight: 'bold'
           };
@@ -492,100 +492,203 @@ const AdminDashboard: React.FC = () => {
       const activeElement = elements.find(el => el.id === activeElementId);
 
       return (
-          <div className="flex flex-col h-full">
-              <div className="flex-1 bg-gray-200 overflow-auto p-8 flex justify-center items-center relative" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-                   <div className="relative bg-white shadow-xl overflow-hidden" style={{ width: 842, height: 595 }}>
-                       {bgUrl && <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />}
+          <div className="flex flex-col lg:flex-row h-full bg-white rounded-xl overflow-hidden border border-gray-200">
+              {/* LEFT SIDEBAR: TOOLS */}
+              <div className="w-full lg:w-72 bg-gray-50 border-r border-gray-200 p-6 flex flex-col gap-6 overflow-y-auto">
+                  
+                  {/* Add Elements Group */}
+                  <div>
+                      <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">TAMBAH ELEMEN</h4>
+                      <div className="space-y-2">
+                          <button onClick={() => handleAddElement('dynamic')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
+                              <div className="bg-blue-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><Database className="w-4 h-4"/></div>
+                              Data Dinamis
+                          </button>
+                          <button onClick={() => handleAddElement('text')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
+                              <div className="bg-gray-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><TypeIcon className="w-4 h-4"/></div>
+                              Teks Statis
+                          </button>
+                          <button onClick={() => handleAddElement('image')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
+                              <div className="bg-purple-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><ImagePlus className="w-4 h-4"/></div>
+                              Gambar/Logo
+                          </button>
+                      </div>
+                  </div>
+
+                  {/* Background Group */}
+                  <div className="pt-4 border-t border-gray-200">
+                      <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND</h4>
+                      <label className="w-full cursor-pointer group">
+                           <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-xl bg-white flex flex-col items-center justify-center gap-2 group-hover:border-[#0B1CDE] group-hover:bg-blue-50 transition-all overflow-hidden relative">
+                               {bgUrl ? (
+                                   <>
+                                     <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-40" />
+                                     <div className="relative z-10 bg-white/80 px-3 py-1 rounded-full text-xs font-bold text-[#0B1CDE] backdrop-blur-sm">Ganti Gambar</div>
+                                   </>
+                               ) : (
+                                   <>
+                                     <Upload className="w-8 h-8 text-gray-300 group-hover:text-[#0B1CDE]" />
+                                     <span className="text-xs font-bold text-gray-400 group-hover:text-[#0B1CDE]">Upload Template</span>
+                                   </>
+                               )}
+                           </div>
+                           <input type="file" className="hidden" onChange={(e) => {
+                               const file = e.target.files?.[0];
+                               if(file) {
+                                   if (isEventSpecific) {
+                                       setCertBgFile(file);
+                                       const reader = new FileReader();
+                                       reader.onload = (ev) => setCertBgPreview(ev.target?.result as string);
+                                       reader.readAsDataURL(file);
+                                   } else {
+                                       setCertTemplateFile(file);
+                                       const reader = new FileReader();
+                                       reader.onload = (ev) => setCertSettingsBgPreview(ev.target?.result as string);
+                                       reader.readAsDataURL(file);
+                                   }
+                               }
+                           }} accept="image/*" />
+                      </label>
+                      <p className="text-[10px] text-gray-400 mt-2 font-medium">Format: JPG/PNG, Orientasi Landscape (A4)</p>
+                  </div>
+              </div>
+
+              {/* CENTER: CANVAS */}
+              <div className="flex-1 bg-[#F0F2F5] overflow-auto p-8 flex items-center justify-center relative" 
+                   onMouseMove={handleMouseMove} 
+                   onMouseUp={handleMouseUp} 
+                   onMouseLeave={handleMouseUp}
+              >
+                   {/* The Paper Canvas */}
+                   <div className="relative bg-white shadow-2xl transition-shadow" style={{ width: 842, height: 595, flexShrink: 0 }}>
+                       {bgUrl ? (
+                           <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                       ) : (
+                           <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-4xl uppercase select-none border-2 border-dashed border-gray-300 m-4">Area Sertifikat</div>
+                       )}
+                       
                        {elements.map(el => (
                            <div 
                              key={el.id} 
                              onMouseDown={(e) => handleMouseDown(e, el.id)}
-                             className={`absolute cursor-move border hover:border-blue-500 ${activeElementId === el.id ? 'border-2 border-blue-600 z-50' : 'border-transparent z-10'}`}
+                             className={`absolute cursor-move select-none group ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
                              style={{ 
                                  left: el.x, top: el.y, 
                                  transform: el.align === 'center' ? 'translate(-50%, -50%)' : el.align === 'right' ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
-                                 fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.color, fontWeight: el.fontWeight,
                                  width: el.width || 'auto'
                              }}
                            >
-                               {el.type === 'image' ? <img src={el.field} style={{width: '100%'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
+                               {/* Selection Box Visual */}
+                               <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
+                               
+                               {/* Content Render */}
+                               <div style={{
+                                   fontSize: el.fontSize, 
+                                   fontFamily: el.fontFamily, 
+                                   color: el.color, 
+                                   fontWeight: el.fontWeight,
+                                   textAlign: el.align,
+                                   position: 'relative' // to sit above selection box
+                               }}>
+                                  {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
+                               </div>
                            </div>
                        ))}
                    </div>
               </div>
-              <div className="h-64 bg-white border-t-2 border-gray-300 p-4 flex gap-6">
-                   <div className="w-1/4 space-y-2">
-                       <h4 className="font-bold text-gray-500 uppercase text-xs">Tambah Element</h4>
-                       <button onClick={() => handleAddElement('dynamic')} className="w-full p-2 bg-blue-100 text-blue-700 rounded text-sm font-bold flex items-center gap-2"><PlusCircle className="w-4 h-4"/> Data Dinamis</button>
-                       <button onClick={() => handleAddElement('text')} className="w-full p-2 bg-gray-100 text-gray-700 rounded text-sm font-bold flex items-center gap-2"><Type className="w-4 h-4"/> Teks Statis</button>
-                       <h4 className="font-bold text-gray-500 uppercase text-xs mt-4">Background</h4>
-                       <input type="file" onChange={(e) => {
-                           const file = e.target.files?.[0];
-                           if(file) {
-                               if (isEventSpecific) {
-                                   setCertBgFile(file);
-                                   const reader = new FileReader();
-                                   reader.onload = (ev) => setCertBgPreview(ev.target?.result as string);
-                                   reader.readAsDataURL(file);
-                               } else {
-                                   setCertTemplateFile(file);
-                                   const reader = new FileReader();
-                                   reader.onload = (ev) => setCertSettingsBgPreview(ev.target?.result as string);
-                                   reader.readAsDataURL(file);
-                               }
-                           }
-                       }} className="text-xs w-full"/>
-                   </div>
-                   <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200 overflow-y-auto">
-                       {activeElement ? (
-                           <div className="grid grid-cols-3 gap-4">
-                               <div>
-                                   <label className="text-xs font-bold text-gray-400 uppercase">Konten / Field</label>
-                                   {activeElement.type === 'dynamic' ? (
-                                       <select value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-1 border rounded text-sm font-bold">
+
+              {/* RIGHT SIDEBAR: PROPERTIES */}
+              <div className="w-full lg:w-80 bg-white border-l border-gray-200 p-6 z-20 shadow-xl overflow-y-auto">
+                   <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-4 border-b pb-2">PROPERTI ITEM</h4>
+                   {activeElement ? (
+                       <div className="space-y-5 animate-fade-in">
+                           {/* Content Input */}
+                           <div>
+                               <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Konten / Isi</label>
+                               {activeElement.type === 'dynamic' ? (
+                                   <div className="relative">
+                                       <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
+                                       <select value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
                                            <option value="userName">Nama Peserta</option>
                                            <option value="eventTitle">Judul Acara</option>
-                                           <option value="date">Tanggal</option>
+                                           <option value="date">Tanggal Acara</option>
                                            <option value="certificateNumber">Nomor Sertifikat</option>
                                        </select>
-                                   ) : (
-                                       <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-1 border rounded text-sm font-bold" />
-                                   )}
-                               </div>
-                               <div>
-                                   <label className="text-xs font-bold text-gray-400 uppercase">Font Size</label>
-                                   <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-1 border rounded text-sm font-bold" />
-                               </div>
-                               <div>
-                                   <label className="text-xs font-bold text-gray-400 uppercase">Warna</label>
-                                   <input type="color" value={activeElement.color || '#000000'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, color: e.target.value } : el))} className="w-full h-8 p-0 border rounded cursor-pointer" />
-                               </div>
-                               <div>
-                                   <label className="text-xs font-bold text-gray-400 uppercase">Align</label>
-                                   <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full p-1 border rounded text-sm font-bold">
-                                       <option value="left">Kiri</option>
-                                       <option value="center">Tengah</option>
-                                       <option value="right">Kanan</option>
-                                   </select>
-                               </div>
-                               <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">Font Weight</label>
-                                    <select value={activeElement.fontWeight || 'bold'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontWeight: e.target.value as any } : el))} className="w-full p-1 border rounded text-sm font-bold">
-                                       <option value="normal">Normal</option>
-                                       <option value="bold">Bold</option>
-                                   </select>
-                               </div>
-                               <div className="flex items-end">
-                                   <button onClick={() => {
-                                       updateConfig(elements.filter(el => el.id !== activeElementId));
-                                       setActiveElementId(null);
-                                   }} className="w-full py-2 bg-red-100 text-red-600 rounded font-bold text-sm hover:bg-red-200 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/> Hapus</button>
-                               </div>
+                                   </div>
+                               ) : activeElement.type === 'image' ? (
+                                   <div className="relative">
+                                       <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" placeholder="URL Gambar..." />
+                                       <p className="text-[10px] text-gray-400 mt-1">Masukkan URL gambar atau base64</p>
+                                   </div>
+                               ) : (
+                                   <div className="relative">
+                                       <TypeIcon className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
+                                       <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
+                                   </div>
+                               )}
                            </div>
-                       ) : (
-                           <div className="h-full flex items-center justify-center text-gray-400 font-bold text-sm">Pilih elemen di canvas untuk edit.</div>
-                       )}
-                   </div>
+
+                           <div className="grid grid-cols-2 gap-4">
+                               {activeElement.type !== 'image' && (
+                                   <>
+                                   <div>
+                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ukuran Font</label>
+                                       <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
+                                   </div>
+                                   <div>
+                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Warna</label>
+                                       <div className="flex items-center gap-2 border-2 border-gray-200 rounded-lg p-1.5 focus-within:border-[#0B1CDE]">
+                                            <input type="color" value={activeElement.color || '#000000'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, color: e.target.value } : el))} className="w-6 h-6 p-0 border-0 rounded cursor-pointer" />
+                                            <span className="text-xs font-mono font-bold text-gray-500 uppercase">{activeElement.color}</span>
+                                       </div>
+                                   </div>
+                                   <div>
+                                        <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ketebalan</label>
+                                        <div className="relative">
+                                            <Bold className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
+                                            <select value={activeElement.fontWeight || 'bold'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontWeight: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
+                                                <option value="normal">Normal</option>
+                                                <option value="bold">Bold</option>
+                                            </select>
+                                        </div>
+                                   </div>
+                                   </>
+                               )}
+                               <div>
+                                   <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Perataan (Align)</label>
+                                   <div className="relative">
+                                       <AlignJustify className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
+                                       <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
+                                           <option value="left">Kiri</option>
+                                           <option value="center">Tengah</option>
+                                           <option value="right">Kanan</option>
+                                       </select>
+                                   </div>
+                               </div>
+                               {activeElement.type === 'image' && (
+                                   <div className="col-span-2">
+                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Lebar (px)</label>
+                                       <input type="number" value={activeElement.width || 100} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, width: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
+                                   </div>
+                               )}
+                           </div>
+                           
+                           <hr className="border-gray-100"/>
+                           
+                           <button onClick={() => {
+                               updateConfig(elements.filter(el => el.id !== activeElementId));
+                               setActiveElementId(null);
+                           }} className="w-full py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-bold text-sm hover:bg-red-100 flex items-center justify-center gap-2 transition-colors">
+                               <Trash2 className="w-4 h-4"/> Hapus Elemen
+                           </button>
+                       </div>
+                   ) : (
+                       <div className="h-64 flex flex-col items-center justify-center text-center text-gray-400 p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                           <MousePointer2 className="w-10 h-10 mb-3 opacity-30" />
+                           <p className="text-sm font-bold">Pilih elemen pada canvas</p>
+                           <p className="text-xs opacity-70">Klik salah satu item di tengah untuk mengedit properti.</p>
+                       </div>
+                   )}
               </div>
           </div>
       );
@@ -857,7 +960,7 @@ const AdminDashboard: React.FC = () => {
                         {/* STEP 4 */}
                         {wizardStep === 4 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Harga & Kuota</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Harga Tiket</label><div className="flex items-center gap-3"><span className="text-2xl font-bold text-gray-400">Rp</span><input type="number" value={newEvent.price} onChange={e=>setNewEvent({...newEvent, price: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div><p className="text-xs text-gray-400 mt-4 font-bold bg-gray-50 p-2 rounded inline-block">Masukkan 0 untuk Acara GRATIS</p></div><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Kuota Peserta</label><div className="flex items-center gap-3"><UsersIcon className="w-8 h-8 text-gray-400"/><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div></div></div></div>)}
                         {/* STEP 5 */}
-                        {wizardStep === 5 && (<div className="space-y-6 animate-fade-in h-full flex flex-col"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Desain Sertifikat</h3><p className="text-sm text-gray-500 mb-4">Buat desain sertifikat khusus untuk acara ini. Jika dikosongkan, sertifikat default akan digunakan.</p><div className="flex-1 border rounded-xl overflow-hidden">{renderDesigner(true)}</div></div>)}
+                        {wizardStep === 5 && (<div className="space-y-6 animate-fade-in h-full flex flex-col"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Desain Sertifikat</h3><p className="text-sm text-gray-500 mb-4">Buat desain sertifikat khusus untuk acara ini. Jika dikosongkan, sertifikat default akan digunakan.</p><div className="flex-1 border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(true)}</div></div>)}
                     </div>
                     <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
                         {wizardStep > 1 ? (<button onClick={()=>setWizardStep(prev=>prev-1)} className="px-6 py-3 rounded-xl font-bold text-gray-600 hover:bg-gray-200 flex items-center gap-2"><ChevronLeft className="w-4 h-4"/> KEMBALI</button>) : <div/>}
@@ -878,7 +981,7 @@ const AdminDashboard: React.FC = () => {
                    </nav>
                </div>
                <div className="flex-1 overflow-y-auto p-8 bg-white">
-                   {settingsTab === 'certificate' && (<div className="animate-fade-in h-full flex flex-col"><div className="mb-6 flex justify-between items-center border-b pb-4"><div><h3 className="font-black text-[#2B427A] uppercase mb-1">Desain Sertifikat Default</h3><p className="text-gray-500 text-sm">Template ini akan digunakan jika acara tidak memiliki desain spesifik.</p></div><button onClick={handleSaveCertSettings} disabled={savingCertSettings} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingCertSettings ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN TEMPLATE</button></div><div className="flex-1 relative">{renderDesigner(false)}</div></div>)}
+                   {settingsTab === 'certificate' && (<div className="animate-fade-in h-full flex flex-col"><div className="mb-6 flex justify-between items-center border-b pb-4"><div><h3 className="font-black text-[#2B427A] uppercase mb-1">Desain Sertifikat Default</h3><p className="text-gray-500 text-sm">Template ini akan digunakan jika acara tidak memiliki desain spesifik.</p></div><button onClick={handleSaveCertSettings} disabled={savingCertSettings} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingCertSettings ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN TEMPLATE</button></div><div className="flex-1 relative border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(false)}</div></div>)}
                    {settingsTab === 'payment' && (
                       <div className="animate-fade-in max-w-4xl mx-auto">
                          <div className="flex justify-between items-center mb-8 border-b pb-4"><h3 className="font-black text-[#2B427A] uppercase">Pengaturan Rekening & QRIS</h3><button onClick={handleSavePaymentSettings} disabled={savingPayment} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingPayment ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN PENGATURAN</button></div>
