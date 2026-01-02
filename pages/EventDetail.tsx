@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download } from 'lucide-react';
+import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download, CheckCircle } from 'lucide-react';
 import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings } from '../services/api';
 import { Event, PaymentSettings } from '../types';
 
@@ -21,6 +21,7 @@ const EventDetail: React.FC = () => {
   // UI State
   const [showQrisModal, setShowQrisModal] = useState(false);
   const [isDownloadingQris, setIsDownloadingQris] = useState(false);
+  const [copyToast, setCopyToast] = useState<{show: boolean, msg: string}>({show: false, msg: ''});
 
   useEffect(() => {
     const load = async () => {
@@ -34,6 +35,12 @@ const EventDetail: React.FC = () => {
     };
     load();
   }, [slug]);
+
+  const handleCopy = (text: string, label: string) => {
+      navigator.clipboard.writeText(text);
+      setCopyToast({ show: true, msg: `${label} Disalin!` });
+      setTimeout(() => setCopyToast(prev => ({...prev, show: false})), 3000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,7 +110,17 @@ const EventDetail: React.FC = () => {
   if (!event) return <div className="min-h-screen flex items-center justify-center font-black text-[#2B427A]">ACARA TIDAK DITEMUKAN</div>;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20">
+    <div className="min-h-screen bg-[#F8FAFC] pb-20 relative">
+      {/* Toast Notification */}
+      {copyToast.show && (
+          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up">
+              <div className="bg-[#2B427A] text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border-2 border-[#DFFF00]">
+                  <CheckCircle className="w-5 h-5 text-[#DFFF00] fill-current" />
+                  <span className="font-bold text-sm uppercase tracking-wide">{copyToast.msg}</span>
+              </div>
+          </div>
+      )}
+
       <div className="relative h-[30vh] md:h-[40vh] w-full bg-[#2B427A] flex items-center justify-center overflow-hidden">
         <img src={event.bannerUrl} className="absolute inset-0 w-full h-full object-cover opacity-30" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#2B427A] to-transparent"></div>
@@ -138,7 +155,6 @@ const EventDetail: React.FC = () => {
               </div>
 
               {!event.isOpen ? (
-                  // TEMPLATE ACARA DITUTUP
                   <div className="text-center py-8">
                       <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-gray-300">
                           <Clock className="w-10 h-10 text-gray-400" />
@@ -155,11 +171,9 @@ const EventDetail: React.FC = () => {
                       </button>
                   </div>
               ) : (
-                  // FORM PENDAFTARAN AKTIF
                   <form onSubmit={handleSubmit} className="space-y-4">
                     {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm font-bold flex gap-2"><AlertCircle className="w-4 h-4"/> {error}</div>}
                     
-                    {/* Standard Fields */}
                     <div>
                       <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Nama Lengkap</label>
                       <div className="relative">
@@ -175,7 +189,6 @@ const EventDetail: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Custom Fields */}
                     {event.formFields?.map(field => (
                         <div key={field.id}>
                             <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">{field.label}</label>
@@ -197,7 +210,6 @@ const EventDetail: React.FC = () => {
                         </div>
                     ))}
 
-                    {/* Payment Info Section */}
                     {event.price > 0 && paymentSettings && (
                         <div className="bg-[#F0F9FF] p-4 rounded-lg border border-blue-200 text-sm">
                             <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2 text-xs md:text-sm">
@@ -205,16 +217,21 @@ const EventDetail: React.FC = () => {
                             </h4>
                             
                             <div className="space-y-4">
-                                {/* Loop through bank accounts */}
                                 {paymentSettings.bankAccounts.map((acc, idx) => (
-                                    <div key={idx} className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                                    <div key={idx} className="bg-white p-3 rounded border border-blue-100 shadow-sm relative group">
                                         <div className="flex justify-between items-center mb-1">
                                             <p className="font-black text-[#2B427A] uppercase text-xs">{acc.bankName}</p>
-                                            <button type="button" onClick={() => navigator.clipboard.writeText(acc.accountNumber)} title="Salin No. Rek" className="hover:scale-110 transition-transform bg-transparent border-none p-0 cursor-pointer text-[#0B1CDE]">
+                                            <button 
+                                                type="button" 
+                                                onClick={() => handleCopy(acc.accountNumber, "No. Rekening")} 
+                                                title="Salin No. Rek" 
+                                                className="hover:scale-110 transition-transform bg-transparent border-none p-1 rounded hover:bg-gray-100 text-[#0B1CDE] flex items-center gap-1"
+                                            >
+                                                <span className="text-[10px] font-bold hidden group-hover:block">SALIN</span>
                                                 <Copy className="w-3 h-3" />
                                             </button>
                                         </div>
-                                        <div className="font-mono bg-gray-50 px-2 py-1 rounded text-[#0B1CDE] font-bold text-base tracking-wide border border-gray-100 mb-1 select-all break-all">
+                                        <div className="font-mono bg-gray-50 px-2 py-1 rounded text-[#0B1CDE] font-bold text-base tracking-wide border border-gray-100 mb-1 select-all break-all cursor-pointer hover:bg-blue-50 transition-colors" onClick={() => handleCopy(acc.accountNumber, "No. Rekening")}>
                                             {acc.accountNumber}
                                         </div>
                                         <p className="text-[10px] md:text-xs text-gray-500 font-medium">a.n {acc.accountHolder}</p>
@@ -285,7 +302,6 @@ const EventDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* QRIS MODAL POPUP */}
       {showQrisModal && paymentSettings?.qrisUrl && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#2B427A]/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowQrisModal(false)}>
               <div className="bg-white w-full max-w-sm rounded-2xl p-6 relative shadow-2xl animate-scale-up border-4 border-[#DFFF00]" onClick={e => e.stopPropagation()}>
@@ -318,6 +334,23 @@ const EventDetail: React.FC = () => {
               </div>
           </div>
       )}
+      
+      <style>{`
+        @keyframes scale-up {
+          0% { transform: scale(0.9); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-scale-up {
+          animation: scale-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes slide-up {
+          0% { transform: translate(-50%, 100%); opacity: 0; }
+          100% { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .animate-slide-up {
+          animation: slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+      `}</style>
     </div>
   );
 };

@@ -295,7 +295,8 @@ function getEvents() {
     obj.date = row[3]; obj.time = row[4]; obj.location = row[5];
     obj.price = row[6]; obj.category = row[7]; obj.bannerUrl = row[8];
     obj.maxParticipants = row[9]; obj.currentParticipants = row[10];
-    obj.isOpen = row[11]; 
+    // Fix boolean status from sheets
+    obj.isOpen = (row[11] === true || String(row[11]).toUpperCase() === "TRUE");
     try { obj.formFields = row[12] ? JSON.parse(row[12]) : []; } catch(e) { obj.formFields = []; }
     try { obj.certificateConfig = row[13] ? JSON.parse(row[13]) : null; } catch(e) { obj.certificateConfig = null; }
     obj.thumbnailUrl = row[14] || ""; 
@@ -390,7 +391,22 @@ function updateEvent(data) {
 }
 
 function deleteEvent(data) { /* ... Same */ var sheet = _getSheet("Events"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { sheet.deleteRow(i + 1); return { deleted: true }; } } throw new Error("Event not found"); }
-function toggleEventStatus(data) { /* ... Same */ var sheet = _getSheet("Events"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { var current = rows[i][11]; var newVal = !current; sheet.getRange(i + 1, 12).setValue(newVal); return { id: data.id, isOpen: newVal }; } } throw new Error("Event not found"); }
+
+function toggleEventStatus(data) { 
+    var sheet = _getSheet("Events"); 
+    var rows = sheet.getDataRange().getValues(); 
+    for (var i = 1; i < rows.length; i++) { 
+        if (rows[i][0] == data.id) { 
+            var current = rows[i][11]; 
+            // Normalize current status to boolean to prevent string toggle issues (TRUE/FALSE)
+            var isTrue = (current === true || String(current).toUpperCase() === "TRUE");
+            var newVal = !isTrue; 
+            sheet.getRange(i + 1, 12).setValue(newVal); 
+            return { id: data.id, isOpen: newVal }; 
+        } 
+    } 
+    throw new Error("Event not found"); 
+}
 
 // --- REGISTRATION FUNCTIONS ---
 
@@ -482,7 +498,9 @@ function validateTicket(data) {
   
   for(var i=1; i<eRows.length; i++) {
       if(eRows[i][0] == eventId) {
-          if (eRows[i][11] === true || eRows[i][11] === "TRUE") {
+          // Check boolean or string "TRUE"
+          var isOpen = (eRows[i][11] === true || String(eRows[i][11]).toUpperCase() === "TRUE");
+          if (isOpen) {
                eventActive = true;
                eventName = eRows[i][1];
           }

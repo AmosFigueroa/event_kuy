@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { Loader, CheckCircle, XCircle, ArrowLeft, Camera, QrCode } from 'lucide-react';
 import { validateTicket, fetchEvents } from '../services/api';
 import { Event } from '../types';
@@ -14,6 +14,9 @@ const TicketScannerPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [eventTitle, setEventTitle] = useState("Memuat Event...");
     const [scannerActive, setScannerActive] = useState(true);
+    
+    // Ref to track if scanner is currently rendered to prevent React StrictMode double-init issues
+    const scannerRef = useRef<Html5QrcodeScanner | null>(null);
 
     useEffect(() => {
         // Validate Event Existence first
@@ -39,16 +42,15 @@ const TicketScannerPage: React.FC = () => {
     useEffect(() => {
         if (!eventId || !scannerActive) return;
 
-        const scanner = new Html5QrcodeScanner(
-            "reader", 
-            { fps: 10, qrbox: { width: 250, height: 250 } },
-            /* verbose= */ false
-        );
-
+        // Define success callback
         const onScanSuccess = async (decodedText: string, decodedResult: any) => {
-            if (loading) return; // Prevent double scan
+            if (loading) return;
             
-            scanner.pause();
+            // Pause scanner immediately upon read
+            if (scannerRef.current) {
+                scannerRef.current.pause();
+            }
+            
             setLoading(true);
 
             try {
@@ -59,7 +61,6 @@ const TicketScannerPage: React.FC = () => {
                     message: "TIKET VALID", 
                     data: res 
                 });
-                // Auto resume after 3 seconds for next person? No, let user click "Scan Next"
             } catch (error: any) {
                 setScanResult({ 
                     success: false, 
@@ -71,19 +72,60 @@ const TicketScannerPage: React.FC = () => {
         };
 
         const onScanFailure = (error: any) => {
-            // handle scan failure, usually better to ignore and keep scanning.
+            // Ignore frame parse errors
         };
 
-        scanner.render(onScanSuccess, onScanFailure);
+        // Initialize Scanner with a small delay to ensure DOM is ready and previous cleanup is done
+        const timeoutId = setTimeout(() => {
+            // Prevent multiple instances
+            if (scannerRef.current) return;
 
+            const scanner = new Html5QrcodeScanner(
+                "reader", 
+                { 
+                    fps: 10, 
+                    qrbox: { width: 250, height: 250 },
+                    aspectRatio: 1.0,
+                    showTorchButtonIfSupported: true,
+                    formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ]
+                },
+                /* verbose= */ false
+            );
+            
+            scannerRef.current = scanner;
+
+            scanner.render(onScanSuccess, onScanFailure);
+        }, 100);
+
+        // Cleanup function
         return () => {
-            scanner.clear().catch(error => console.error("Failed to clear scanner", error));
+            clearTimeout(timeoutId);
+            if (scannerRef.current) {
+                try {
+                    scannerRef.current.clear().catch(error => {
+                        console.warn("Failed to clear scanner", error);
+                    });
+                } catch (e) {
+                    console.warn("Scanner clear error", e);
+                }
+                scannerRef.current = null;
+            }
         };
-    }, [eventId, scannerActive]); // Re-run if scannerActive changes state
+    }, [eventId, scannerActive]); // Removed 'loading' dependency to prevent scanner re-init loop
 
     const handleReset = () => {
         setScanResult(null);
-        window.location.reload(); // Hard reload to reset scanner instance properly
+        // Resume scanning if paused
+        if (scannerRef.current) {
+            try {
+                scannerRef.current.resume();
+            } catch (e) {
+                // If resume fails (e.g. wasn't paused or cleared), just reload page as fallback
+                window.location.reload();
+            }
+        } else {
+             window.location.reload();
+        }
     };
 
     return (
@@ -98,13 +140,19 @@ const TicketScannerPage: React.FC = () => {
                  </div>
 
                  {!scanResult ? (
-                     <div className="bg-white rounded-xl overflow-hidden shadow-2xl border-4 border-[#DFFF00]">
+                     <div className="bg-white rounded-xl overflow-hidden shadow-2xl border-4 border-[#DFFF00] relative min-h-[300px]">
                          {scannerActive ? (
-                            <div id="reader" className="w-full bg-black"></div>
+                            <>
+                                <div id="reader" className="w-full bg-black h-full"></div>
+                                {/* Fallback/Loading message if camera takes time */}
+                                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-gray-500 pointer-events-none -z-0">
+                                    <Loader className="w-8 h-8 animate-spin mx-auto"/>
+                                </div>
+                            </>
                          ) : (
-                            <div className="p-8 text-center text-gray-800 font-bold">SCANNER NONAKTIF</div>
+                            <div className="p-8 text-center text-gray-800 font-bold h-full flex items-center justify-center">SCANNER NONAKTIF</div>
                          )}
-                         <div className="p-4 bg-gray-100 text-center">
+                         <div className="p-4 bg-gray-100 text-center relative z-10">
                              <p className="text-[#2B427A] font-bold text-sm flex items-center justify-center gap-2">
                                  <Camera className="w-4 h-4"/> Arahkan kamera ke QR Code Peserta
                              </p>
