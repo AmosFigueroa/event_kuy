@@ -497,7 +497,7 @@ const AdminDashboard: React.FC = () => {
       return (
           <div className="flex flex-col lg:flex-row h-full bg-white rounded-xl overflow-hidden border border-gray-200">
               {/* LEFT SIDEBAR: TOOLS */}
-              <div className="w-full lg:w-72 bg-gray-50 border-r border-gray-200 p-6 flex flex-col gap-6 overflow-y-auto">
+              <div className="w-full lg:w-72 bg-gray-50 border-r border-gray-200 p-6 flex flex-col gap-6 overflow-y-auto z-30 shadow-md">
                   
                   {/* Add Elements Group */}
                   <div>
@@ -556,142 +556,150 @@ const AdminDashboard: React.FC = () => {
                   </div>
               </div>
 
-              {/* CENTER: CANVAS */}
-              <div className="flex-1 bg-[#F0F2F5] overflow-auto p-8 flex items-center justify-center relative" 
-                   onMouseMove={handleMouseMove} 
-                   onMouseUp={handleMouseUp} 
-                   onMouseLeave={handleMouseUp}
-              >
-                   {/* The Paper Canvas */}
-                   <div className="relative bg-white shadow-2xl transition-shadow" style={{ width: 842, height: 595, flexShrink: 0 }}>
-                       {bgUrl ? (
-                           <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
-                       ) : (
-                           <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-4xl uppercase select-none border-2 border-dashed border-gray-300 m-4">Area Sertifikat</div>
-                       )}
-                       
-                       {elements.map(el => (
-                           <div 
-                             key={el.id} 
-                             onMouseDown={(e) => handleMouseDown(e, el.id)}
-                             className={`absolute cursor-move select-none group ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
-                             style={{ 
-                                 left: el.x, top: el.y, 
-                                 transform: el.align === 'center' ? 'translate(-50%, -50%)' : el.align === 'right' ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
-                                 width: el.width || 'auto'
-                             }}
-                           >
-                               {/* Selection Box Visual */}
-                               <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
-                               
-                               {/* Content Render */}
-                               <div style={{
-                                   fontSize: el.fontSize, 
-                                   fontFamily: el.fontFamily, 
-                                   color: el.color, 
-                                   fontWeight: el.fontWeight,
-                                   textAlign: el.align,
-                                   position: 'relative' // to sit above selection box
-                               }}>
-                                  {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
-                               </div>
-                           </div>
-                       ))}
-                   </div>
-              </div>
+              {/* CENTER & BOTTOM WRAPPER */}
+              <div className="flex-1 flex flex-col min-w-0 bg-[#F0F2F5]">
+                  {/* CANVAS (TOP) */}
+                  <div className="flex-1 overflow-auto p-8 flex items-center justify-center relative shadow-inner" 
+                      onMouseMove={handleMouseMove} 
+                      onMouseUp={handleMouseUp} 
+                      onMouseLeave={handleMouseUp}
+                  >
+                      {/* The Paper Canvas */}
+                      <div className="relative bg-white shadow-2xl transition-shadow" style={{ width: 842, height: 595, flexShrink: 0 }}>
+                          {bgUrl ? (
+                              <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                          ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-4xl uppercase select-none border-2 border-dashed border-gray-300 m-4">Area Sertifikat</div>
+                          )}
+                          
+                          {elements.map(el => (
+                              <div 
+                                key={el.id} 
+                                onMouseDown={(e) => handleMouseDown(e, el.id)}
+                                className={`absolute cursor-move select-none group ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
+                                style={{ 
+                                    left: el.x, top: el.y, 
+                                    transform: el.align === 'center' ? 'translate(-50%, -50%)' : el.align === 'right' ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
+                                    width: el.width || 'auto'
+                                }}
+                              >
+                                  {/* Selection Box Visual */}
+                                  <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
+                                  
+                                  {/* Content Render */}
+                                  <div style={{
+                                      fontSize: el.fontSize, 
+                                      fontFamily: el.fontFamily, 
+                                      color: el.color, 
+                                      fontWeight: el.fontWeight,
+                                      textAlign: el.align,
+                                      position: 'relative' // to sit above selection box
+                                  }}>
+                                      {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
 
-              {/* RIGHT SIDEBAR: PROPERTIES */}
-              <div className="w-full lg:w-80 bg-white border-l border-gray-200 p-6 z-20 shadow-xl overflow-y-auto">
-                   <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-4 border-b pb-2">PROPERTI ITEM</h4>
-                   {activeElement ? (
-                       <div className="space-y-5 animate-fade-in">
-                           {/* Content Input */}
-                           <div>
-                               <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Konten / Isi</label>
-                               {activeElement.type === 'dynamic' ? (
-                                   <div className="relative">
-                                       <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
-                                       <select value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
-                                           <option value="userName">Nama Peserta</option>
-                                           <option value="eventTitle">Judul Acara</option>
-                                           <option value="date">Tanggal Acara</option>
-                                           <option value="certificateNumber">Nomor Sertifikat</option>
-                                       </select>
-                                   </div>
-                               ) : activeElement.type === 'image' ? (
-                                   <div className="relative">
-                                       <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" placeholder="URL Gambar..." />
-                                       <p className="text-[10px] text-gray-400 mt-1">Masukkan URL gambar atau base64</p>
-                                   </div>
-                               ) : (
-                                   <div className="relative">
-                                       <TypeIcon className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
-                                       <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
-                                   </div>
-                               )}
-                           </div>
-
-                           <div className="grid grid-cols-2 gap-4">
-                               {activeElement.type !== 'image' && (
-                                   <>
-                                   <div>
-                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ukuran Font</label>
-                                       <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
-                                   </div>
-                                   <div>
-                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Warna</label>
-                                       <div className="flex items-center gap-2 border-2 border-gray-200 rounded-lg p-1.5 focus-within:border-[#0B1CDE]">
-                                            <input type="color" value={activeElement.color || '#000000'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, color: e.target.value } : el))} className="w-6 h-6 p-0 border-0 rounded cursor-pointer" />
-                                            <span className="text-xs font-mono font-bold text-gray-500 uppercase">{activeElement.color}</span>
-                                       </div>
-                                   </div>
-                                   <div>
-                                        <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ketebalan</label>
-                                        <div className="relative">
-                                            <Bold className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
-                                            <select value={activeElement.fontWeight || 'bold'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontWeight: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
-                                                <option value="normal">Normal</option>
-                                                <option value="bold">Bold</option>
-                                            </select>
-                                        </div>
-                                   </div>
-                                   </>
-                               )}
-                               <div>
-                                   <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Perataan (Align)</label>
-                                   <div className="relative">
-                                       <AlignJustify className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
-                                       <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
-                                           <option value="left">Kiri</option>
-                                           <option value="center">Tengah</option>
-                                           <option value="right">Kanan</option>
-                                       </select>
-                                   </div>
-                               </div>
-                               {activeElement.type === 'image' && (
-                                   <div className="col-span-2">
-                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Lebar (px)</label>
-                                       <input type="number" value={activeElement.width || 100} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, width: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
-                                   </div>
-                               )}
-                           </div>
-                           
-                           <hr className="border-gray-100"/>
-                           
+                  {/* PROPERTIES PANEL (BOTTOM) */}
+                  <div className="w-full bg-white border-t border-gray-200 p-6 z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] h-auto min-h-[220px] max-h-[40vh] overflow-y-auto">
+                      <div className="flex items-center justify-between mb-4 border-b pb-2">
+                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider">PROPERTI ITEM</h4>
+                        {activeElement && (
                            <button onClick={() => {
-                               updateConfig(elements.filter(el => el.id !== activeElementId));
-                               setActiveElementId(null);
-                           }} className="w-full py-3 bg-red-50 text-red-600 border border-red-200 rounded-xl font-bold text-sm hover:bg-red-100 flex items-center justify-center gap-2 transition-colors">
-                               <Trash2 className="w-4 h-4"/> Hapus Elemen
-                           </button>
-                       </div>
-                   ) : (
-                       <div className="h-64 flex flex-col items-center justify-center text-center text-gray-400 p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                           <MousePointer2 className="w-10 h-10 mb-3 opacity-30" />
-                           <p className="text-sm font-bold">Pilih elemen pada canvas</p>
-                           <p className="text-xs opacity-70">Klik salah satu item di tengah untuk mengedit properti.</p>
-                       </div>
-                   )}
+                                updateConfig(elements.filter(el => el.id !== activeElementId));
+                                setActiveElementId(null);
+                            }} className="text-red-500 text-xs font-bold hover:text-red-700 flex items-center gap-1 bg-red-50 px-3 py-1 rounded-full border border-red-100 hover:bg-red-100 transition-colors">
+                                <Trash2 className="w-3 h-3"/> HAPUS ITEM
+                            </button>
+                        )}
+                      </div>
+                      
+                      {activeElement ? (
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in">
+                              {/* 1. CONTENT (Wide) */}
+                              <div className="md:col-span-2">
+                                  <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Konten / Isi</label>
+                                  {activeElement.type === 'dynamic' ? (
+                                      <div className="relative">
+                                          <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
+                                          <select value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white">
+                                              <option value="userName">Nama Peserta</option>
+                                              <option value="eventTitle">Judul Acara</option>
+                                              <option value="date">Tanggal Acara</option>
+                                              <option value="certificateNumber">Nomor Sertifikat</option>
+                                          </select>
+                                      </div>
+                                  ) : activeElement.type === 'image' ? (
+                                      <div className="relative">
+                                          <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white" placeholder="URL Gambar..." />
+                                          <p className="text-[10px] text-gray-400 mt-1">Masukkan URL gambar atau base64</p>
+                                      </div>
+                                  ) : (
+                                      <div className="relative">
+                                          <TypeIcon className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
+                                          <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white" />
+                                      </div>
+                                  )}
+                              </div>
+
+                              {/* 2. STYLE PROPS */}
+                              {activeElement.type !== 'image' && (
+                                <>
+                                  <div>
+                                      <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ukuran Font (px)</label>
+                                      <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
+                                  </div>
+                                  
+                                  <div>
+                                      <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Warna Teks</label>
+                                      <div className="flex items-center gap-2 border-2 border-gray-200 rounded-lg p-1.5 focus-within:border-[#0B1CDE] bg-white">
+                                           <input type="color" value={activeElement.color || '#000000'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, color: e.target.value } : el))} className="w-8 h-8 p-0 border-0 rounded cursor-pointer" />
+                                           <span className="text-xs font-mono font-bold text-gray-500 uppercase flex-1">{activeElement.color}</span>
+                                      </div>
+                                  </div>
+
+                                  <div>
+                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ketebalan</label>
+                                       <div className="relative">
+                                           <Bold className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
+                                           <select value={activeElement.fontWeight || 'bold'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontWeight: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
+                                               <option value="normal">Normal</option>
+                                               <option value="bold">Bold</option>
+                                           </select>
+                                       </div>
+                                  </div>
+                                </>
+                              )}
+
+                              <div>
+                                  <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Perataan (Align)</label>
+                                  <div className="relative">
+                                      <AlignJustify className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
+                                      <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
+                                          <option value="left">Kiri</option>
+                                          <option value="center">Tengah</option>
+                                          <option value="right">Kanan</option>
+                                      </select>
+                                  </div>
+                              </div>
+
+                              {activeElement.type === 'image' && (
+                                  <div className="col-span-1">
+                                      <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Lebar Gambar (px)</label>
+                                      <input type="number" value={activeElement.width || 100} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, width: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
+                                  </div>
+                              )}
+                          </div>
+                      ) : (
+                          <div className="h-32 flex flex-col items-center justify-center text-center text-gray-400 p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                              <MousePointer2 className="w-8 h-8 mb-2 opacity-30" />
+                              <p className="text-sm font-bold">Pilih elemen pada canvas di atas</p>
+                              <p className="text-xs opacity-70">Klik salah satu item untuk mengedit properti detailnya di sini.</p>
+                          </div>
+                      )}
+                  </div>
               </div>
           </div>
       );
