@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock } from 'lucide-react';
+import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download } from 'lucide-react';
 import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings } from '../services/api';
 import { Event, PaymentSettings } from '../types';
 
@@ -17,6 +17,9 @@ const EventDetail: React.FC = () => {
   const [formData, setFormData] = useState<any>({ name: '', email: '' }); 
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [error, setError] = useState('');
+
+  // UI State
+  const [showQrisModal, setShowQrisModal] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -193,11 +196,25 @@ const EventDetail: React.FC = () => {
                                 ))}
 
                                 {paymentSettings.qrisUrl && (
-                                    <div className="mt-3 pt-3 border-t border-blue-100">
-                                        <p className="font-bold text-xs mb-2 text-[#2B427A] uppercase">SCAN QRIS:</p>
-                                        <div className="bg-white p-2 rounded border inline-block">
-                                            <img src={paymentSettings.qrisUrl} alt="QRIS" className="w-24 h-24 md:w-32 md:h-32 object-contain" />
+                                    <div className="mt-4 pt-3 border-t border-blue-100">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <p className="font-bold text-xs text-[#2B427A] uppercase flex items-center gap-2">
+                                                <QrCode className="w-4 h-4"/> Scan QRIS:
+                                            </p>
                                         </div>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setShowQrisModal(true)}
+                                            className="w-full bg-white border-2 border-dashed border-[#2B427A] p-3 rounded-xl flex items-center justify-between hover:bg-[#DFFF00]/20 transition-all group"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-gray-100 rounded border border-gray-300 overflow-hidden">
+                                                    <img src={paymentSettings.qrisUrl} alt="Mini QR" className="w-full h-full object-cover opacity-50" />
+                                                </div>
+                                                <span className="font-black text-[#2B427A] text-sm group-hover:underline decoration-2 underline-offset-2">LIHAT QRIS (SCAN)</span>
+                                            </div>
+                                            <Maximize2 className="w-5 h-5 text-[#2B427A]" />
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -241,6 +258,41 @@ const EventDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* QRIS MODAL POPUP */}
+      {showQrisModal && paymentSettings?.qrisUrl && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#2B427A]/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowQrisModal(false)}>
+              <div className="bg-white w-full max-w-sm rounded-2xl p-6 relative shadow-2xl animate-scale-up border-4 border-[#DFFF00]" onClick={e => e.stopPropagation()}>
+                  <button 
+                      onClick={() => setShowQrisModal(false)}
+                      className="absolute top-4 right-4 bg-gray-100 p-2 rounded-full hover:bg-red-100 hover:text-red-500 transition-colors"
+                  >
+                      <X className="w-5 h-5" />
+                  </button>
+                  
+                  <div className="text-center">
+                      <div className="inline-flex items-center gap-2 mb-4 bg-[#DFFF00] px-4 py-1 rounded-full border-2 border-[#2B427A]">
+                          <QrCode className="w-4 h-4 text-[#2B427A]"/>
+                          <span className="font-black text-[#2B427A] text-sm uppercase">SCAN UNTUK BAYAR</span>
+                      </div>
+                      
+                      <div className="bg-white p-2 border-2 border-gray-200 rounded-xl mb-6 shadow-inner">
+                          <img src={paymentSettings.qrisUrl} alt="QRIS Full" className="w-full h-auto object-contain rounded-lg" />
+                      </div>
+
+                      <a 
+                          href={paymentSettings.qrisUrl} 
+                          download="QRIS_EventBisdig" 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full flex items-center justify-center gap-2 py-3 bg-[#2B427A] text-white rounded-xl font-bold hover:bg-[#0B1CDE] transition-colors"
+                      >
+                          <Download className="w-4 h-4" /> SIMPAN GAMBAR
+                      </a>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

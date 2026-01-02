@@ -161,8 +161,8 @@ const UserDashboard: React.FC = () => {
               <div className="flex flex-col md:flex-row">
                 {/* Event Image (Left) */}
                 <div className="w-full md:w-56 h-48 md:h-auto bg-[#2B427A] relative overflow-hidden border-b-2 md:border-b-0 md:border-r-2 border-[#2B427A]">
-                  {ticket.eventDetails?.bannerUrl ? (
-                     <img src={ticket.eventDetails.bannerUrl} alt="Acara" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 mix-blend-overlay opacity-80" />
+                  {ticket.eventDetails?.thumbnailUrl || ticket.eventDetails?.bannerUrl ? (
+                     <img src={ticket.eventDetails.thumbnailUrl || ticket.eventDetails.bannerUrl} alt="Acara" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 mix-blend-overlay opacity-80" />
                   ) : (
                      <div className="w-full h-full flex items-center justify-center text-white/50 font-bold">EVENT SELESAI/DIHAPUS</div>
                   )}

@@ -45,6 +45,7 @@ function handleRequest(e, method) {
     else if (action === "getRegistration" && method === "POST") data = getRegistration(postData); 
     else if (action === "updateRegistrationStatus" && method === "POST") data = updateRegistrationStatus(postData);
     else if (action === "sendCertificate" && method === "POST") data = sendCertificate(postData);
+    else if (action === "sendBulkCertificates" && method === "POST") data = sendBulkCertificates(postData);
     
     // Payment Settings
     else if (action === "savePaymentSettings" && method === "POST") data = savePaymentSettings(postData);
@@ -471,6 +472,44 @@ function sendCertificate(data) {
     }
   }
   throw new Error("Not found");
+}
+
+function sendBulkCertificates(data) {
+  var sheet = _getSheet("Registrations");
+  var rows = sheet.getDataRange().getValues();
+  var idsToProcess = data.ids || [];
+  var successCount = 0;
+  var failCount = 0;
+
+  // Optimasi: Mapping ID ke Index baris untuk akses cepat
+  var idMap = {};
+  for(var i=1; i<rows.length; i++) {
+    idMap[rows[i][0]] = i;
+  }
+
+  idsToProcess.forEach(function(id) {
+     var rowIndex = idMap[id];
+     if(rowIndex) {
+        var row = rows[rowIndex];
+        // Pastikan status APPROVED
+        if(row[6] === 'APPROVED') {
+           try {
+             var certLink = (data.baseUrl || "https://bisdig.upy.ac.id/hmp/") + "/#/certificate/" + id;
+             var name = row[3];
+             var evtTitle = row[2];
+             var email = row[4];
+             
+             var body = "<p>Halo " + name + ",</p><p>Sertifikat acara <strong>" + evtTitle + "</strong> telah terbit.</p><a href='" + certLink + "'>Download Sertifikat</a>";
+             _sendBrandedEmail(email, "🎓 Sertifikat", "SERTIFIKAT", body);
+             successCount++;
+           } catch(e) { 
+             failCount++; 
+           }
+        }
+     }
+  });
+  
+  return { sent: successCount, failed: failCount };
 }
 
 // --- SETTINGS (Payment) ---

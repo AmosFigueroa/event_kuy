@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X } from 'lucide-react';
-import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings } from '../services/api';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send } from 'lucide-react';
+import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates } from '../services/api';
 import { generateEventDescription } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ const AdminDashboard: React.FC = () => {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(false);
   const [processingCert, setProcessingCert] = useState<string | null>(null);
+  const [isBulkSending, setIsBulkSending] = useState(false);
   const navigate = useNavigate();
   const session = getUserSession();
   
@@ -152,7 +153,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  // --- CERTIFICATE DESIGNER LOGIC ---
+  // ... (Previous logic for Cert Designer, Canvas, etc remains the same) ...
   const addSettingsCertElement = (type: 'text' | 'dynamic' | 'image', field: string, label: string) => {
       const isImage = type === 'image';
       const newEl: CertificateElement = {
@@ -503,7 +504,7 @@ const AdminDashboard: React.FC = () => {
 
   // --- RENDER HELPERS ---
   const renderElementToolbar = (activeId: string | null, configSource: CertificateConfig | undefined, updateFn: (id: string, p: Partial<CertificateElement>) => void, removeFn: (id: string) => void) => {
-      // ... (No changes to this function)
+      // ... (No changes)
       if (!activeId || !configSource) return null;
       const el = configSource.elements.find(e => e.id === activeId);
       if (!el) return null;
@@ -645,7 +646,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const renderCanvasElement = (el: CertificateElement, isActive: boolean, onMouseDown: (e: React.MouseEvent) => void, onResizeMouseDown: (e: React.MouseEvent) => void) => {
-      // Determine Transform based on Alignment to ensure position stays predictable
+      // ... (No changes)
       let transform = 'translate(-50%, -50%)'; // Default (Center)
       if (el.align === 'left') transform = 'translate(0, -50%)';
       if (el.align === 'right') transform = 'translate(-100%, -50%)';
@@ -737,21 +738,63 @@ const AdminDashboard: React.FC = () => {
       selectedEventFilter === 'ALL' ? true : r.eventId === selectedEventFilter
   );
 
+  // Helper logic for bulk sending
+  const approvedCandidates = filteredRegistrations.filter(r => r.status === RegistrationStatus.APPROVED);
+  const canBulkSend = selectedEventFilter !== 'ALL' && approvedCandidates.length > 0;
+
+  const handleBulkSend = () => {
+      const eventTitle = events.find(e => e.id === selectedEventFilter)?.title || 'Acara Terpilih';
+      
+      showConfirm(
+          "Kirim Semua Sertifikat?",
+          `Anda akan mengirim sertifikat ke ${approvedCandidates.length} peserta yang disetujui untuk event "${eventTitle}". Proses ini mungkin memakan waktu.`,
+          async () => {
+              setIsBulkSending(true);
+              try {
+                  const ids = approvedCandidates.map(r => r.id);
+                  const result = await sendBulkCertificates(ids);
+                  showAlert('success', 'Pengiriman Selesai', `Berhasil dikirim: ${result.sent}. Gagal: ${result.failed}.`);
+              } catch (e: any) {
+                  showAlert('error', 'Gagal', e.message || "Terjadi kesalahan saat pengiriman massal.");
+              } finally {
+                  setIsBulkSending(false);
+              }
+          },
+          "YA, KIRIM SEKARANG"
+      );
+  };
+
   const renderRegistrations = () => (
-    // ... (No Changes to this section)
     <div className="space-y-6 animate-fade-in relative">
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
             <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Data Pendaftaran</h2>
-            <div className="flex items-center gap-2">
-                <Filter className="w-5 h-5 text-gray-400"/>
-                <select 
-                    value={selectedEventFilter} 
-                    onChange={e => setSelectedEventFilter(e.target.value)}
-                    className="border-2 border-gray-200 rounded-lg px-3 py-2 font-bold text-[#2B427A] outline-none focus:border-[#0B1CDE]"
+            <div className="flex flex-col md:flex-row items-center gap-3">
+                {/* Filter Dropdown */}
+                <div className="flex items-center gap-2">
+                    <Filter className="w-5 h-5 text-gray-400"/>
+                    <select 
+                        value={selectedEventFilter} 
+                        onChange={e => setSelectedEventFilter(e.target.value)}
+                        className="border-2 border-gray-200 rounded-lg px-3 py-2 font-bold text-[#2B427A] outline-none focus:border-[#0B1CDE]"
+                    >
+                        <option value="ALL">Semua Acara</option>
+                        {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                    </select>
+                </div>
+
+                {/* Bulk Send Button */}
+                <button 
+                    onClick={handleBulkSend}
+                    disabled={!canBulkSend || isBulkSending}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-black text-xs uppercase border-2 transition-all shadow-sm 
+                        ${canBulkSend && !isBulkSending 
+                            ? 'bg-[#0B1CDE] text-white border-[#0B1CDE] hover:bg-[#2B427A] cursor-pointer' 
+                            : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}
+                    title={selectedEventFilter === 'ALL' ? "Pilih spesifik acara untuk fitur ini" : "Kirim sertifikat ke semua peserta APPROVED"}
                 >
-                    <option value="ALL">Semua Acara</option>
-                    {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
-                </select>
+                    {isBulkSending ? <Loader className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}
+                    {isBulkSending ? 'MENGIRIM...' : 'KIRIM SEMUA SERTIFIKAT'}
+                </button>
             </div>
         </div>
 

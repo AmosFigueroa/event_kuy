@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, Info, CheckCircle, HelpCircle, ChevronRight, Mic, Users, TrendingUp, Calendar, ChevronLeft, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -167,7 +168,7 @@ const Home: React.FC = () => {
                         <Link to={`/event/${createSlug(event.title) || event.id}`} className="block group relative w-full aspect-[4/5] bg-gray-200 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-2 transition-all duration-300 overflow-hidden">
                             {/* Full Image */}
                             <img 
-                                src={event.bannerUrl || `https://picsum.photos/400/500?random=${event.id}`} 
+                                src={event.thumbnailUrl || event.bannerUrl || `https://picsum.photos/400/500?random=${event.id}`} 
                                 alt={event.title} 
                                 className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 transform group-hover:scale-105"
                             />
