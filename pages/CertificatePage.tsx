@@ -103,6 +103,8 @@ const CertificatePage: React.FC = () => {
       if (field === 'eventTitle') return registration.eventTitle;
       if (field === 'date') return new Date(registration.registrationDate).toLocaleDateString('id-ID'); 
       if (field === 'id') return registration.id;
+      if (field === 'certificateNumber') return `NO: ${registration.id.substring(0,8).toUpperCase()}`; // Default logic if no csv map
+      
       if (field.startsWith('custom:')) {
           const key = field.split(':')[1];
           try {
@@ -151,13 +153,10 @@ const CertificatePage: React.FC = () => {
         className="w-full flex justify-center pb-10 overflow-hidden" 
         ref={containerRef}
       >
-          {/* 
-             Wrapper for scaling. 
-             Height must be explicitly set based on scale to prevent extra whitespace or clipping.
-          */}
+          {/* Wrapper for scaling */}
           <div style={{ width: CERT_WIDTH * scale, height: CERT_HEIGHT * scale, position: 'relative' }}>
               
-              {/* The Actual Certificate Node (Fixed Resolution) being Scaled */}
+              {/* The Actual Certificate Node */}
               <div 
                 ref={certRef}
                 className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center origin-top-left"
@@ -189,48 +188,32 @@ const CertificatePage: React.FC = () => {
                                      left: el.x,
                                      top: el.y,
                                      color: el.color,
-                                     fontSize: `${el.fontSize}px`,
+                                     fontSize: el.type === 'image' ? undefined : `${el.fontSize}px`,
                                      fontFamily: el.fontFamily || 'Helvetica',
                                      fontWeight: el.fontWeight || 'bold',
                                      textAlign: el.align || 'center',
                                      width: el.width ? `${el.width}px` : 'auto',
                                      transform: 'translate(-50%, -50%)', 
-                                     whiteSpace: 'nowrap'
+                                     whiteSpace: el.type === 'image' ? 'normal' : 'nowrap'
                                  }}
                              >
-                                 {el.type === 'dynamic' ? getElementContent(el.field) : el.field}
+                                 {el.type === 'dynamic' ? getElementContent(el.field) : (el.type === 'image' ? <img src={el.field} alt="cert-element" style={{ width: '100%' }} /> : el.field)}
                              </div>
                          ))}
                      </>
                  ) : (
+                     // Default Fallback Template
                      <>
                         <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
                         <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-[#0B1CDE]/10 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2"></div>
-                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#DFFF00]/30 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2"></div>
-                        
                         <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="w-12 h-12 bg-[#2B427A] rounded-lg"></div>
-                                <h2 className="text-2xl font-black text-[#2B427A] tracking-widest uppercase">HMP BISNIS DIGITAL</h2>
-                            </div>
-                            <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4 tracking-tight">SERTIFIKAT</h1>
-                            <p className="text-xl text-[#2B427A] font-bold tracking-widest uppercase mb-12">APRESIASI</p>
-                            <p className="text-lg text-gray-500 font-medium italic mb-2">Diberikan dengan bangga kepada:</p>
-
+                            <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
                             <div className="relative px-12 pb-2 mb-8">
                                  <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName}</h2>
                                  <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
                             </div>
-
                             <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
-                                 Atas partisipasi dan kontribusinya sebagai Peserta dalam acara:
-                                 <br/>
-                                 <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
-                            </p>
-                            
-                            <p className="absolute bottom-8 text-xs text-gray-400 font-mono">
-                                 ID: {registration.id}
+                                 Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
                             </p>
                         </div>
                      </>

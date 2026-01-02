@@ -32,22 +32,24 @@ export interface FormField {
 
 export interface CertificateElement {
   id: string;
-  type: 'text' | 'dynamic'; // 'text' is static label, 'dynamic' is mapped data
-  field: string; // e.g., 'userName', 'eventTitle', 'custom:Instansi', or static text content
+  type: 'text' | 'dynamic' | 'image'; // Added 'image'
+  field: string; // For text/dynamic: content/key. For image: base64 string or URL
   label: string; // UI Label for the admin
   x: number;
   y: number;
-  fontSize: number;
-  fontFamily: string;
-  color: string;
-  fontWeight: 'normal' | 'bold';
-  align: 'left' | 'center' | 'right';
-  width?: number; // for centering
+  fontSize?: number; // Optional for image
+  fontFamily?: string; // Optional for image
+  color?: string; // Optional for image
+  fontWeight?: 'normal' | 'bold'; // Optional for image
+  align?: 'left' | 'center' | 'right'; // Optional for image
+  width?: number; // Required for image/centering
+  height?: number; // Added for image
 }
 
 export interface CertificateConfig {
   backgroundUrl: string;
   elements: CertificateElement[];
+  csvDataUrl?: string; // URL to the uploaded CSV JSON data in Drive
 }
 
 export interface Event {
@@ -98,13 +100,11 @@ export interface PaymentSettings {
   qrisUrl?: string;
 }
 
-// Deprecated global settings, but kept for compatibility types if needed temporarily
+// Updated to match Config
 export interface CertificateSettings {
-  templateUrl?: string;
-  signer1Name: string;
-  signer1Role: string;
-  signer2Name: string;
-  signer2Role: string;
+  backgroundUrl?: string;
+  elements: CertificateElement[];
+  csvDataUrl?: string;
 }
 
 // Auth Types

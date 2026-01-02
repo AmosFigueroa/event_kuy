@@ -400,6 +400,17 @@ function getRegistration(data) {
       }
   }
   
+  if (!certConfig) {
+     // If event specific config is missing, try default
+     var settings = getCertificateSettings();
+     if (settings.backgroundUrl) {
+         certConfig = settings;
+     }
+  }
+  
+  // Try to load Global CSV data for lookups if needed (though best done client side with cached data)
+  // For simplicity, we just return the config as is.
+  
   return { registration: reg, certificateConfig: certConfig };
 }
 
@@ -491,15 +502,27 @@ function saveCertificateSettings(data) {
   var ss = _getDb();
   var sheet = ss.getSheetByName("Settings");
   
-  var templateUrl = data.currentTemplateUrl || "";
+  var templateUrl = data.backgroundUrl || "";
   if (data.templateBase64) {
     try {
       var folder = _getAdminFolder();
-      var blob = Utilities.newBlob(Utilities.base64Decode(data.templateBase64), "image/png", "cert_default_template");
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.templateBase64), "image/png", "cert_default_template_" + new Date().getTime());
       var file = folder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       templateUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
     } catch(e) {}
+  }
+
+  // Handle CSV Data Upload
+  var csvDataUrl = data.csvDataUrl || "";
+  if (data.csvDataJson) { // Use a specific field for the JSON string of CSV data
+     try {
+       var folder = _getAdminFolder();
+       var blob = Utilities.newBlob(data.csvDataJson, "application/json", "cert_data_csv_" + new Date().getTime() + ".json");
+       var file = folder.createFile(blob);
+       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+       csvDataUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+     } catch(e) {}
   }
 
   var setSetting = function(key, val) {
@@ -511,12 +534,10 @@ function saveCertificateSettings(data) {
   };
 
   setSetting("CERT_TEMPLATE_URL", templateUrl);
-  setSetting("CERT_SIGNER1_NAME", data.signer1Name || "");
-  setSetting("CERT_SIGNER1_ROLE", data.signer1Role || "");
-  setSetting("CERT_SIGNER2_NAME", data.signer2Name || "");
-  setSetting("CERT_SIGNER2_ROLE", data.signer2Role || "");
+  setSetting("CERT_ELEMENTS_JSON", JSON.stringify(data.elements || []));
+  setSetting("CERT_CSV_DATA_URL", csvDataUrl);
   
-  return { success: true, templateUrl: templateUrl };
+  return { success: true, templateUrl: templateUrl, csvDataUrl: csvDataUrl };
 }
 
 function getCertificateSettings() {
@@ -525,12 +546,15 @@ function getCertificateSettings() {
   var s = {};
   data.forEach(function(r) { s[r[0]] = r[1]; });
   
+  var elements = [];
+  if (s["CERT_ELEMENTS_JSON"]) {
+      try { elements = JSON.parse(s["CERT_ELEMENTS_JSON"]); } catch(e) {}
+  }
+  
   return {
-    templateUrl: s["CERT_TEMPLATE_URL"] || "",
-    signer1Name: s["CERT_SIGNER1_NAME"] || "",
-    signer1Role: s["CERT_SIGNER1_ROLE"] || "",
-    signer2Name: s["CERT_SIGNER2_NAME"] || "",
-    signer2Role: s["CERT_SIGNER2_ROLE"] || ""
+    backgroundUrl: s["CERT_TEMPLATE_URL"] || "",
+    elements: elements,
+    csvDataUrl: s["CERT_CSV_DATA_URL"] || ""
   };
 }
 
