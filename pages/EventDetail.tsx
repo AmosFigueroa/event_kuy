@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, DollarSign, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket } from 'lucide-react';
+import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type } from 'lucide-react';
 import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings } from '../services/api';
 import { Event, PaymentSettings } from '../types';
 
@@ -103,37 +103,58 @@ const EventDetail: React.FC = () => {
             <div className="bg-white border-2 border-[#2B427A] rounded-xl shadow-[6px_6px_0px_0px_#DFFF00] md:shadow-[8px_8px_0px_0px_#DFFF00] p-6 sticky top-24">
               <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-[#2B427A]/10">
                 <div><span className="text-gray-500 text-xs font-black uppercase">Biaya</span><div className="text-2xl md:text-3xl font-black text-[#0B1CDE]">{event.price === 0 ? "GRATIS" : `Rp ${event.price.toLocaleString('id-ID')}`}</div></div>
-                <div className="w-10 h-10 bg-[#DFFF00] rounded-lg border-2 border-[#2B427A] flex items-center justify-center"><DollarSign className="w-6 h-6 text-[#2B427A]" /></div>
+                <div className="w-10 h-10 bg-[#DFFF00] rounded-lg border-2 border-[#2B427A] flex items-center justify-center">
+                    <i className="fi fi-bs-money-bill-wave text-[#2B427A] text-xl flex"></i>
+                </div>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm font-bold flex gap-2"><AlertCircle className="w-4 h-4"/> {error}</div>}
                 
                 {/* Standard Fields */}
-                <div><label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Nama Lengkap</label><input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm" /></div>
-                <div><label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Email</label><input type="email" required value={formData.email} onChange={e=>setFormData({...formData, email:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm" /></div>
+                <div>
+                  <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Nama Lengkap</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                    <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                    <input type="email" required value={formData.email} onChange={e=>setFormData({...formData, email:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
+                  </div>
+                </div>
 
                 {/* Custom Fields */}
                 {event.formFields?.map(field => (
                     <div key={field.id}>
                         <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">{field.label}</label>
-                        {field.type === 'select' ? (
-                            <select required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2.5 font-bold focus:border-[#0B1CDE] outline-none bg-white text-sm">
-                                <option value="">Pilih...</option>
-                                {field.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
-                            </select>
-                        ) : field.type === 'textarea' ? (
-                            <textarea required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm" rows={3}></textarea>
-                        ) : (
-                            <input type={field.type} required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm" placeholder={field.placeholder} />
-                        )}
+                        <div className="relative">
+                            <div className="absolute left-3 top-3 w-4 h-4 text-gray-400 pointer-events-none">
+                              {field.type === 'select' ? <Tag className="w-4 h-4"/> : <Edit3 className="w-4 h-4"/>}
+                            </div>
+                            {field.type === 'select' ? (
+                                <select required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none bg-white text-sm text-[#2B427A]">
+                                    <option value="">Pilih...</option>
+                                    {field.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                            ) : field.type === 'textarea' ? (
+                                <textarea required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" rows={3}></textarea>
+                            ) : (
+                                <input type={field.type} required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" placeholder={field.placeholder} />
+                            )}
+                        </div>
                     </div>
                 ))}
 
                 {/* Payment Info Section */}
                 {event.price > 0 && paymentSettings && (
                     <div className="bg-[#F0F9FF] p-4 rounded-lg border border-blue-200 text-sm">
-                        <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2 text-xs md:text-sm"><DollarSign className="w-4 h-4"/> Transfer Pembayaran</h4>
+                        <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2 text-xs md:text-sm">
+                            <i className="fi fi-bs-money-bill-wave flex text-base"></i> Transfer Pembayaran
+                        </h4>
                         
                         <div className="space-y-4">
                             {/* Loop through bank accounts */}
@@ -168,7 +189,10 @@ const EventDetail: React.FC = () => {
                   <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Bukti Pembayaran</label>
                   <div className="border-2 border-dashed border-[#2B427A]/30 rounded-lg p-4 text-center hover:bg-[#F0F9FF] cursor-pointer relative">
                        <input type="file" required onChange={e=>setProofFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                       <div className="text-xs font-bold text-gray-500 break-words">{proofFile ? proofFile.name : "Klik Upload File"}</div>
+                       <div className="text-xs font-bold text-gray-500 break-words flex flex-col items-center gap-2">
+                           <Upload className="w-5 h-5 text-[#0B1CDE]" />
+                           {proofFile ? proofFile.name : "Klik Upload File"}
+                       </div>
                   </div>
                 </div>
 

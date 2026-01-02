@@ -50,6 +50,10 @@ function handleRequest(e, method) {
     else if (action === "savePaymentSettings" && method === "POST") data = savePaymentSettings(postData);
     else if (action === "getPaymentSettings") data = getPaymentSettings();
     
+    // Certificate Settings (Global Defaults)
+    else if (action === "saveCertificateSettings" && method === "POST") data = saveCertificateSettings(postData);
+    else if (action === "getCertificateSettings") data = getCertificateSettings();
+    
     // Auth
     else if (action === "signup" && method === "POST") data = signupUser(postData);
     else if (action === "login" && method === "POST") data = loginUser(postData);
@@ -481,6 +485,55 @@ function getPaymentSettings() {
   } 
   return { bankAccounts: bankAccounts, qrisUrl: settings["QRIS_URL"] || "" };
 }
+
+// --- SETTINGS (Certificate Defaults) ---
+function saveCertificateSettings(data) {
+  var ss = _getDb();
+  var sheet = ss.getSheetByName("Settings");
+  
+  var templateUrl = data.currentTemplateUrl || "";
+  if (data.templateBase64) {
+    try {
+      var folder = _getAdminFolder();
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.templateBase64), "image/png", "cert_default_template");
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      templateUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+    } catch(e) {}
+  }
+
+  var setSetting = function(key, val) {
+    var rows = sheet.getDataRange().getValues();
+    for(var i=0; i<rows.length; i++) {
+      if(rows[i][0] == key) { sheet.getRange(i+1, 2).setValue(val); return; }
+    }
+    sheet.appendRow([key, val]);
+  };
+
+  setSetting("CERT_TEMPLATE_URL", templateUrl);
+  setSetting("CERT_SIGNER1_NAME", data.signer1Name || "");
+  setSetting("CERT_SIGNER1_ROLE", data.signer1Role || "");
+  setSetting("CERT_SIGNER2_NAME", data.signer2Name || "");
+  setSetting("CERT_SIGNER2_ROLE", data.signer2Role || "");
+  
+  return { success: true, templateUrl: templateUrl };
+}
+
+function getCertificateSettings() {
+  var sheet = _getSheet("Settings");
+  var data = sheet.getDataRange().getValues();
+  var s = {};
+  data.forEach(function(r) { s[r[0]] = r[1]; });
+  
+  return {
+    templateUrl: s["CERT_TEMPLATE_URL"] || "",
+    signer1Name: s["CERT_SIGNER1_NAME"] || "",
+    signer1Role: s["CERT_SIGNER1_ROLE"] || "",
+    signer2Name: s["CERT_SIGNER2_NAME"] || "",
+    signer2Role: s["CERT_SIGNER2_ROLE"] || ""
+  };
+}
+
 
 // --- DB HELPERS ---
 function _getDb() {

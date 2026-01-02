@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Check, DollarSign } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ const PaymentSuccessPage: React.FC = () => {
                 </h1>
             </div>
             <div className="w-12 h-12 bg-[#DFFF00] rounded-xl border-2 border-[#2B427A] flex items-center justify-center transform hover:rotate-12 transition-transform">
-                <DollarSign className="w-7 h-7 text-[#2B427A]" strokeWidth={2.5} />
+                <i className="fi fi-bs-money-bill-wave text-[#2B427A] text-2xl leading-none flex"></i>
             </div>
         </div>
 
