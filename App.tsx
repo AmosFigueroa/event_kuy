@@ -3,13 +3,13 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import Home from './pages/Home';
+import EventsPage from './pages/EventsPage';
 import EventDetail from './pages/EventDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
-import { getApiUrl } from './services/api';
+import LoginPage from './pages/LoginPage';
+import './types';
 
-// Simple check to ensure user has setup the API URL, otherwise redirect to admin settings first (simulated)
-// In a real app, this would be a proper Auth Guard
 const App: React.FC = () => {
   return (
     <Router>
@@ -18,8 +18,9 @@ const App: React.FC = () => {
         <div className="flex-grow">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/events" element={<Home />} /> {/* Reusing home for list for simplicity */}
+            <Route path="/events" element={<EventsPage />} /> 
             <Route path="/event/:id" element={<EventDetail />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/dashboard/admin" element={<AdminDashboard />} />
             <Route path="/dashboard/user" element={<UserDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />

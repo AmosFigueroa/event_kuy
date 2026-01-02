@@ -1,4 +1,4 @@
-import { ApiResponse, Event, Registration } from '../types';
+import { ApiResponse, Event, Registration, UserSession, UserRole } from '../types';
 import { DEFAULT_SCRIPT_URL } from '../constants';
 
 // Utility to read the stored API URL or use default
@@ -56,6 +56,34 @@ const callScript = async (action: string, payload: any = {}, method: 'GET' | 'PO
   }
 };
 
+// --- Auth Methods (Email & Password & OTP) ---
+
+export const loginUser = async (email: string, password: string): Promise<{ valid: boolean, role: UserRole, email: string, name: string }> => {
+  return callScript('login', { email, password }, 'POST');
+};
+
+export const registerAccount = async (name: string, email: string, password: string): Promise<{ created: boolean, email: string }> => {
+  return callScript('signup', { name, email, password }, 'POST');
+};
+
+export const requestLoginOtp = async (email: string): Promise<{ sent: boolean, message: string }> => {
+  return callScript('requestOtp', { email }, 'POST');
+};
+
+export const loginWithOtp = async (email: string, otp: string): Promise<{ valid: boolean, role: UserRole, email: string, name: string }> => {
+  return callScript('loginOtp', { email, otp }, 'POST');
+};
+
+export const logout = () => {
+  localStorage.removeItem('user_session');
+  window.location.href = '/';
+};
+
+export const getUserSession = (): UserSession | null => {
+  const session = localStorage.getItem('user_session');
+  return session ? JSON.parse(session) : null;
+};
+
 // --- API Methods ---
 
 export const fetchEvents = async (): Promise<Event[]> => {
@@ -87,6 +115,8 @@ export const fetchRegistrations = async (): Promise<Registration[]> => {
 };
 
 export const fetchUserRegistrations = async (email: string): Promise<Registration[]> => {
+  // If we have a backend endpoint for this, it's better. For now, filter client side or use existing logic.
+  // Ideally, secure this on backend, but for this architecture:
   const allRegistrations = await fetchRegistrations();
   if (!allRegistrations || !Array.isArray(allRegistrations)) return [];
   return allRegistrations.filter(r => r.userEmail && r.userEmail.toLowerCase() === email.toLowerCase());

@@ -8,15 +8,10 @@ declare var process: {
 };
 
 export const generateEventDescription = async (title: string, category: string, keyDetails: string): Promise<string> => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    console.warn("API Key is missing for Gemini");
-    return "Pembuatan deskripsi acara tidak tersedia (Kunci API Hilang).";
-  }
-
-  try {
-    const ai = new GoogleGenAI({ apiKey });
+  // Use API key directly from process.env.API_KEY as per guidelines
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
+  try {
     // Updated prompt to request Indonesian output
     const prompt = `
       Buatlah deskripsi acara yang menarik dan profesional dalam Bahasa Indonesia untuk acara berjudul "${title}".
@@ -39,11 +34,10 @@ export const generateEventDescription = async (title: string, category: string, 
 };
 
 export const generateEmailTemplate = async (eventType: string, status: string): Promise<string> => {
-   const apiKey = process.env.API_KEY;
-   if (!apiKey) return "API Key missing.";
+   // Use API key directly
+   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
    try {
-       const ai = new GoogleGenAI({ apiKey });
        const prompt = `Write a short, polite email subject and body in Indonesian for a user whose registration for a ${eventType} is now ${status}.`;
 
        const response = await ai.models.generateContent({

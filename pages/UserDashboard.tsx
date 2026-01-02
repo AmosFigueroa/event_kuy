@@ -1,42 +1,49 @@
-import React, { useState } from 'react';
-import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight } from 'lucide-react';
-import { fetchUserRegistrations, fetchEvents, sendCertificate } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader } from 'lucide-react';
+import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession } from '../services/api';
 import { Registration, RegistrationStatus, Event } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 const UserDashboard: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [hasSearched, setHasSearched] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<(Registration & { eventDetails?: Event })[]>([]);
   const [certLoading, setCertLoading] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const session = getUserSession();
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
-
-    setLoading(true);
-    setHasSearched(true);
-    try {
-      const [userRegs, allEvents] = await Promise.all([
-        fetchUserRegistrations(email),
-        fetchEvents()
-      ]);
-
-      const enrichedTickets = userRegs.map(reg => ({
-        ...reg,
-        eventDetails: allEvents.find(ev => ev.id === reg.eventId)
-      }));
-
-      setTickets(enrichedTickets.sort((a, b) => 
-        new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime()
-      ));
-    } catch (error) {
-      console.error("Failed to fetch tickets", error);
-      alert("Tidak dapat memuat tiket. Silakan periksa koneksi Anda.");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    // Auth Check
+    if (!session || session.role !== 'USER') {
+        // If admin tries to access, redirect to admin. If no session, login.
+        if (session?.role === 'ADMIN') navigate('/dashboard/admin');
+        else navigate('/login');
+        return;
     }
-  };
+
+    const loadData = async () => {
+        try {
+            const [userRegs, allEvents] = await Promise.all([
+                fetchUserRegistrations(session.email),
+                fetchEvents()
+            ]);
+
+            const enrichedTickets = userRegs.map(reg => ({
+                ...reg,
+                eventDetails: allEvents.find(ev => ev.id === reg.eventId)
+            }));
+
+            setTickets(enrichedTickets.sort((a, b) => 
+                new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime()
+            ));
+        } catch (error) {
+            console.error("Failed to fetch tickets", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    loadData();
+  }, [navigate]);
 
   const requestCertificate = async (regId: string) => {
     setCertLoading(regId);
@@ -74,46 +81,33 @@ const UserDashboard: React.FC = () => {
     }
   };
 
+  if (loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+            <Loader className="w-10 h-10 animate-spin text-[#2B427A]" />
+        </div>
+      );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-16 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-12">
+          <div className="inline-block bg-[#DFFF00] text-[#2B427A] px-4 py-1 rounded-full text-sm font-black mb-4 border border-[#2B427A]">
+             AKUN: {session?.email}
+          </div>
           <h1 className="text-4xl md:text-5xl font-black text-[#2B427A] mb-4 uppercase tracking-tighter">PORTAL TIKET SAYA</h1>
-          <p className="text-lg text-gray-500 font-bold max-w-lg mx-auto">Masukkan alamat email terdaftar Anda untuk melihat tiket dan status.</p>
+          <p className="text-lg text-gray-500 font-bold max-w-lg mx-auto">Berikut adalah daftar acara yang telah Anda daftarkan.</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-[8px_8px_0px_0px_#2B427A] p-8 mb-12 max-w-xl mx-auto border-2 border-[#2B427A]">
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                type="email"
-                required
-                className="block w-full pl-11 pr-4 py-4 border-2 border-[#2B427A]/20 rounded-lg focus:border-[#0B1CDE] outline-none transition-all font-bold text-[#2B427A]"
-                placeholder="nama@contoh.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-8 py-4 bg-[#0B1CDE] text-white font-black rounded-lg hover:bg-[#2B427A] disabled:opacity-50 transition-all shadow-[4px_4px_0px_0px_#2B427A] border-2 border-[#2B427A] hover:translate-y-1 hover:shadow-none uppercase"
-            >
-              {loading ? 'MENCARI...' : 'CARI TIKET'}
-            </button>
-          </form>
-        </div>
-
-        {hasSearched && !loading && tickets.length === 0 && (
+        {tickets.length === 0 && (
           <div className="text-center py-16 bg-white rounded-xl border-2 border-[#2B427A] shadow-[8px_8px_0px_0px_#DFFF00]">
             <div className="w-20 h-20 bg-gray-100 rounded-full border-2 border-[#2B427A] flex items-center justify-center mx-auto mb-6">
                 <Ticket className="w-10 h-10 text-gray-400" />
             </div>
-            <h3 className="text-xl font-black text-[#2B427A] mb-2 uppercase">Tiket tidak ditemukan</h3>
-            <p className="text-gray-500 font-medium">Kami tidak dapat menemukan pendaftaran untuk <span className="font-bold text-[#0B1CDE]">{email}</span>.</p>
+            <h3 className="text-xl font-black text-[#2B427A] mb-2 uppercase">Belum ada tiket</h3>
+            <p className="text-gray-500 font-medium">Anda belum mendaftar di acara manapun.</p>
+            <a href="#/events" className="mt-6 inline-block bg-[#2B427A] text-white px-6 py-2 rounded-lg font-bold hover:bg-[#DFFF00] hover:text-[#2B427A] transition-colors">Cari Acara</a>
           </div>
         )}
 

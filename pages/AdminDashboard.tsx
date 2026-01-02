@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon } from 'lucide-react';
-import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate } from '../services/api';
+import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession } from '../services/api';
 import { generateEventDescription } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'registrations' | 'settings'>('overview');
@@ -11,6 +12,8 @@ const AdminDashboard: React.FC = () => {
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(false);
   const [processingCert, setProcessingCert] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const session = getUserSession();
   
   // New Event Form State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -27,10 +30,16 @@ const AdminDashboard: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState(false);
 
   useEffect(() => {
+    // Auth Check
+    if (!session || session.role !== 'ADMIN') {
+        navigate('/login');
+        return;
+    }
+
     if (getApiUrl()) {
         loadData();
     }
-  }, []);
+  }, [navigate]);
 
   const loadData = async () => {
     setLoading(true);
@@ -275,6 +284,9 @@ const AdminDashboard: React.FC = () => {
             ADMIN PANEL <div className="w-3 h-3 bg-[#DFFF00]"></div>
           </h1>
           <p className="text-xs text-blue-200 mt-2 font-bold tracking-widest uppercase">Bisnis Digital Dashboard</p>
+          <div className="mt-4 text-xs bg-[#0B1CDE] p-2 rounded text-white">
+            Login sebagai: <br/> {session?.email}
+          </div>
         </div>
         <nav className="p-6 space-y-3">
             {[
