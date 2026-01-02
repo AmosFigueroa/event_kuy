@@ -496,69 +496,173 @@ const AdminDashboard: React.FC = () => {
 
       return (
           <div className="flex flex-col lg:flex-row h-full bg-white rounded-xl overflow-hidden border border-gray-200">
-              {/* LEFT SIDEBAR: TOOLS */}
-              <div className="w-full lg:w-72 bg-gray-50 border-r border-gray-200 p-6 flex flex-col gap-6 overflow-y-auto z-30 shadow-md">
+              {/* LEFT SIDEBAR: TOOLS + PROPERTIES */}
+              <div className="w-full lg:w-80 bg-gray-50 border-r border-gray-200 flex flex-col z-30 shadow-xl h-full">
                   
-                  {/* Add Elements Group */}
-                  <div>
-                      <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">TAMBAH ELEMEN</h4>
-                      <div className="space-y-2">
-                          <button onClick={() => handleAddElement('dynamic')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
-                              <div className="bg-blue-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><Database className="w-4 h-4"/></div>
-                              Data Dinamis
-                          </button>
-                          <button onClick={() => handleAddElement('text')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
-                              <div className="bg-gray-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><TypeIcon className="w-4 h-4"/></div>
-                              Teks Statis
-                          </button>
-                          <button onClick={() => handleAddElement('image')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
-                              <div className="bg-purple-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><ImagePlus className="w-4 h-4"/></div>
-                              Gambar/Logo
-                          </button>
+                  {/* SCROLLABLE TOP AREA: ADD ELEMENTS & BACKGROUND */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                      
+                      {/* Add Elements Group */}
+                      <div>
+                          <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">TAMBAH ELEMEN</h4>
+                          <div className="space-y-2">
+                              <button onClick={() => handleAddElement('dynamic')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
+                                  <div className="bg-blue-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><Database className="w-4 h-4"/></div>
+                                  Data Dinamis
+                              </button>
+                              <button onClick={() => handleAddElement('text')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
+                                  <div className="bg-gray-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><TypeIcon className="w-4 h-4"/></div>
+                                  Teks Statis
+                              </button>
+                              <button onClick={() => handleAddElement('image')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
+                                  <div className="bg-purple-100 p-2 rounded-lg group-hover:bg-[#0B1CDE] group-hover:text-white transition-colors"><ImagePlus className="w-4 h-4"/></div>
+                                  Gambar/Logo
+                              </button>
+                          </div>
+                      </div>
+
+                      {/* Background Group */}
+                      <div className="pt-4 border-t border-gray-200">
+                          <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND</h4>
+                          <label className="w-full cursor-pointer group">
+                               <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-xl bg-white flex flex-col items-center justify-center gap-2 group-hover:border-[#0B1CDE] group-hover:bg-blue-50 transition-all overflow-hidden relative">
+                                   {bgUrl ? (
+                                       <>
+                                         <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-40" />
+                                         <div className="relative z-10 bg-white/80 px-3 py-1 rounded-full text-xs font-bold text-[#0B1CDE] backdrop-blur-sm">Ganti Gambar</div>
+                                       </>
+                                   ) : (
+                                       <>
+                                         <Upload className="w-8 h-8 text-gray-300 group-hover:text-[#0B1CDE]" />
+                                         <span className="text-xs font-bold text-gray-400 group-hover:text-[#0B1CDE]">Upload Template</span>
+                                       </>
+                                   )}
+                               </div>
+                               <input type="file" className="hidden" onChange={(e) => {
+                                   const file = e.target.files?.[0];
+                                   if(file) {
+                                       if (isEventSpecific) {
+                                           setCertBgFile(file);
+                                           const reader = new FileReader();
+                                           reader.onload = (ev) => setCertBgPreview(ev.target?.result as string);
+                                           reader.readAsDataURL(file);
+                                       } else {
+                                           setCertTemplateFile(file);
+                                           const reader = new FileReader();
+                                           reader.onload = (ev) => setCertSettingsBgPreview(ev.target?.result as string);
+                                           reader.readAsDataURL(file);
+                                       }
+                                   }
+                               }} accept="image/*" />
+                          </label>
+                          <p className="text-[10px] text-gray-400 mt-2 font-medium">Format: JPG/PNG, Orientasi Landscape (A4)</p>
                       </div>
                   </div>
 
-                  {/* Background Group */}
-                  <div className="pt-4 border-t border-gray-200">
-                      <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND</h4>
-                      <label className="w-full cursor-pointer group">
-                           <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-xl bg-white flex flex-col items-center justify-center gap-2 group-hover:border-[#0B1CDE] group-hover:bg-blue-50 transition-all overflow-hidden relative">
-                               {bgUrl ? (
-                                   <>
-                                     <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-40" />
-                                     <div className="relative z-10 bg-white/80 px-3 py-1 rounded-full text-xs font-bold text-[#0B1CDE] backdrop-blur-sm">Ganti Gambar</div>
-                                   </>
-                               ) : (
-                                   <>
-                                     <Upload className="w-8 h-8 text-gray-300 group-hover:text-[#0B1CDE]" />
-                                     <span className="text-xs font-bold text-gray-400 group-hover:text-[#0B1CDE]">Upload Template</span>
-                                   </>
-                               )}
-                           </div>
-                           <input type="file" className="hidden" onChange={(e) => {
-                               const file = e.target.files?.[0];
-                               if(file) {
-                                   if (isEventSpecific) {
-                                       setCertBgFile(file);
-                                       const reader = new FileReader();
-                                       reader.onload = (ev) => setCertBgPreview(ev.target?.result as string);
-                                       reader.readAsDataURL(file);
-                                   } else {
-                                       setCertTemplateFile(file);
-                                       const reader = new FileReader();
-                                       reader.onload = (ev) => setCertSettingsBgPreview(ev.target?.result as string);
-                                       reader.readAsDataURL(file);
-                                   }
-                               }
-                           }} accept="image/*" />
-                      </label>
-                      <p className="text-[10px] text-gray-400 mt-2 font-medium">Format: JPG/PNG, Orientasi Landscape (A4)</p>
+                  {/* BOTTOM AREA: PROPERTIES PANEL (Sticky at bottom of sidebar) */}
+                  <div className="bg-white border-t-2 border-gray-200 p-5 flex-shrink-0 max-h-[60%] overflow-y-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] custom-scrollbar">
+                      <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                        <h4 className="text-xs font-black text-[#2B427A] uppercase tracking-wider flex items-center gap-2">
+                            <SettingsIcon className="w-3 h-3"/> PROPERTI ITEM
+                        </h4>
+                        {activeElement && (
+                           <button onClick={() => {
+                                updateConfig(elements.filter(el => el.id !== activeElementId));
+                                setActiveElementId(null);
+                            }} className="text-red-500 text-[10px] font-bold hover:text-red-700 flex items-center gap-1 bg-red-50 px-2 py-1 rounded border border-red-100 hover:bg-red-100 transition-colors">
+                                <Trash2 className="w-3 h-3"/> HAPUS
+                            </button>
+                        )}
+                      </div>
+                      
+                      {activeElement ? (
+                          <div className="space-y-4 animate-fade-in">
+                              {/* 1. CONTENT (Full Width) */}
+                              <div>
+                                  <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Konten / Isi</label>
+                                  {activeElement.type === 'dynamic' ? (
+                                      <div className="relative">
+                                          <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
+                                          <select value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white text-gray-700">
+                                              <option value="userName">Nama Peserta</option>
+                                              <option value="eventTitle">Judul Acara</option>
+                                              <option value="date">Tanggal Acara</option>
+                                              <option value="certificateNumber">Nomor Sertifikat</option>
+                                          </select>
+                                      </div>
+                                  ) : activeElement.type === 'image' ? (
+                                      <div className="relative">
+                                          <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white text-gray-700" placeholder="URL Gambar..." />
+                                      </div>
+                                  ) : (
+                                      <div className="relative">
+                                          <TypeIcon className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
+                                          <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white text-gray-700" />
+                                      </div>
+                                  )}
+                              </div>
+
+                              {/* 2. STYLE PROPS (Grid 2 cols) */}
+                              <div className="grid grid-cols-2 gap-3">
+                                  {activeElement.type !== 'image' && (
+                                    <>
+                                      <div>
+                                          <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Size (px)</label>
+                                          <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700" />
+                                      </div>
+                                      
+                                      <div>
+                                          <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Warna</label>
+                                          <div className="flex items-center gap-2 border-2 border-gray-200 rounded-lg p-1 focus-within:border-[#0B1CDE] bg-white h-[38px]">
+                                               <input type="color" value={activeElement.color || '#000000'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, color: e.target.value } : el))} className="w-6 h-6 p-0 border-0 rounded cursor-pointer" />
+                                               <span className="text-[10px] font-mono font-bold text-gray-500 uppercase truncate">{activeElement.color}</span>
+                                          </div>
+                                      </div>
+
+                                      <div className="col-span-2">
+                                           <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Ketebalan</label>
+                                           <div className="relative">
+                                               <Bold className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
+                                               <select value={activeElement.fontWeight || 'bold'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontWeight: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700">
+                                                   <option value="normal">Normal</option>
+                                                   <option value="bold">Bold</option>
+                                               </select>
+                                           </div>
+                                      </div>
+                                    </>
+                                  )}
+
+                                  <div className="col-span-2">
+                                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align)</label>
+                                      <div className="relative">
+                                          <AlignJustify className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
+                                          <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700">
+                                              <option value="left">Kiri</option>
+                                              <option value="center">Tengah</option>
+                                              <option value="right">Kanan</option>
+                                          </select>
+                                      </div>
+                                  </div>
+
+                                  {activeElement.type === 'image' && (
+                                      <div className="col-span-2">
+                                          <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Lebar (px)</label>
+                                          <input type="number" value={activeElement.width || 100} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, width: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700" />
+                                      </div>
+                                  )}
+                              </div>
+                          </div>
+                      ) : (
+                          <div className="py-6 text-center text-gray-400 border-2 border-dashed border-gray-100 rounded-xl bg-gray-50/50">
+                              <MousePointer2 className="w-6 h-6 mb-2 opacity-30 mx-auto" />
+                              <p className="text-[10px] font-bold">Pilih elemen di canvas</p>
+                          </div>
+                      )}
                   </div>
               </div>
 
-              {/* CENTER & BOTTOM WRAPPER */}
-              <div className="flex-1 flex flex-col min-w-0 bg-[#F0F2F5]">
-                  {/* CANVAS (TOP) */}
+              {/* CENTER: CANVAS */}
+              <div className="flex-1 flex flex-col min-w-0 bg-[#F0F2F5] relative">
                   <div className="flex-1 overflow-auto p-8 flex items-center justify-center relative shadow-inner" 
                       onMouseMove={handleMouseMove} 
                       onMouseUp={handleMouseUp} 
@@ -600,105 +704,6 @@ const AdminDashboard: React.FC = () => {
                               </div>
                           ))}
                       </div>
-                  </div>
-
-                  {/* PROPERTIES PANEL (BOTTOM) */}
-                  <div className="w-full bg-white border-t border-gray-200 p-6 z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] h-auto min-h-[220px] max-h-[40vh] overflow-y-auto">
-                      <div className="flex items-center justify-between mb-4 border-b pb-2">
-                        <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider">PROPERTI ITEM</h4>
-                        {activeElement && (
-                           <button onClick={() => {
-                                updateConfig(elements.filter(el => el.id !== activeElementId));
-                                setActiveElementId(null);
-                            }} className="text-red-500 text-xs font-bold hover:text-red-700 flex items-center gap-1 bg-red-50 px-3 py-1 rounded-full border border-red-100 hover:bg-red-100 transition-colors">
-                                <Trash2 className="w-3 h-3"/> HAPUS ITEM
-                            </button>
-                        )}
-                      </div>
-                      
-                      {activeElement ? (
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in">
-                              {/* 1. CONTENT (Wide) */}
-                              <div className="md:col-span-2">
-                                  <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Konten / Isi</label>
-                                  {activeElement.type === 'dynamic' ? (
-                                      <div className="relative">
-                                          <Database className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
-                                          <select value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white">
-                                              <option value="userName">Nama Peserta</option>
-                                              <option value="eventTitle">Judul Acara</option>
-                                              <option value="date">Tanggal Acara</option>
-                                              <option value="certificateNumber">Nomor Sertifikat</option>
-                                          </select>
-                                      </div>
-                                  ) : activeElement.type === 'image' ? (
-                                      <div className="relative">
-                                          <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white" placeholder="URL Gambar..." />
-                                          <p className="text-[10px] text-gray-400 mt-1">Masukkan URL gambar atau base64</p>
-                                      </div>
-                                  ) : (
-                                      <div className="relative">
-                                          <TypeIcon className="w-4 h-4 absolute left-3 top-3 text-gray-400"/>
-                                          <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full pl-9 pr-3 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE] bg-gray-50 focus:bg-white" />
-                                      </div>
-                                  )}
-                              </div>
-
-                              {/* 2. STYLE PROPS */}
-                              {activeElement.type !== 'image' && (
-                                <>
-                                  <div>
-                                      <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ukuran Font (px)</label>
-                                      <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
-                                  </div>
-                                  
-                                  <div>
-                                      <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Warna Teks</label>
-                                      <div className="flex items-center gap-2 border-2 border-gray-200 rounded-lg p-1.5 focus-within:border-[#0B1CDE] bg-white">
-                                           <input type="color" value={activeElement.color || '#000000'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, color: e.target.value } : el))} className="w-8 h-8 p-0 border-0 rounded cursor-pointer" />
-                                           <span className="text-xs font-mono font-bold text-gray-500 uppercase flex-1">{activeElement.color}</span>
-                                      </div>
-                                  </div>
-
-                                  <div>
-                                       <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Ketebalan</label>
-                                       <div className="relative">
-                                           <Bold className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
-                                           <select value={activeElement.fontWeight || 'bold'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontWeight: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
-                                               <option value="normal">Normal</option>
-                                               <option value="bold">Bold</option>
-                                           </select>
-                                       </div>
-                                  </div>
-                                </>
-                              )}
-
-                              <div>
-                                  <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Perataan (Align)</label>
-                                  <div className="relative">
-                                      <AlignJustify className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
-                                      <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]">
-                                          <option value="left">Kiri</option>
-                                          <option value="center">Tengah</option>
-                                          <option value="right">Kanan</option>
-                                      </select>
-                                  </div>
-                              </div>
-
-                              {activeElement.type === 'image' && (
-                                  <div className="col-span-1">
-                                      <label className="text-[10px] font-black text-[#2B427A] uppercase mb-1 block">Lebar Gambar (px)</label>
-                                      <input type="number" value={activeElement.width || 100} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, width: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-[#0B1CDE]" />
-                                  </div>
-                              )}
-                          </div>
-                      ) : (
-                          <div className="h-32 flex flex-col items-center justify-center text-center text-gray-400 p-4 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                              <MousePointer2 className="w-8 h-8 mb-2 opacity-30" />
-                              <p className="text-sm font-bold">Pilih elemen pada canvas di atas</p>
-                              <p className="text-xs opacity-70">Klik salah satu item untuk mengedit properti detailnya di sini.</p>
-                          </div>
-                      )}
                   </div>
               </div>
           </div>
