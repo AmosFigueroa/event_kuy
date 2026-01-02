@@ -1,9 +1,10 @@
+
 import React, { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon } from 'lucide-react';
-import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession } from '../services/api';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter } from 'lucide-react';
+import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings } from '../services/api';
 import { generateEventDescription } from '../services/geminiService';
-import { Event, EventCategory, Registration, RegistrationStatus } from '../types';
+import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard: React.FC = () => {
@@ -15,12 +16,22 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const session = getUserSession();
   
-  // New Event Form State
+  // Registration Filter State
+  const [selectedEventFilter, setSelectedEventFilter] = useState<string>('ALL');
+  
+  // Payment Settings State
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({ bankName: '', accountNumber: '', accountHolder: '', qrisUrl: '' });
+  const [qrisFile, setQrisFile] = useState<File | null>(null);
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  // New Event Wizard State
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
   const [newEvent, setNewEvent] = useState<Partial<Event>>({
     category: EventCategory.SEMINAR,
     price: 0,
-    maxParticipants: 100
+    maxParticipants: 100,
+    formFields: []
   });
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [generatingDesc, setGeneratingDesc] = useState(false);
@@ -30,12 +41,10 @@ const AdminDashboard: React.FC = () => {
   const [testingConnection, setTestingConnection] = useState(false);
 
   useEffect(() => {
-    // Auth Check
     if (!session || session.role !== 'ADMIN') {
         navigate('/login');
         return;
     }
-
     if (getApiUrl()) {
         loadData();
     }
@@ -44,9 +53,10 @@ const AdminDashboard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [evts, regs] = await Promise.all([fetchEvents(), fetchRegistrations()]);
+      const [evts, regs, payment] = await Promise.all([fetchEvents(), fetchRegistrations(), fetchPaymentSettings()]);
       setEvents(evts || []);
       setRegistrations(regs || []);
+      setPaymentSettings(payment || { bankName: '', accountNumber: '', accountHolder: '', qrisUrl: '' });
     } catch (error) {
       console.error("Load Data Error:", error);
     } finally {
@@ -55,26 +65,15 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleGenerateDescription = async () => {
-    if (!newEvent.title) {
-        alert("Mohon masukkan judul terlebih dahulu");
-        return;
-    }
+    if (!newEvent.title) { alert("Judul wajib diisi"); return; }
     setGeneratingDesc(true);
-    const desc = await generateEventDescription(
-        newEvent.title, 
-        newEvent.category || "General", 
-        `Lokasi: ${newEvent.location}, Tanggal: ${newEvent.date}`
-    );
+    const desc = await generateEventDescription(newEvent.title, newEvent.category || "General", `Lokasi: ${newEvent.location}, Tanggal: ${newEvent.date}`);
     setNewEvent({...newEvent, description: desc});
     setGeneratingDesc(false);
   };
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!bannerFile) {
-        alert("Gambar banner diperlukan");
-        return;
-    }
+  const handleCreateEvent = async () => {
+    if (!bannerFile) { alert("Gambar banner diperlukan"); return; }
     
     const reader = new FileReader();
     reader.readAsDataURL(bannerFile);
@@ -85,12 +84,59 @@ const AdminDashboard: React.FC = () => {
         try {
             await createEvent(newEvent as any, base64);
             setShowCreateModal(false);
+            setWizardStep(1);
+            setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [] });
+            setBannerFile(null);
             loadData();
             alert("Acara berhasil dibuat!");
         } catch (err: any) {
             alert("Gagal: " + err.message);
         }
     };
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if(confirm("Apakah Anda yakin ingin menghapus acara ini secara permanen?")) {
+        try {
+            await deleteEvent(id);
+            setEvents(events.filter(e => e.id !== id));
+        } catch(e) { alert("Gagal menghapus."); }
+    }
+  };
+
+  const handleToggleStatus = async (id: string) => {
+    try {
+        const res = await toggleEventStatus(id);
+        setEvents(events.map(e => e.id === id ? {...e, isOpen: res.isOpen} : e));
+    } catch(e) { alert("Gagal mengubah status."); }
+  };
+
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setSavingPayment(true);
+      let qrisBase64 = undefined;
+      
+      const submit = async () => {
+          try {
+              const res = await savePaymentSettings(paymentSettings, qrisBase64);
+              if(res) {
+                  setPaymentSettings(prev => ({...prev, qrisUrl: (res as any).qrisUrl}));
+                  alert("Pengaturan pembayaran tersimpan!");
+              }
+          } catch(e) { alert("Gagal menyimpan."); }
+          finally { setSavingPayment(false); }
+      };
+
+      if (qrisFile) {
+          const reader = new FileReader();
+          reader.readAsDataURL(qrisFile);
+          reader.onload = () => {
+              qrisBase64 = (reader.result as string).split(',')[1];
+              submit();
+          };
+      } else {
+          submit();
+      }
   };
 
   const handleStatusUpdate = async (id: string, status: RegistrationStatus) => {
@@ -114,178 +160,388 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const copyLink = (eventId: string) => {
-    const url = `${window.location.origin}/#/event/${eventId}`;
-    navigator.clipboard.writeText(url);
-    alert("Tautan acara disalin ke papan klip!");
+  // --- WIZARD HANDLERS ---
+  const addFormField = () => {
+      const newField: FormField = {
+          id: Date.now().toString(),
+          label: '',
+          type: 'text',
+          required: false
+      };
+      setNewEvent({...newEvent, formFields: [...(newEvent.formFields || []), newField]});
   };
 
-  const saveSettings = () => {
-    setApiUrl(scriptUrl);
-    alert("URL API Disimpan. Memuat ulang data...");
-    loadData();
-  };
-  
-  const testConnection = async () => {
-    if (!scriptUrl) {
-        alert("Mohon masukkan URL terlebih dahulu.");
-        return;
-    }
-    setTestingConnection(true);
-    setApiUrl(scriptUrl);
-    try {
-        await fetchEvents();
-        alert("Sukses! Backend terhubung.");
-        loadData();
-    } catch (e: any) {
-        alert("Koneksi gagal: " + e.message);
-    } finally {
-        setTestingConnection(false);
-    }
+  const updateFormField = (index: number, field: Partial<FormField>) => {
+      const updated = [...(newEvent.formFields || [])];
+      updated[index] = { ...updated[index], ...field };
+      setNewEvent({...newEvent, formFields: updated});
   };
 
-  const chartData = events.map(e => ({
-    name: e.title ? (e.title.length > 10 ? e.title.substring(0, 10) + '...' : e.title) : 'Tanpa Judul',
-    Participants: e.currentParticipants || 0
-  }));
+  const removeFormField = (index: number) => {
+      const updated = [...(newEvent.formFields || [])];
+      updated.splice(index, 1);
+      setNewEvent({...newEvent, formFields: updated});
+  };
 
-  const renderOverview = () => (
-    <div className="space-y-8 animate-fade-in">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] flex items-center justify-between hover:translate-y-1 hover:shadow-none transition-all">
-          <div>
-            <div className="text-gray-500 text-xs font-black uppercase tracking-wide mb-1">Total Acara</div>
-            <div className="text-4xl font-black text-[#2B427A]">{events.length}</div>
+  const renderCreateEventWizard = () => (
+      <div className="fixed inset-0 bg-[#2B427A]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border-4 border-[#DFFF00]">
+              
+              {/* Wizard Header */}
+              <div className="bg-gray-50 px-8 py-6 border-b-2 border-gray-100 flex justify-between items-center">
+                  <div>
+                      <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tight">Buat Acara Baru</h2>
+                      <div className="flex gap-2 mt-2">
+                          {[1,2,3,4].map(step => (
+                              <div key={step} className={`h-2 w-12 rounded-full transition-all ${step <= wizardStep ? 'bg-[#0B1CDE]' : 'bg-gray-200'}`} />
+                          ))}
+                      </div>
+                  </div>
+                  <button onClick={() => setShowCreateModal(false)} className="p-2 text-gray-400 hover:text-red-500 transition-colors"><XCircle className="w-8 h-8" /></button>
+              </div>
+
+              {/* Wizard Content */}
+              <div className="p-8 overflow-y-auto flex-1 bg-white">
+                  {wizardStep === 1 && (
+                      <div className="space-y-6 animate-fade-in">
+                          <h3 className="text-lg font-black text-gray-400 uppercase">Tahap 1: Informasi Dasar</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div>
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label>
+                                  <input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" placeholder="Nama Event..." />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label>
+                                  <select value={newEvent.category} onChange={e=>setNewEvent({...newEvent, category:e.target.value as any})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold bg-white">
+                                      {Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}
+                                  </select>
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label>
+                                  <input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label>
+                                  <input type="time" value={newEvent.time||''} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" />
+                              </div>
+                          </div>
+                      </div>
+                  )}
+
+                  {wizardStep === 2 && (
+                      <div className="space-y-6 animate-fade-in">
+                           <h3 className="text-lg font-black text-gray-400 uppercase">Tahap 2: Detail & Media</h3>
+                           <div>
+                                <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi</label>
+                                <input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" placeholder="Tempat pelaksanaan..." />
+                           </div>
+                           <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-sm font-black text-[#2B427A] uppercase">Deskripsi</label>
+                                    <button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs bg-[#DFFF00] px-3 py-1 rounded font-black text-[#2B427A] border border-[#2B427A] flex items-center gap-1">
+                                        <Sparkles className="w-3 h-3"/> {generatingDesc ? '...' : 'AI GENERATE'}
+                                    </button>
+                                </div>
+                                <textarea rows={4} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-medium" placeholder="Jelaskan detail acara..."/>
+                           </div>
+                           <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 cursor-pointer relative">
+                                <input type="file" accept="image/*" onChange={e=>setBannerFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                <div className="flex flex-col items-center">
+                                    <ImageIcon className="w-8 h-8 text-gray-400 mb-2"/>
+                                    <span className="font-bold text-gray-500">{bannerFile ? bannerFile.name : "Unggah Banner Acara (Klik Disini)"}</span>
+                                </div>
+                           </div>
+                      </div>
+                  )}
+
+                  {wizardStep === 3 && (
+                      <div className="space-y-6 animate-fade-in">
+                          <div className="flex justify-between items-center">
+                              <h3 className="text-lg font-black text-gray-400 uppercase">Tahap 3: Form Pendaftaran</h3>
+                              <button onClick={addFormField} className="text-sm bg-[#0B1CDE] text-white px-3 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]"><PlusCircle className="w-4 h-4"/> TAMBAH FIELD</button>
+                          </div>
+                          <div className="bg-[#F0F9FF] p-4 rounded-xl border border-blue-100 text-sm text-[#2B427A] font-medium mb-4">
+                              <span className="font-bold">Catatan:</span> Nama Lengkap dan Email sudah otomatis tersedia di setiap formulir. Tambahkan field lain sesuai kebutuhan (Misal: NIM, No HP, Asal Instansi).
+                          </div>
+                          
+                          <div className="space-y-3">
+                              {newEvent.formFields?.map((field, idx) => (
+                                  <div key={idx} className="flex gap-4 items-start bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                      <div className="flex-1 space-y-3">
+                                          <div className="grid grid-cols-2 gap-4">
+                                              <input type="text" placeholder="Label (Misal: No WhatsApp)" value={field.label} onChange={e=>updateFormField(idx, {label: e.target.value})} className="border rounded-lg p-2 text-sm font-bold outline-none focus:border-blue-500" />
+                                              <select value={field.type} onChange={e=>updateFormField(idx, {type: e.target.value as any})} className="border rounded-lg p-2 text-sm font-bold outline-none bg-white">
+                                                  <option value="text">Teks Singkat</option>
+                                                  <option value="number">Angka</option>
+                                                  <option value="email">Email</option>
+                                                  <option value="textarea">Teks Panjang</option>
+                                                  <option value="select">Pilihan (Dropdown)</option>
+                                              </select>
+                                          </div>
+                                          {field.type === 'select' && (
+                                              <input type="text" placeholder="Opsi (pisahkan dengan koma)" value={field.options?.join(',')} onChange={e=>updateFormField(idx, {options: e.target.value.split(',')})} className="w-full border rounded-lg p-2 text-sm outline-none" />
+                                          )}
+                                          <div className="flex items-center gap-2">
+                                              <input type="checkbox" checked={field.required} onChange={e=>updateFormField(idx, {required: e.target.checked})} id={`req-${idx}`} className="w-4 h-4"/>
+                                              <label htmlFor={`req-${idx}`} className="text-sm font-bold text-gray-600">Wajib Diisi</label>
+                                          </div>
+                                      </div>
+                                      <button onClick={()=>removeFormField(idx)} className="text-red-400 hover:text-red-600 p-2"><MinusCircle className="w-6 h-6"/></button>
+                                  </div>
+                              ))}
+                              {(!newEvent.formFields || newEvent.formFields.length === 0) && (
+                                  <div className="text-center py-8 text-gray-400 font-bold border-2 border-dashed border-gray-200 rounded-xl">Belum ada field tambahan.</div>
+                              )}
+                          </div>
+                      </div>
+                  )}
+
+                  {wizardStep === 4 && (
+                      <div className="space-y-6 animate-fade-in">
+                          <h3 className="text-lg font-black text-gray-400 uppercase">Tahap 4: Harga & Review</h3>
+                          <div className="grid grid-cols-2 gap-6">
+                              <div>
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Harga Tiket (IDR)</label>
+                                  <input type="number" value={newEvent.price} onChange={e=>setNewEvent({...newEvent, price: Number(e.target.value)})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-black text-lg" />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kuota Peserta</label>
+                                  <input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-black text-lg" />
+                              </div>
+                          </div>
+                          
+                          <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 mt-4">
+                              <h4 className="font-black text-[#2B427A] mb-2 uppercase">Ringkasan Acara</h4>
+                              <p className="text-sm font-bold text-gray-600">Judul: <span className="text-[#0B1CDE]">{newEvent.title}</span></p>
+                              <p className="text-sm font-bold text-gray-600">Tanggal: {newEvent.date} @ {newEvent.time}</p>
+                              <p className="text-sm font-bold text-gray-600">Lokasi: {newEvent.location}</p>
+                              <p className="text-sm font-bold text-gray-600">Field Tambahan: {newEvent.formFields?.length || 0}</p>
+                          </div>
+                      </div>
+                  )}
+              </div>
+
+              {/* Wizard Footer */}
+              <div className="p-6 bg-gray-50 border-t-2 border-gray-100 flex justify-between">
+                  {wizardStep > 1 ? (
+                      <button onClick={()=>setWizardStep(prev=>prev-1)} className="px-6 py-3 rounded-xl font-bold text-gray-600 hover:bg-gray-200 flex items-center gap-2 transition-colors"><ChevronLeft className="w-5 h-5"/> KEMBALI</button>
+                  ) : <div/>}
+                  
+                  {wizardStep < 4 ? (
+                      <button onClick={()=>setWizardStep(prev=>prev+1)} className="px-6 py-3 rounded-xl font-black bg-[#2B427A] text-white hover:bg-[#0B1CDE] flex items-center gap-2 transition-all shadow-lg hover:translate-y-[-2px]">SELANJUTNYA <ChevronRight className="w-5 h-5"/></button>
+                  ) : (
+                      <button onClick={handleCreateEvent} className="px-8 py-3 rounded-xl font-black bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:bg-white flex items-center gap-2 transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:shadow-[2px_2px_0px_0px_#2B427A]">
+                          <CheckCircle className="w-5 h-5"/> PUBLIKASIKAN ACARA
+                      </button>
+                  )}
+              </div>
           </div>
-          <div className="w-12 h-12 bg-[#DFFF00] text-[#2B427A] rounded-lg border-2 border-[#2B427A] flex items-center justify-center">
-             <CalendarIcon className="w-6 h-6" />
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] flex items-center justify-between hover:translate-y-1 hover:shadow-none transition-all">
-           <div>
-            <div className="text-gray-500 text-xs font-black uppercase tracking-wide mb-1">Menunggu Konfirmasi</div>
-            <div className="text-4xl font-black text-[#0B1CDE]">
-                {registrations.filter(r => r.status === RegistrationStatus.PENDING).length}
-            </div>
-           </div>
-           <div className="w-12 h-12 bg-[#2B427A] text-white rounded-lg border-2 border-[#2B427A] flex items-center justify-center">
-             <Clock className="w-6 h-6" />
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] flex items-center justify-between hover:translate-y-1 hover:shadow-none transition-all">
-          <div>
-            <div className="text-gray-500 text-xs font-black uppercase tracking-wide mb-1">Total Peserta</div>
-            <div className="text-4xl font-black text-[#2B427A]">
-                {events.reduce((acc, curr) => acc + (curr.currentParticipants || 0), 0)}
-            </div>
-          </div>
-          <div className="w-12 h-12 bg-[#0B1CDE] text-white rounded-lg border-2 border-[#2B427A] flex items-center justify-center">
-             <UsersIcon className="w-6 h-6" />
-           </div>
-        </div>
       </div>
+  );
 
-      <div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A]">
-        <h3 className="text-xl font-black mb-6 text-[#2B427A] uppercase tracking-tight">Statistik Partisipasi</h3>
-        <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#2B427A', fontSize: 12, fontWeight: 700}} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{fill: '#2B427A', fontSize: 12, fontWeight: 700}} />
-              <Tooltip 
-                cursor={{fill: '#F0F9FF'}} 
-                contentStyle={{borderRadius: '8px', border: '2px solid #2B427A', boxShadow: '4px 4px 0px 0px #2B427A', fontWeight: 'bold', color: '#2B427A'}} 
-              />
-              <Bar dataKey="Participants" fill="#0B1CDE" radius={[4, 4, 0, 0]} barSize={40} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+  const renderPaymentSettings = () => (
+      <div className="space-y-6 animate-fade-in">
+          <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Pengaturan Pembayaran</h2>
+          <div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A]">
+               <form onSubmit={handleSavePaymentSettings} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                   <div className="space-y-4">
+                       <div>
+                           <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Nama Bank</label>
+                           <input type="text" value={paymentSettings.bankName} onChange={e=>setPaymentSettings({...paymentSettings, bankName: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-3 font-bold" placeholder="Contoh: BCA / MANDIRI" required />
+                       </div>
+                       <div>
+                           <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Nomor Rekening</label>
+                           <input type="text" value={paymentSettings.accountNumber} onChange={e=>setPaymentSettings({...paymentSettings, accountNumber: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-3 font-bold" placeholder="Nomor Rekening..." required />
+                       </div>
+                       <div>
+                           <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Atas Nama</label>
+                           <input type="text" value={paymentSettings.accountHolder} onChange={e=>setPaymentSettings({...paymentSettings, accountHolder: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-3 font-bold" placeholder="Nama Pemilik Rekening" required />
+                       </div>
+                   </div>
+                   <div className="space-y-4">
+                       <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">QRIS (Scan Payment)</label>
+                       <div className="border-2 border-dashed border-[#2B427A]/30 rounded-xl p-6 text-center bg-gray-50 hover:bg-[#F0F9FF] cursor-pointer relative h-48 flex items-center justify-center">
+                           <input type="file" accept="image/*" onChange={e=>setQrisFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                           {qrisFile ? (
+                               <div className="text-green-600 font-bold">{qrisFile.name}</div>
+                           ) : (
+                               paymentSettings.qrisUrl ? <img src={paymentSettings.qrisUrl} alt="QRIS" className="h-full object-contain" /> : <div className="text-gray-400 font-bold"><Upload className="w-8 h-8 mx-auto mb-2"/>Upload QRIS Image</div>
+                           )}
+                       </div>
+                   </div>
+                   <div className="md:col-span-2">
+                       <button type="submit" disabled={savingPayment} className="w-full py-4 bg-[#0B1CDE] text-white font-black rounded-xl hover:bg-[#2B427A] transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_#2B427A]">
+                           {savingPayment ? <Loader className="animate-spin"/> : <CheckCircle/>} SIMPAN PENGATURAN PEMBAYARAN
+                       </button>
+                   </div>
+               </form>
+          </div>
       </div>
-    </div>
+  );
+
+  // Filter Registration Logic
+  const filteredRegistrations = registrations.filter(r => 
+      selectedEventFilter === 'ALL' ? true : r.eventId === selectedEventFilter
   );
 
   const renderRegistrations = () => (
-    <div className="bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden animate-fade-in">
-        <div className="p-6 border-b-2 border-[#2B427A] flex justify-between items-center bg-[#F0F9FF]">
-            <h2 className="text-xl font-black text-[#2B427A] uppercase tracking-tight">Manajemen Pendaftaran</h2>
-            <div className="text-sm font-bold text-[#2B427A] bg-white px-3 py-1 rounded border-2 border-[#2B427A]">Total: {registrations.length}</div>
+     <div className="bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden animate-fade-in">
+        <div className="p-6 border-b-2 border-[#2B427A] bg-[#F0F9FF] flex flex-col md:flex-row justify-between items-center gap-4">
+            <h2 className="text-xl font-black text-[#2B427A] uppercase tracking-tight">MANAJEMEN PENDAFTARAN</h2>
+            <div className="flex items-center gap-4 w-full md:w-auto">
+                <div className="relative flex-1 md:flex-none">
+                    <Filter className="absolute left-3 top-2.5 w-4 h-4 text-gray-500"/>
+                    <select 
+                        value={selectedEventFilter} 
+                        onChange={(e) => setSelectedEventFilter(e.target.value)}
+                        className="w-full md:w-64 pl-9 pr-4 py-2 border-2 border-[#2B427A] rounded-lg font-bold text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0B1CDE]/20"
+                    >
+                        <option value="ALL">Semua Acara</option>
+                        {events.map(e => (
+                            <option key={e.id} value={e.id}>{e.title}</option>
+                        ))}
+                    </select>
+                </div>
+                <div className="text-sm font-bold bg-[#2B427A] text-white px-3 py-2 rounded-lg border-2 border-[#2B427A] whitespace-nowrap">
+                    Total: {filteredRegistrations.length}
+                </div>
+            </div>
         </div>
         <div className="overflow-x-auto">
             <table className="w-full text-left">
                 <thead className="bg-[#2B427A] text-white text-xs font-black uppercase tracking-wider">
                     <tr>
+                        <th className="px-6 py-4">Nama / Detail Form</th>
                         <th className="px-6 py-4">Acara</th>
-                        <th className="px-6 py-4">Pengguna</th>
                         <th className="px-6 py-4">Bukti</th>
                         <th className="px-6 py-4">Status</th>
                         <th className="px-6 py-4">Aksi</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y-2 divide-[#2B427A]/10">
-                    {registrations.length === 0 ? (
+                    {filteredRegistrations.length === 0 ? (
                         <tr>
-                            <td colSpan={5} className="px-8 py-12 text-center text-gray-400 font-bold">Belum ada pendaftaran yang masuk.</td>
+                            <td colSpan={5} className="px-8 py-12 text-center text-gray-400 font-bold">
+                                {selectedEventFilter === 'ALL' ? "Belum ada pendaftaran yang masuk." : "Belum ada pendaftar untuk acara ini."}
+                            </td>
                         </tr>
                     ) : (
-                        registrations.map(reg => (
-                        <tr key={reg.id} className="hover:bg-[#F0F9FF] transition-colors">
-                            <td className="px-6 py-4 text-sm font-bold text-[#2B427A]">{reg.eventTitle}</td>
-                            <td className="px-6 py-4">
-                                <div className="text-sm font-bold text-[#2B427A]">{reg.userName}</div>
-                                <div className="text-xs text-gray-500 font-medium">{reg.userEmail}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                                <a href={reg.proofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1 bg-white border-2 border-[#2B427A] rounded-lg text-[#2B427A] text-xs font-bold hover:bg-[#DFFF00] hover:text-[#2B427A] transition-colors shadow-[2px_2px_0px_0px_#2B427A]">
-                                    <ImageIcon className="w-3 h-3" /> LIHAT
-                                </a>
-                            </td>
-                            <td className="px-6 py-4">
-                                <span className={`px-3 py-1 text-xs font-black rounded-lg tracking-wide uppercase border-2
-                                    ${reg.status === RegistrationStatus.APPROVED ? 'bg-green-100 text-green-700 border-green-700' : 
-                                      reg.status === RegistrationStatus.REJECTED ? 'bg-red-100 text-red-700 border-red-700' : 
-                                      'bg-yellow-100 text-yellow-700 border-yellow-700'}`}>
-                                    {reg.status === RegistrationStatus.APPROVED ? 'DISETUJUI' : 
-                                     reg.status === RegistrationStatus.REJECTED ? 'DITOLAK' : 'MENUNGGU'}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 flex items-center gap-2">
-                                {reg.status === RegistrationStatus.PENDING && (
-                                    <>
-                                        <button onClick={() => handleStatusUpdate(reg.id, RegistrationStatus.APPROVED)} className="p-2 bg-green-50 text-green-600 hover:bg-green-500 hover:text-white border-2 border-green-600 rounded-lg transition-colors" title="Setujui"><CheckCircle className="w-5 h-5"/></button>
-                                        <button onClick={() => handleStatusUpdate(reg.id, RegistrationStatus.REJECTED)} className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border-2 border-red-600 rounded-lg transition-colors" title="Tolak"><XCircle className="w-5 h-5"/></button>
-                                    </>
-                                )}
-                                {reg.status === RegistrationStatus.APPROVED && (
-                                  <button 
-                                    onClick={() => handleSendCertificate(reg.id)} 
-                                    disabled={processingCert === reg.id}
-                                    className={`p-2 rounded-lg bg-[#0B1CDE] text-white hover:bg-[#DFFF00] hover:text-[#2B427A] border-2 border-[#2B427A] transition-colors shadow-[2px_2px_0px_0px_#2B427A] ${processingCert === reg.id ? 'opacity-50' : ''}`}
-                                    title="Kirim Sertifikat"
-                                  >
-                                    {processingCert === reg.id ? <Loader className="w-5 h-5 animate-spin" /> : <Award className="w-5 h-5" />}
-                                  </button>
-                                )}
-                            </td>
-                        </tr>
-                    )))}
+                        filteredRegistrations.map(r => {
+                            let customDataObj = {};
+                            try { customDataObj = r.customData ? JSON.parse(r.customData) : {}; } catch(e){}
+                            
+                            return (
+                                <tr key={r.id} className="hover:bg-[#F0F9FF] transition-colors">
+                                    <td className="px-6 py-4">
+                                        <div className="font-black text-[#2B427A] text-base">{r.userName}</div>
+                                        <div className="text-xs text-gray-500 font-bold mb-1">{r.userEmail}</div>
+                                        {Object.keys(customDataObj).length > 0 && (
+                                            <div className="mt-2 bg-gray-50 p-2 rounded border border-gray-200 text-xs">
+                                                {Object.entries(customDataObj).map(([key, val]) => (
+                                                    <div key={key} className="flex gap-1"><span className="font-bold text-gray-600">{key}:</span> <span className="text-gray-800">{val as string}</span></div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td className="px-6 py-4 font-bold text-[#2B427A] text-sm">{r.eventTitle}</td>
+                                    <td className="px-6 py-4">
+                                        <a href={r.proofUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border-2 border-[#2B427A] rounded-lg text-[#2B427A] text-xs font-black hover:bg-[#DFFF00] hover:text-[#2B427A] transition-colors shadow-[2px_2px_0px_0px_#2B427A]">
+                                            <ImageIcon className="w-3 h-3" /> LIHAT
+                                        </a>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-3 py-1 text-[10px] font-black rounded-lg tracking-wide uppercase border-2
+                                            ${r.status === RegistrationStatus.APPROVED ? 'bg-green-100 text-green-700 border-green-700' : 
+                                              r.status === RegistrationStatus.REJECTED ? 'bg-red-100 text-red-700 border-red-700' : 
+                                              'bg-yellow-100 text-yellow-700 border-yellow-700'}`}>
+                                            {r.status === RegistrationStatus.APPROVED ? 'DISETUJUI' : 
+                                             r.status === RegistrationStatus.REJECTED ? 'DITOLAK' : 'MENUNGGU'}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 flex flex-col gap-2">
+                                        {r.status === RegistrationStatus.PENDING && (
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleStatusUpdate(r.id, RegistrationStatus.APPROVED)} className="p-2 bg-green-50 text-green-600 hover:bg-green-500 hover:text-white border-2 border-green-600 rounded-lg transition-colors" title="Setujui"><CheckCircle className="w-4 h-4"/></button>
+                                                <button onClick={() => handleStatusUpdate(r.id, RegistrationStatus.REJECTED)} className="p-2 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white border-2 border-red-600 rounded-lg transition-colors" title="Tolak"><XCircle className="w-4 h-4"/></button>
+                                            </div>
+                                        )}
+                                        {r.status === RegistrationStatus.APPROVED && (
+                                            <button 
+                                                onClick={() => handleSendCertificate(r.id)} 
+                                                disabled={processingCert === r.id}
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#0B1CDE] text-white hover:bg-[#DFFF00] hover:text-[#2B427A] border-2 border-[#2B427A] transition-colors shadow-[2px_2px_0px_0px_#2B427A] text-xs font-bold w-fit ${processingCert === r.id ? 'opacity-50' : ''}`}
+                                            >
+                                                {processingCert === r.id ? <Loader className="w-3 h-3 animate-spin" /> : <Award className="w-3 h-3" />} SERTIFIKAT
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })
+                    )}
                 </tbody>
             </table>
         </div>
-    </div>
+     </div>
+  );
+
+  const renderEventsList = () => (
+      <div className="space-y-8 animate-fade-in">
+          <div className="flex justify-between items-center">
+              <div>
+                  <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Acara Anda</h2>
+                  <p className="text-gray-500 mt-1 font-bold">Kelola semua acara yang aktif dan draf</p>
+              </div>
+              <button onClick={() => setShowCreateModal(true)} className="bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] px-6 py-3 rounded-lg font-black flex items-center gap-2 hover:bg-white transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none">
+                  <Plus className="w-5 h-5" /> BUAT ACARA
+              </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {events.map(event => (
+                  <div key={event.id} className={`bg-white p-6 rounded-xl border-2 transition-all group ${event.isOpen ? 'border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A]' : 'border-gray-300 shadow-none opacity-80'}`}>
+                      <div className="flex gap-4">
+                          <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 border-2 border-inherit">
+                              <img src={event.bannerUrl} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-start">
+                                  <h3 className="font-black text-lg text-[#2B427A] truncate uppercase mb-1">{event.title}</h3>
+                                  <div className="flex gap-1">
+                                      <button onClick={()=>handleToggleStatus(event.id)} className={`p-1.5 rounded-lg border-2 ${event.isOpen ? 'text-green-600 border-green-600 hover:bg-green-50' : 'text-gray-400 border-gray-400 hover:bg-gray-100'}`} title={event.isOpen ? "Nonaktifkan" : "Aktifkan"}>
+                                          <Power className="w-4 h-4" />
+                                      </button>
+                                      <button onClick={()=>handleDeleteEvent(event.id)} className="p-1.5 rounded-lg border-2 border-red-200 text-red-400 hover:text-red-600 hover:border-red-600 hover:bg-red-50" title="Hapus Permanen">
+                                          <Trash2 className="w-4 h-4" />
+                                      </button>
+                                  </div>
+                              </div>
+                              <p className="text-sm text-gray-500 font-bold mb-2">{new Date(event.date).toLocaleDateString('id-ID')}</p>
+                              <div className="flex gap-2">
+                                  <span className={`text-[10px] uppercase font-black px-2 py-1 rounded border tracking-wider ${event.isOpen ? 'bg-green-100 text-green-700 border-green-700' : 'bg-red-100 text-red-700 border-red-700'}`}>
+                                      {event.isOpen ? 'PUBLIK' : 'DRAFT/TUTUP'}
+                                  </span>
+                                  <button onClick={() => { const url = `${window.location.origin}/#/event/${createSlug(event.title)||event.id}`; navigator.clipboard.writeText(url); alert("Disalin!"); }} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                      <Copy className="w-3 h-3"/> SALIN LINK
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              ))}
+          </div>
+      </div>
   );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans">
-      {/* Sidebar */}
       <aside className="w-full md:w-72 bg-[#2B427A] border-r-2 border-[#2B427A] h-auto md:min-h-screen sticky top-0 text-white z-10">
         <div className="p-8 border-b-2 border-white/10">
           <h1 className="text-2xl font-black flex items-center gap-2 uppercase tracking-tighter">
             ADMIN PANEL <div className="w-3 h-3 bg-[#DFFF00]"></div>
           </h1>
-          <p className="text-xs text-blue-200 mt-2 font-bold tracking-widest uppercase">Bisnis Digital Dashboard</p>
-          <div className="mt-4 text-xs bg-[#0B1CDE] p-2 rounded text-white">
-            Login sebagai: <br/> {session?.email}
+          <div className="mt-4 text-xs bg-[#0B1CDE] p-2 rounded text-white font-mono">
+            {session?.email}
           </div>
         </div>
         <nav className="p-6 space-y-3">
@@ -293,13 +549,9 @@ const AdminDashboard: React.FC = () => {
                 {id: 'overview', label: 'Ringkasan', icon: LayoutDashboard},
                 {id: 'events', label: 'Acara', icon: CalendarIcon},
                 {id: 'registrations', label: 'Pendaftaran', icon: UsersIcon},
-                {id: 'settings', label: 'Pengaturan', icon: SettingsIcon},
+                {id: 'settings', label: 'Pembayaran', icon: CreditCard},
             ].map(item => (
-                <button 
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id as any)} 
-                    className={`w-full text-left px-5 py-4 rounded-lg flex items-center gap-3 transition-all duration-200 font-black border-2 uppercase tracking-wide ${activeTab === item.id ? 'bg-[#DFFF00] text-[#2B427A] border-[#2B427A] shadow-[4px_4px_0px_0px_#000] transform -translate-y-1' : 'text-white border-transparent hover:bg-white/10'}`}
-                >
+                <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full text-left px-5 py-4 rounded-lg flex items-center gap-3 transition-all duration-200 font-black border-2 uppercase tracking-wide ${activeTab === item.id ? 'bg-[#DFFF00] text-[#2B427A] border-[#2B427A] shadow-[4px_4px_0px_0px_#000] transform -translate-y-1' : 'text-white border-transparent hover:bg-white/10'}`}>
                     <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-[#2B427A]' : 'text-[#DFFF00]'}`} />
                     {item.label}
                 </button>
@@ -307,174 +559,21 @@ const AdminDashboard: React.FC = () => {
         </nav>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 p-8 md:p-12 overflow-y-auto">
-        {loading && <div className="mb-6 bg-[#DFFF00] text-[#2B427A] px-4 py-2 rounded-lg inline-flex items-center gap-2 animate-pulse font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><Loader className="w-4 h-4 animate-spin"/> MENYINKRONKAN DATABASE...</div>}
-
-        {activeTab === 'overview' && renderOverview()}
+        {loading && <div className="mb-6 bg-[#DFFF00] text-[#2B427A] px-4 py-2 rounded-lg inline-flex items-center gap-2 font-black border-2 border-[#2B427A]"><Loader className="w-4 h-4 animate-spin"/> MEMUAT DATA...</div>}
         
+        {activeTab === 'events' && renderEventsList()}
+        {activeTab === 'settings' && renderPaymentSettings()}
         {activeTab === 'registrations' && renderRegistrations()}
-
-        {activeTab === 'settings' && (
-            <div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] max-w-2xl animate-fade-in">
-                <h2 className="text-xl font-black mb-6 text-[#2B427A] uppercase tracking-tight">Konfigurasi Sistem</h2>
-                <div className="mb-6">
-                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">URL Web App Google Apps Script</label>
-                    <input 
-                        type="text" 
-                        value={scriptUrl} 
-                        onChange={(e) => setScriptUrl(e.target.value)}
-                        className="w-full px-5 py-3 border-2 border-[#2B427A] rounded-lg focus:bg-[#F0F9FF] focus:outline-none transition-all font-mono text-sm font-bold text-[#2B427A]"
-                        placeholder="https://script.google.com/macros/s/.../exec"
-                    />
-                    <p className="text-xs text-gray-500 mt-3 font-medium">
-                        Deploy kode backend sebagai Web App dengan akses 'Anyone'. Tempel URL hasil deploy di sini.
-                    </p>
-                </div>
-                <div className="flex gap-4">
-                    <button onClick={saveSettings} className="bg-[#0B1CDE] text-white px-6 py-3 rounded-lg font-black hover:bg-[#2B427A] flex items-center gap-2 transition-all shadow-[4px_4px_0px_0px_#2B427A] border-2 border-[#2B427A] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_#2B427A]">
-                        SIMPAN KONFIGURASI
-                    </button>
-                    <button onClick={testConnection} disabled={testingConnection} className="bg-white border-2 border-[#2B427A] text-[#2B427A] px-6 py-3 rounded-lg font-black hover:bg-[#DFFF00] flex items-center gap-2 transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_#2B427A]">
-                        {testingConnection ? <Loader className="w-4 h-4 animate-spin"/> : <RefreshCw className="w-4 h-4" />}
-                        {testingConnection ? 'MENGHUBUNGKAN...' : 'TES KONEKSI'}
-                    </button>
-                </div>
-            </div>
-        )}
-
-        {activeTab === 'events' && (
-            <div className="space-y-8 animate-fade-in">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Acara Anda</h2>
-                        <p className="text-gray-500 mt-1 font-bold">Kelola semua acara yang aktif dan draf</p>
-                    </div>
-                    <button onClick={() => setShowCreateModal(true)} className="bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] px-6 py-3 rounded-lg font-black flex items-center gap-2 hover:bg-white transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none">
-                        <Plus className="w-5 h-5" /> BUAT ACARA
-                    </button>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {events.map(event => (
-                        <div key={event.id} className="bg-white p-6 rounded-xl shadow-[6px_6px_0px_0px_#2B427A] border-2 border-[#2B427A] flex justify-between items-start hover:shadow-[8px_8px_0px_0px_#0B1CDE] transition-all group">
-                            <div className="flex gap-4">
-                                <div className="w-20 h-20 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 border-2 border-[#2B427A]">
-                                    {event.bannerUrl ? (
-                                        <img src={event.bannerUrl} alt="" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" />
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-gray-300"><ImageIcon className="w-6 h-6"/></div>
-                                    )}
-                                </div>
-                                <div>
-                                    <h3 className="font-black text-lg text-[#2B427A] group-hover:text-[#0B1CDE] transition-colors uppercase leading-tight mb-1">{event.title}</h3>
-                                    <p className="text-sm text-gray-500 mb-3 font-bold">{new Date(event.date).toLocaleDateString('id-ID')}</p>
-                                    <span className={`text-[10px] uppercase font-black px-2 py-1 rounded border-2 tracking-wider ${event.isOpen ? 'bg-green-100 text-green-700 border-green-700' : 'bg-gray-100 text-gray-600 border-gray-600'}`}>
-                                        {event.isOpen ? 'BUKA' : 'TUTUP'}
-                                    </span>
-                                </div>
-                            </div>
-                            <button onClick={() => copyLink(event.id)} className="p-2 text-gray-400 hover:text-[#0B1CDE] hover:bg-[#F0F9FF] border-2 border-transparent hover:border-[#0B1CDE] rounded-lg transition-all" title="Salin Tautan">
-                                <Copy className="w-5 h-5" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
+        {activeTab === 'overview' && (
+             <div className="grid grid-cols-3 gap-6 animate-fade-in">
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><h3 className="text-gray-400 font-bold text-xs uppercase">Total Acara</h3><p className="text-4xl font-black text-[#2B427A]">{events.length}</p></div>
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><h3 className="text-gray-400 font-bold text-xs uppercase">Pendaftar</h3><p className="text-4xl font-black text-[#0B1CDE]">{registrations.length}</p></div>
+             </div>
         )}
       </main>
-
-      {/* Create Event Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-[#2B427A]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 border-4 border-[#DFFF00]">
-                <div className="flex justify-between items-center mb-8 border-b-2 border-gray-100 pb-4">
-                    <h2 className="text-2xl font-black text-[#2B427A] uppercase">Buat Acara Baru</h2>
-                    <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-red-100 hover:text-red-500 rounded-lg transition-colors border-2 border-transparent hover:border-red-500"><XCircle className="w-6 h-6" /></button>
-                </div>
-
-                <form onSubmit={handleCreateEvent} className="space-y-6">
-                    <div className="grid grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label>
-                            <input type="text" required className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all font-bold" onChange={e => setNewEvent({...newEvent, title: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label>
-                            <select className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all bg-white font-bold" onChange={e => setNewEvent({...newEvent, category: e.target.value as EventCategory})}>
-                                {Object.values(EventCategory).map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-6">
-                         <div>
-                            <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label>
-                            <input type="date" required className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all font-bold" onChange={e => setNewEvent({...newEvent, date: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label>
-                            <input type="time" required className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all font-bold" onChange={e => setNewEvent({...newEvent, time: e.target.value})} />
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi</label>
-                        <input type="text" required className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all font-bold" placeholder="Misal: Zoom Meeting atau Aula Kampus" onChange={e => setNewEvent({...newEvent, location: e.target.value})} />
-                    </div>
-
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                            <label className="block text-sm font-black text-[#2B427A] uppercase">Deskripsi</label>
-                            <button 
-                                type="button" 
-                                onClick={handleGenerateDescription}
-                                disabled={generatingDesc}
-                                className="text-xs flex items-center gap-1.5 text-[#2B427A] bg-[#DFFF00] border-2 border-[#2B427A] px-3 py-1 rounded font-black hover:bg-white disabled:opacity-50 transition-all shadow-[2px_2px_0px_0px_#2B427A]"
-                            >
-                                <Sparkles className="w-3 h-3" /> {generatingDesc ? 'MEMPROSES...' : 'AI GENERATE'}
-                            </button>
-                        </div>
-                        <textarea 
-                            rows={4} 
-                            required 
-                            className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all resize-none font-medium" 
-                            placeholder="Jelaskan detail acara Anda..."
-                            value={newEvent.description || ''}
-                            onChange={e => setNewEvent({...newEvent, description: e.target.value})}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Harga (IDR)</label>
-                            <input type="number" required className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all font-bold" onChange={e => setNewEvent({...newEvent, price: Number(e.target.value)})} />
-                        </div>
-                         <div>
-                            <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Maks Peserta</label>
-                            <input type="number" required className="w-full border-2 border-[#2B427A]/20 rounded-lg p-3 focus:border-[#0B1CDE] outline-none transition-all font-bold" onChange={e => setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} />
-                        </div>
-                    </div>
-
-                    <div>
-                         <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Gambar Banner</label>
-                         <div className="border-2 border-dashed border-[#2B427A]/20 rounded-lg p-6 text-center hover:border-[#0B1CDE] hover:bg-[#F0F9FF] transition-colors cursor-pointer relative bg-gray-50">
-                             <input type="file" accept="image/*" required onChange={e => setBannerFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                             <div className="flex flex-col items-center">
-                                <ImageIcon className="w-8 h-8 text-gray-400 mb-2"/>
-                                <span className="text-sm font-bold text-gray-500">{bannerFile ? bannerFile.name : "KLIK UNTUK UNGGAH GAMBAR"}</span>
-                             </div>
-                         </div>
-                    </div>
-
-                    <div className="pt-6 flex gap-4 justify-end border-t-2 border-gray-100 mt-6">
-                        <button type="button" onClick={() => setShowCreateModal(false)} className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-100 rounded-lg transition-colors">BATAL</button>
-                        <button type="submit" className="px-6 py-3 bg-[#0B1CDE] text-white rounded-lg font-black hover:bg-[#2B427A] transition-all shadow-[4px_4px_0px_0px_#2B427A] border-2 border-[#2B427A]">SIMPAN ACARA</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-      )}
+      
+      {showCreateModal && renderCreateEventWizard()}
     </div>
   );
 };

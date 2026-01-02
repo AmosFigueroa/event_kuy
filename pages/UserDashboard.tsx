@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader } from 'lucide-react';
-import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession } from '../services/api';
+import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession, createSlug } from '../services/api';
 import { Registration, RegistrationStatus, Event } from '../types';
 import { useNavigate } from 'react-router-dom';
 
@@ -184,7 +184,7 @@ const UserDashboard: React.FC = () => {
                     )}
                     
                     {ticket.eventDetails && ticket.eventDetails.isOpen && (
-                         <a href={`/#/event/${ticket.eventId}`} className="text-sm text-[#2B427A] font-black hover:text-[#0B1CDE] flex items-center gap-1 mt-2 group/link uppercase tracking-wide">
+                         <a href={`/#/event/${createSlug(ticket.eventDetails.title) || ticket.eventId}`} className="text-sm text-[#2B427A] font-black hover:text-[#0B1CDE] flex items-center gap-1 mt-2 group/link uppercase tracking-wide">
                             LIHAT DETAIL <ArrowRight className="w-4 h-4 group-hover/link:translate-x-1 transition-transform" />
                          </a>
                     )}

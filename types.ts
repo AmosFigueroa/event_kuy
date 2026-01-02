@@ -1,6 +1,7 @@
+
 import React from 'react';
 
-// Augment global JSX namespace (fallback for legacy or specific configurations)
+// Augment global JSX namespace
 declare global {
   namespace JSX {
     interface IntrinsicElements {
@@ -14,7 +15,19 @@ export enum EventCategory {
   WORKSHOP = 'Workshop',
   SEMINAR = 'Seminar',
   CONCERT = 'Concert',
-  WEBINAR = 'Webinar'
+  WEBINAR = 'Webinar',
+  COMPETITION = 'Competition'
+}
+
+export type FormFieldType = 'text' | 'number' | 'email' | 'select' | 'textarea';
+
+export interface FormField {
+  id: string;
+  label: string;
+  type: FormFieldType;
+  required: boolean;
+  options?: string[]; // For select inputs, comma separated
+  placeholder?: string;
 }
 
 export interface Event {
@@ -26,11 +39,12 @@ export interface Event {
   location: string;
   price: number;
   category: EventCategory;
-  bannerUrl: string; // URL from Google Drive
+  bannerUrl: string;
   maxParticipants: number;
   currentParticipants: number;
   paymentInstructions?: string;
   isOpen: boolean;
+  formFields?: FormField[]; // Custom form fields structure
 }
 
 export enum RegistrationStatus {
@@ -45,9 +59,17 @@ export interface Registration {
   eventTitle: string;
   userName: string;
   userEmail: string;
-  proofUrl: string; // URL from Google Drive
+  proofUrl: string;
   status: RegistrationStatus;
   registrationDate: string;
+  customData?: string; // JSON string of custom form answers
+}
+
+export interface PaymentSettings {
+  bankName: string;
+  accountNumber: string;
+  accountHolder: string;
+  qrisUrl?: string;
 }
 
 // Auth Types
@@ -59,7 +81,6 @@ export interface UserSession {
   isLoggedIn: boolean;
 }
 
-// Response structure from GAS
 export interface ApiResponse<T> {
   success: boolean;
   data: T;

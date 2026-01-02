@@ -1,4 +1,5 @@
-import { ApiResponse, Event, Registration, UserSession, UserRole } from '../types';
+
+import { ApiResponse, Event, Registration, UserSession, UserRole, PaymentSettings } from '../types';
 import { DEFAULT_SCRIPT_URL } from '../constants';
 
 // Utility to read the stored API URL or use default
@@ -9,21 +10,24 @@ export const getApiUrl = () => {
 };
 export const setApiUrl = (url: string) => localStorage.setItem('GAS_API_URL', url);
 
+export const createSlug = (title: string) => {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
 const callScript = async (action: string, payload: any = {}, method: 'GET' | 'POST' = 'GET') => {
   const baseUrl = getApiUrl();
-  if (!baseUrl) {
-    console.error("API URL is missing");
-    throw new Error("Configuration Error: API URL is missing.");
-  }
+  if (!baseUrl) throw new Error("API URL is missing");
 
-  // Google Apps Script Web App handling
   let url = `${baseUrl}?action=${action}`;
-  
   const options: RequestInit = {
     method: method,
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8', // Important for GAS doPost
-    },
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
   };
 
   if (method === 'GET') {
@@ -38,17 +42,8 @@ const callScript = async (action: string, payload: any = {}, method: 'GET' | 'PO
     const response = await fetch(url, options);
     const text = await response.text();
     let json: ApiResponse<any>;
-    
-    try {
-        json = JSON.parse(text);
-    } catch (e) {
-        console.error("Failed to parse API response:", text);
-        throw new Error("Invalid response from server");
-    }
-    
-    if (!json.success) {
-      throw new Error(json.message || "API Request Failed");
-    }
+    try { json = JSON.parse(text); } catch (e) { throw new Error("Invalid response from server"); }
+    if (!json.success) throw new Error(json.message || "API Request Failed");
     return json.data;
   } catch (error: any) {
     console.error(`API Call Failed [${action}]:`, error);
@@ -56,76 +51,46 @@ const callScript = async (action: string, payload: any = {}, method: 'GET' | 'PO
   }
 };
 
-// --- Auth Methods (Email & Password & OTP) ---
-
-export const loginUser = async (email: string, password: string): Promise<{ valid: boolean, role: UserRole, email: string, name: string }> => {
-  return callScript('login', { email, password }, 'POST');
-};
-
-export const registerAccount = async (name: string, email: string, password: string): Promise<{ created: boolean, email: string }> => {
-  return callScript('signup', { name, email, password }, 'POST');
-};
-
-export const requestLoginOtp = async (email: string): Promise<{ sent: boolean, message: string }> => {
-  return callScript('requestOtp', { email }, 'POST');
-};
-
-export const loginWithOtp = async (email: string, otp: string): Promise<{ valid: boolean, role: UserRole, email: string, name: string }> => {
-  return callScript('loginOtp', { email, otp }, 'POST');
-};
-
-export const logout = () => {
-  localStorage.removeItem('user_session');
-  window.location.href = '/';
-};
-
+// --- Auth ---
+export const loginUser = (email: string, password: string) => callScript('login', { email, password }, 'POST');
+export const registerAccount = (name: string, email: string, password: string) => callScript('signup', { name, email, password }, 'POST');
+export const requestLoginOtp = (email: string) => callScript('requestOtp', { email }, 'POST');
+export const loginWithOtp = (email: string, otp: string) => callScript('loginOtp', { email, otp }, 'POST');
+export const logout = () => { localStorage.removeItem('user_session'); window.location.href = '/'; };
 export const getUserSession = (): UserSession | null => {
   const session = localStorage.getItem('user_session');
   return session ? JSON.parse(session) : null;
 };
 
-// --- API Methods ---
-
+// --- Events ---
 export const fetchEvents = async (): Promise<Event[]> => {
   try {
     const data = await callScript('getEvents');
     return Array.isArray(data) ? data : [];
-  } catch (e) {
-    console.error("fetchEvents safe catch:", e);
-    return []; // Return empty array to prevent UI crash
-  }
+  } catch (e) { return []; }
 };
 
-export const createEvent = async (eventData: Omit<Event, 'id' | 'currentParticipants'>, bannerBase64: string): Promise<Event> => {
-  return callScript('createEvent', { ...eventData, bannerBase64 }, 'POST');
-};
+export const createEvent = (eventData: Partial<Event>, bannerBase64: string) => callScript('createEvent', { ...eventData, bannerBase64 }, 'POST');
 
-export const registerForEvent = async (registrationData: { eventId: string, name: string, email: string }, proofBase64: string): Promise<any> => {
-  return callScript('registerUser', { ...registrationData, proofBase64 }, 'POST');
-};
+export const deleteEvent = (id: string) => callScript('deleteEvent', { id }, 'POST');
 
+export const toggleEventStatus = (id: string) => callScript('toggleEventStatus', { id }, 'POST');
+
+// --- Registrations ---
+export const registerForEvent = (registrationData: any, proofBase64: string) => callScript('registerUser', { ...registrationData, proofBase64 }, 'POST');
 export const fetchRegistrations = async (): Promise<Registration[]> => {
   try {
     const data = await callScript('getRegistrations');
     return Array.isArray(data) ? data : [];
-  } catch (e) {
-    console.error("fetchRegistrations safe catch:", e);
-    return [];
-  }
+  } catch (e) { return []; }
 };
+export const fetchUserRegistrations = async (email: string) => {
+  const all = await fetchRegistrations();
+  return all.filter(r => r.userEmail && r.userEmail.toLowerCase() === email.toLowerCase());
+};
+export const updateRegistrationStatus = (id: string, status: string) => callScript('updateRegistrationStatus', { id, status }, 'POST');
+export const sendCertificate = (id: string) => callScript('sendCertificate', { id }, 'POST');
 
-export const fetchUserRegistrations = async (email: string): Promise<Registration[]> => {
-  // If we have a backend endpoint for this, it's better. For now, filter client side or use existing logic.
-  // Ideally, secure this on backend, but for this architecture:
-  const allRegistrations = await fetchRegistrations();
-  if (!allRegistrations || !Array.isArray(allRegistrations)) return [];
-  return allRegistrations.filter(r => r.userEmail && r.userEmail.toLowerCase() === email.toLowerCase());
-};
-
-export const updateRegistrationStatus = async (id: string, status: string): Promise<any> => {
-  return callScript('updateRegistrationStatus', { id, status }, 'POST');
-};
-
-export const sendCertificate = async (registrationId: string): Promise<any> => {
-  return callScript('sendCertificate', { id: registrationId }, 'POST');
-};
+// --- Payment Settings ---
+export const savePaymentSettings = (settings: PaymentSettings, qrisBase64?: string) => callScript('savePaymentSettings', { ...settings, qrisBase64 }, 'POST');
+export const fetchPaymentSettings = async (): Promise<PaymentSettings> => callScript('getPaymentSettings');

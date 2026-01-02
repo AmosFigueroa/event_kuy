@@ -2,12 +2,15 @@ import React from 'react';
 import { Calendar, MapPin, Users, ArrowRight, Tag } from 'lucide-react';
 import { Event } from '../types';
 import { Link } from 'react-router-dom';
+import { createSlug } from '../services/api';
 
 interface EventCardProps {
   event: Event;
 }
 
 const EventCard: React.FC<EventCardProps> = ({ event }) => {
+  const eventLink = `/event/${createSlug(event.title) || event.id}`;
+
   return (
     <div className="group bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full relative">
       <div className="relative h-52 bg-gray-200 overflow-hidden border-b-2 border-[#2B427A]">
@@ -52,7 +55,7 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
             
             {event.isOpen ? (
               <Link 
-                to={`/event/${event.id}`}
+                to={eventLink}
                 className="px-4 py-2 bg-[#2B427A] text-white text-sm font-bold rounded-lg hover:bg-[#DFFF00] hover:text-[#2B427A] border-2 border-transparent hover:border-[#2B427A] transition-all flex items-center gap-2"
               >
                 DAFTAR
