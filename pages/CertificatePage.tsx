@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader, Download, ArrowLeft, Award, CheckCircle } from 'lucide-react';
 import { fetchRegistrationById } from '../services/api';
-import { Registration, RegistrationStatus, CertificateConfig } from '../types';
+import { Registration, RegistrationStatus, CertificateConfig, CertificateElement } from '../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -20,6 +20,10 @@ const CertificatePage: React.FC = () => {
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const certRef = useRef<HTMLDivElement>(null);
+
+  // Constants MUST match AdminDashboard canvas size to ensure WYSIWYG
+  const CERT_WIDTH = 842; 
+  const CERT_HEIGHT = 595;
 
   useEffect(() => {
     if (!id) return;
@@ -51,10 +55,9 @@ const CertificatePage: React.FC = () => {
             const parentWidth = containerRef.current.offsetWidth;
             const padding = 32; // Total horizontal padding
             const availableWidth = parentWidth - padding;
-            const baseWidth = 1123; // A4 Landscape width in pixels
             
-            // Calculate scale: if screen is smaller than baseWidth, scale down. Max scale 1.
-            const newScale = Math.min(availableWidth / baseWidth, 1);
+            // Calculate scale based on the Base Width (842px)
+            const newScale = Math.min(availableWidth / CERT_WIDTH, 1);
             setScale(newScale);
         }
     };
@@ -73,16 +76,16 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // Force specific scale for better quality regardless of screen display
+        // High resolution scale for PDF generation (3x of 842px is plenty for A4)
         const canvas = await html2canvas(certRef.current, {
-            scale: 3, // High resolution
+            scale: 4, 
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff'
         });
 
         const imgData = canvas.toDataURL('image/png');
-        // A4 Landscape size
+        // A4 Landscape size in mm
         const pdf = new jsPDF('l', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -103,7 +106,7 @@ const CertificatePage: React.FC = () => {
       if (field === 'eventTitle') return registration.eventTitle;
       if (field === 'date') return new Date(registration.registrationDate).toLocaleDateString('id-ID'); 
       if (field === 'id') return registration.id;
-      if (field === 'certificateNumber') return `NO: ${registration.id.substring(0,8).toUpperCase()}`; // Default logic if no csv map
+      if (field === 'certificateNumber') return `NO: ${registration.id.substring(0,8).toUpperCase()}`;
       
       if (field.startsWith('custom:')) {
           const key = field.split(':')[1];
@@ -113,6 +116,55 @@ const CertificatePage: React.FC = () => {
           } catch(e) { return '-'; }
       }
       return field;
+  };
+
+  const renderElement = (el: CertificateElement) => {
+      let content: React.ReactNode = el.field;
+      let textContent = '';
+
+      if (el.type === 'dynamic') {
+          textContent = getElementContent(el.field);
+          content = textContent;
+      } else if (el.type === 'text') {
+          textContent = el.field;
+          content = textContent;
+      } else if (el.type === 'image') {
+          content = <img src={el.field} alt="element" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />;
+      }
+
+      // Enforce Uppercase via JS Logic (Stronger than CSS for PDF capture)
+      if (el.type !== 'image' && el.textTransform === 'uppercase') {
+          content = String(textContent).toUpperCase();
+      } else if (el.type !== 'image' && el.textTransform === 'lowercase') {
+          content = String(textContent).toLowerCase();
+      }
+
+      // Determine Transform based on Alignment to ensure position stays predictable
+      let transform = 'translate(-50%, -50%)'; // Default (Center)
+      if (el.align === 'left') transform = 'translate(0, -50%)';
+      if (el.align === 'right') transform = 'translate(-100%, -50%)';
+
+      return (
+        <div
+            key={el.id}
+            className="absolute z-10"
+            style={{
+                left: el.x,
+                top: el.y,
+                color: el.color || '#000000',
+                fontSize: el.type === 'image' ? undefined : `${el.fontSize}px`,
+                fontFamily: el.fontFamily || 'Helvetica',
+                fontWeight: el.fontWeight || 'bold',
+                textAlign: el.align || 'center',
+                width: el.width ? `${el.width}px` : 'auto',
+                transform: transform, 
+                whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
+                textTransform: el.textTransform || 'none'
+            }}
+        >
+            {content}
+        </div>
+      );
   };
 
   if (loading) return (
@@ -131,8 +183,6 @@ const CertificatePage: React.FC = () => {
   );
 
   const hasConfig = certConfig && certConfig.backgroundUrl;
-  const CERT_WIDTH = 1123;
-  const CERT_HEIGHT = 794;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 flex flex-col items-center">
@@ -180,26 +230,7 @@ const CertificatePage: React.FC = () => {
                                 crossOrigin="anonymous" 
                              />
                          </div>
-                         {certConfig.elements.map(el => (
-                             <div
-                                 key={el.id}
-                                 className="absolute z-10"
-                                 style={{
-                                     left: el.x,
-                                     top: el.y,
-                                     color: el.color,
-                                     fontSize: el.type === 'image' ? undefined : `${el.fontSize}px`,
-                                     fontFamily: el.fontFamily || 'Helvetica',
-                                     fontWeight: el.fontWeight || 'bold',
-                                     textAlign: el.align || 'center',
-                                     width: el.width ? `${el.width}px` : 'auto',
-                                     transform: 'translate(-50%, -50%)', 
-                                     whiteSpace: el.type === 'image' ? 'normal' : 'nowrap'
-                                 }}
-                             >
-                                 {el.type === 'dynamic' ? getElementContent(el.field) : (el.type === 'image' ? <img src={el.field} alt="cert-element" style={{ width: '100%' }} /> : el.field)}
-                             </div>
-                         ))}
+                         {certConfig.elements.map(renderElement)}
                      </>
                  ) : (
                      // Default Fallback Template

@@ -42,6 +42,7 @@ export interface CertificateElement {
   color?: string; // Optional for image
   fontWeight?: 'normal' | 'bold'; // Optional for image
   align?: 'left' | 'center' | 'right'; // Optional for image
+  textTransform?: 'none' | 'uppercase' | 'lowercase'; // ADDED: Uppercase support
   width?: number; // Required for image/centering
   height?: number; // Added for image
 }
