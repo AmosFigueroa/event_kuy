@@ -25,6 +25,12 @@ const callScript = async (action: string, payload: any = {}, method: 'GET' | 'PO
   if (!baseUrl) throw new Error("API URL is missing");
 
   let url = `${baseUrl}?action=${action}`;
+  
+  // Add timestamp to prevent caching on GET requests
+  if (method === 'GET') {
+      url += `&_t=${new Date().getTime()}`;
+  }
+
   const options: RequestInit = {
     method: method,
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },

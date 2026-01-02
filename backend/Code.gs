@@ -74,29 +74,84 @@ function handleRequest(e, method) {
   }
 }
 
-// --- HELPER: HTML EMAIL TEMPLATE ---
+// --- HELPER: NEW HTML EMAIL TEMPLATE ---
 function _sendBrandedEmail(to, subject, title, bodyContent, attachmentBlob) {
-  var htmlBody = 
-    '<div style="background-color: #F8FAFC; padding: 40px 0; font-family: \'Helvetica\', sans-serif;">' +
-      '<div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 3px solid #2B427A; border-radius: 16px; overflow: hidden; box-shadow: 8px 8px 0px 0px #DFFF00;">' +
-        '<div style="background-color: #2B427A; padding: 30px; text-align: center;">' +
-           '<h1 style="color: #DFFF00; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase;">EVENT BISDIG</h1>' +
-           '<p style="color: #ffffff; margin: 5px 0 0 0; font-size: 12px; font-weight: bold; letter-spacing: 2px;">HIMPUNAN MAHASISWA</p>' +
-        '</div>' +
-        '<div style="padding: 40px 30px;">' +
-           '<h2 style="color: #2B427A; font-weight: 900; margin-top: 0; text-transform: uppercase;">' + title + '</h2>' +
-           '<div style="color: #4a5568; font-size: 16px; line-height: 1.6;">' +
-              bodyContent +
-           '</div>' +
-           '<div style="margin-top: 30px; padding-top: 20px; border-top: 2px dashed #e2e8f0; text-align: center;">' +
-              '<a href="https://bisdig.upy.ac.id/hmp/" style="display: inline-block; background-color: #2B427A; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px;">KUNJUNGI WEBSITE</a>' +
-           '</div>' +
-        '</div>' +
-        '<div style="background-color: #f1f5f9; padding: 15px; text-align: center; font-size: 11px; color: #94a3b8; font-weight: bold;">' +
-           '&copy; ' + new Date().getFullYear() + ' HMP Bisnis Digital UPY. All rights reserved.' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+  // Styling constants
+  var colorPrimary = "#2B427A"; // Navy
+  var colorAccent = "#DFFF00";  // Neon Yellow
+  var colorAction = "#0B1CDE";  // Bright Blue for buttons
+  var homeUrl = "https://bisdig.upy.ac.id/hmp/"; // Fixed Home URL
+
+  var htmlBody = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${subject}</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+      <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; padding: 20px 0;">
+        <tr>
+          <td align="center">
+            
+            <!-- Main Card -->
+            <table width="600" border="0" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e2e8f0; max-width: 90%;">
+              
+              <!-- Header -->
+              <tr>
+                <td align="center" style="background-color: ${colorPrimary}; padding: 40px 20px; background-image: linear-gradient(135deg, ${colorPrimary} 0%, #1a2c56 100%);">
+                  <h1 style="color: ${colorAccent}; margin: 0; font-size: 28px; font-weight: 900; letter-spacing: -0.5px; text-transform: uppercase; line-height: 1.2;">EVENT BISDIG</h1>
+                  <p style="color: #ffffff; margin: 8px 0 0 0; font-size: 11px; font-weight: bold; letter-spacing: 3px; text-transform: uppercase; opacity: 0.9;">Himpunan Mahasiswa</p>
+                </td>
+              </tr>
+              
+              <!-- Content -->
+              <tr>
+                <td style="padding: 40px 30px;">
+                  <h2 style="color: ${colorPrimary}; font-size: 22px; font-weight: 800; margin: 0 0 20px 0; text-transform: uppercase; letter-spacing: -0.5px;">${title}</h2>
+                  <div style="color: #475569; font-size: 16px; line-height: 1.7;">
+                    ${bodyContent}
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Footer CTA -->
+              <tr>
+                <td align="center" style="padding: 0 30px 40px 30px;">
+                  <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                    <tr>
+                      <td align="center" style="border-top: 2px dashed #e2e8f0; padding-top: 30px;">
+                        <p style="margin: 0 0 15px 0; color: #94a3b8; font-size: 12px; font-weight: bold; text-transform: uppercase;">Kembali ke Halaman Utama</p>
+                        <a href="${homeUrl}" style="display: inline-block; background-color: ${colorPrimary}; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 12px; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 4px 0 ${colorAccent}; transition: all 0.2s;">
+                          KUNJUNGI WEBSITE
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <!-- Footer Legal -->
+              <tr>
+                <td align="center" style="background-color: #f1f5f9; padding: 20px; border-top: 1px solid #e2e8f0;">
+                  <p style="margin: 0; font-size: 11px; color: #64748b; font-weight: 600;">
+                    &copy; ${new Date().getFullYear()} HMP Bisnis Digital UPY.<br>All rights reserved.
+                  </p>
+                </td>
+              </tr>
+              
+            </table>
+            
+            <!-- Branding Helper -->
+            <p style="margin-top: 20px; color: #94a3b8; font-size: 10px;">Dikirim otomatis oleh EventHorizon System</p>
+            
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
 
   var options = {
     htmlBody: htmlBody
@@ -107,6 +162,21 @@ function _sendBrandedEmail(to, subject, title, bodyContent, attachmentBlob) {
   }
 
   MailApp.sendEmail(to, subject, bodyContent.replace(/<[^>]*>/g, ""), options);
+}
+
+// --- HELPER: BUTTON GENERATOR FOR EMAIL BODY ---
+function _generateEmailButton(url, text) {
+  return `
+    <table border="0" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
+      <tr>
+        <td align="center" style="border-radius: 10px;" bgcolor="#0B1CDE">
+          <a href="${url}" target="_blank" style="font-size: 16px; font-family: Helvetica, Arial, sans-serif; color: #ffffff; text-decoration: none; border-radius: 10px; padding: 15px 30px; border: 1px solid #0B1CDE; display: inline-block; font-weight: bold;">
+            ${text}
+          </a>
+        </td>
+      </tr>
+    </table>
+  `;
 }
 
 // --- AUTH FUNCTIONS ---
@@ -136,8 +206,16 @@ function loginUser(data) {
   if (ADMIN_EMAILS.indexOf(found.email) > -1) {
     var otp = Math.floor(100000 + Math.random() * 900000).toString();
     CacheService.getScriptCache().put("OTP_" + found.email, otp, 300);
-    var body = "<p>Halo Admin,</p><p>OTP:</p><h1>" + otp + "</h1>";
-    _sendBrandedEmail(found.email, "🔒 Login OTP", "KODE AKSES", body);
+    
+    var body = `
+      <p>Halo Admin,</p>
+      <p>Berikut adalah kode OTP untuk akses dashboard admin Anda.</p>
+      <div style="background: #F0F9FF; border: 2px dashed #0B1CDE; padding: 15px; text-align: center; margin: 20px 0; border-radius: 8px;">
+        <span style="font-size: 32px; font-weight: 900; letter-spacing: 5px; color: #2B427A;">${otp}</span>
+      </div>
+      <p>Kode ini berlaku selama 5 menit.</p>
+    `;
+    _sendBrandedEmail(found.email, "🔒 Login OTP", "VERIFIKASI ADMIN", body);
     return { valid: false, requireOtp: true };
   }
   return { valid: true, role: "USER", email: found.email, name: found.name };
@@ -146,8 +224,16 @@ function loginUser(data) {
 function requestOtp(data) {
   var otp = Math.floor(100000 + Math.random() * 900000).toString();
   CacheService.getScriptCache().put("OTP_" + data.email, otp, 300);
-  var body = "<p>Halo,</p><p>OTP:</p><h1>" + otp + "</h1>";
-  _sendBrandedEmail(data.email, "🔑 Kode Login", "VERIFIKASI", body);
+  
+  var body = `
+      <p>Halo,</p>
+      <p>Gunakan kode berikut untuk masuk ke akun Anda:</p>
+      <div style="background: #F0F9FF; border: 2px dashed #0B1CDE; padding: 15px; text-align: center; margin: 20px 0; border-radius: 8px;">
+        <span style="font-size: 32px; font-weight: 900; letter-spacing: 5px; color: #2B427A;">${otp}</span>
+      </div>
+      <p>Kode ini berlaku selama 5 menit.</p>
+    `;
+  _sendBrandedEmail(data.email, "🔑 Kode Login", "VERIFIKASI AKUN", body);
   return { sent: true };
 }
 
@@ -377,7 +463,13 @@ function registerEventParticipant(data) {
   var current = Number(events[eventRowIndex][10]) || 0;
   eSheet.getRange(eventRowIndex + 1, 11).setValue(current + 1);
   
-  var body = "<p>Halo " + data.name + ",</p><p>Terima kasih telah mendaftar: <strong>" + eventTitle + "</strong>.</p>";
+  var body = `
+    <p>Halo <strong>${data.name}</strong>,</p>
+    <p>Terima kasih telah melakukan pendaftaran untuk acara:</p>
+    <p style="font-size: 18px; color: #2B427A; font-weight: bold;">${eventTitle}</p>
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+    <p>Saat ini data dan bukti pembayaran Anda sedang kami verifikasi. Harap menunggu email konfirmasi selanjutnya dalam 1x24 jam.</p>
+  `;
   _sendBrandedEmail(data.email, "✅ Pendaftaran Diterima", "MENUNGGU VERIFIKASI", body);
 
   return { status: "PENDING" };
@@ -448,9 +540,23 @@ function updateRegistrationStatus(data) {
       var name = rows[i][3];
       var evtTitle = rows[i][2];
       
-      var statusTitle = data.status === 'APPROVED' ? 'PENDAFTARAN DISETUJUI' : 'PENDAFTARAN DITOLAK';
-      var body = "<p>Halo " + name + ",</p><p>Status acara <strong>" + evtTitle + "</strong>: " + (data.status === 'APPROVED' ? 'DISETUJUI' : 'DITOLAK') + "</p>";
-      try { _sendBrandedEmail(email, "Update Status", statusTitle, body); } catch(e){}
+      var isApproved = data.status === 'APPROVED';
+      var statusTitle = isApproved ? 'PENDAFTARAN DISETUJUI' : 'PENDAFTARAN DITOLAK';
+      var statusColor = isApproved ? '#22c55e' : '#ef4444'; // Green or Red
+      
+      var body = `
+        <p>Halo ${name},</p>
+        <p>Kami ingin menginformasikan status pendaftaran Anda untuk acara <strong>${evtTitle}</strong>.</p>
+        <div style="background-color: ${isApproved ? '#f0fdf4' : '#fef2f2'}; border: 2px solid ${statusColor}; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+          <strong style="color: ${statusColor}; font-size: 18px;">STATUS: ${isApproved ? 'DISETUJUI / VALID' : 'DITOLAK / INVALID'}</strong>
+        </div>
+        ${isApproved 
+          ? '<p>Tiket Anda kini aktif. Silakan login ke dashboard website untuk melihat detail tiket Anda.</p>' 
+          : '<p>Mohon maaf, bukti pembayaran atau data yang Anda kirimkan tidak valid. Silakan hubungi admin atau daftar kembali.</p>'
+        }
+      `;
+      
+      try { _sendBrandedEmail(email, "Update Status Tiket", statusTitle, body); } catch(e){}
       return { status: data.status };
     }
   }
@@ -466,8 +572,16 @@ function sendCertificate(data) {
     if(rows[i][0] == data.id) {
        var name = rows[i][3];
        var evtTitle = rows[i][2];
-       var body = "<p>Halo " + name + ",</p><p>Sertifikat acara <strong>" + evtTitle + "</strong> telah terbit.</p><a href='" + certLink + "'>Download Sertifikat</a>";
-       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat", "SERTIFIKAT", body);
+       
+       var body = `
+          <p>Halo <strong>${name}</strong>,</p>
+          <p>Terima kasih telah berpartisipasi dalam acara <strong>${evtTitle}</strong>.</p>
+          <p>Sertifikat elektronik Anda telah terbit dan dapat diunduh sekarang.</p>
+          ${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}
+          <p style="font-size: 12px; color: #888;">Jika tombol tidak berfungsi, salin link berikut: <br>${certLink}</p>
+       `;
+       
+       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat Anda Telah Terbit", "SERTIFIKAT", body);
        return { sent: true };
     }
   }
@@ -499,8 +613,14 @@ function sendBulkCertificates(data) {
              var evtTitle = row[2];
              var email = row[4];
              
-             var body = "<p>Halo " + name + ",</p><p>Sertifikat acara <strong>" + evtTitle + "</strong> telah terbit.</p><a href='" + certLink + "'>Download Sertifikat</a>";
-             _sendBrandedEmail(email, "🎓 Sertifikat", "SERTIFIKAT", body);
+             var body = `
+                <p>Halo <strong>${name}</strong>,</p>
+                <p>Terima kasih telah berpartisipasi dalam acara <strong>${evtTitle}</strong>.</p>
+                <p>Sertifikat elektronik Anda telah terbit dan dapat diunduh sekarang.</p>
+                ${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}
+             `;
+             
+             _sendBrandedEmail(email, "🎓 Sertifikat Anda Telah Terbit", "SERTIFIKAT", body);
              successCount++;
            } catch(e) { 
              failCount++; 

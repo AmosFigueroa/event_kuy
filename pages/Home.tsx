@@ -10,6 +10,9 @@ const Home: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
+  
+  // Stats State
+  const [stats, setStats] = useState({ participants: 0, prokers: 0 });
 
   // Responsive items per slide configuration
   const [itemsPerSlide, setItemsPerSlide] = useState(1);
@@ -34,8 +37,23 @@ const Home: React.FC = () => {
     const loadEvents = async () => {
       try {
         const data = await fetchEvents();
-        // Sort by date (nearest first) and take top 8 for carousel
-        const sorted = data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        // Calculate dynamic stats
+        const totalParticipants = data.reduce((sum, ev) => sum + (ev.currentParticipants || 0), 0);
+        setStats({
+            participants: totalParticipants > 500 ? totalParticipants : 500 + totalParticipants, // Start with base 500 as dummy base + real
+            prokers: data.length
+        });
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        // Filter: ONLY Upcoming Events for Home Page Carousel
+        const upcomingEvents = data.filter(e => new Date(e.date) >= now);
+        
+        // Sort: Nearest date first
+        const sorted = upcomingEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
         setEvents(sorted.slice(0, 8)); 
       } catch (e) {
         console.error("Failed to load events", e);
@@ -111,15 +129,15 @@ const Home: React.FC = () => {
                 <div className="flex items-center justify-center md:justify-center gap-5 px-4">
                     <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><Users className="w-8 h-8"/></div>
                     <div className="text-left">
-                        <div className="text-4xl font-black text-[#2B427A] leading-none">500+</div>
-                        <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">MAHASISWA AKTIF</div>
+                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.participants}+</div>
+                        <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PARTISIPAN</div>
                     </div>
                 </div>
                 {/* Stat 2 */}
                 <div className="flex items-center justify-center md:justify-center gap-5 px-4 pt-4 md:pt-0">
                     <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><Calendar className="w-8 h-8"/></div>
                     <div className="text-left">
-                        <div className="text-4xl font-black text-[#2B427A] leading-none">24+</div>
+                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.prokers}</div>
                         <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PROGRAM KERJA</div>
                     </div>
                 </div>
@@ -205,8 +223,11 @@ const Home: React.FC = () => {
              <div className="w-20 h-20 bg-[#F8FAFC] rounded-full border-2 border-[#2B427A] flex items-center justify-center mx-auto mb-6 text-[#2B427A]">
                 <Info className="w-10 h-10" />
              </div>
-             <h3 className="text-2xl font-black text-[#2B427A] mb-2">AGENDA KOSONG</h3>
-             <p className="text-gray-500 font-medium">Belum ada program kerja yang dipublikasikan saat ini.</p>
+             <h3 className="text-2xl font-black text-[#2B427A] mb-2">TIDAK ADA EVENT MENDATANG</h3>
+             <p className="text-gray-500 font-medium">Nantikan program kerja kami selanjutnya atau cek halaman Program Kerja untuk melihat histori.</p>
+             <Link to="/events" className="inline-block mt-4 px-6 py-2 bg-[#2B427A] text-white font-bold rounded-lg hover:bg-[#0B1CDE] transition-colors">
+                LIHAT SEMUA PROGRAM KERJA
+             </Link>
           </div>
         )}
       </section>

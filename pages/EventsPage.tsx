@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Calendar, History, Rocket, Loader, AlertCircle } from 'lucide-react';
 import EventCard from '../components/EventCard';
@@ -21,7 +22,11 @@ const EventsPage: React.FC = () => {
         const past: Event[] = [];
 
         data.forEach(event => {
+            // Force strict date parsing
             const eventDate = new Date(event.date);
+            // Reset hours for the event date as well to ensure fairness
+            eventDate.setHours(0,0,0,0);
+
             if (eventDate >= now) {
                 active.push(event);
             } else {
