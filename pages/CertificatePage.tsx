@@ -2,8 +2,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader, Download, ArrowLeft, Award, CheckCircle } from 'lucide-react';
-import { fetchRegistrationById } from '../services/api';
-import { Registration, RegistrationStatus } from '../types';
+import { fetchRegistrationById, fetchCertificateSettings } from '../services/api';
+import { Registration, RegistrationStatus, CertificateSettings } from '../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -11,6 +11,7 @@ const CertificatePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [registration, setRegistration] = useState<Registration | null>(null);
+  const [certSettings, setCertSettings] = useState<CertificateSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
@@ -20,11 +21,16 @@ const CertificatePage: React.FC = () => {
     if (!id) return;
     const load = async () => {
       try {
-        const data = await fetchRegistrationById(id);
+        const [data, settings] = await Promise.all([
+            fetchRegistrationById(id),
+            fetchCertificateSettings()
+        ]);
+
         if (data.status !== RegistrationStatus.APPROVED) {
             setError("Sertifikat belum tersedia atau pendaftaran belum disetujui.");
         } else {
             setRegistration(data);
+            setCertSettings(settings);
         }
       } catch (e: any) {
         setError("Data sertifikat tidak ditemukan.");
@@ -79,6 +85,8 @@ const CertificatePage: React.FC = () => {
       </div>
   );
 
+  const hasCustomTemplate = certSettings?.templateUrl;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 flex flex-col items-center">
       <div className="w-full max-w-5xl mb-8 flex justify-between items-center">
@@ -99,56 +107,90 @@ const CertificatePage: React.FC = () => {
           {/* A4 Landscape Ratio approx 297mm x 210mm. Using 1122px x 793px approx for screen */}
           <div 
             ref={certRef}
-            className="relative bg-white flex-shrink-0 text-center overflow-hidden"
+            className="relative bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center"
             style={{ width: '1123px', height: '794px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
           >
-             {/* DESIGN BACKGROUND - You can replace this with an <img> tag if you have a PNG template */}
-             <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10"></div>
-             <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
-             
-             {/* Abstract Shapes */}
-             <div className="absolute top-0 right-0 w-64 h-64 bg-[#0B1CDE]/10 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2"></div>
-             <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#DFFF00]/30 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2"></div>
+             {/* BACKGROUND LAYER */}
+             {hasCustomTemplate ? (
+                 <div className="absolute inset-0 z-0">
+                     <img 
+                        src={certSettings.templateUrl} 
+                        alt="Background Template" 
+                        className="w-full h-full object-cover" 
+                        crossOrigin="anonymous" // Important for html2canvas
+                     />
+                 </div>
+             ) : (
+                 // Default Design if no template uploaded
+                 <>
+                    <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
+                    <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-[#0B1CDE]/10 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2"></div>
+                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#DFFF00]/30 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2"></div>
+                 </>
+             )}
 
-             {/* Content */}
-             <div className="relative z-20 h-full flex flex-col items-center justify-center p-20">
+             {/* Content Layer */}
+             <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
                  
-                 {/* Header Logo Area */}
-                 <div className="flex items-center gap-4 mb-8">
-                     <div className="w-12 h-12 bg-[#2B427A] rounded-lg"></div>
-                     <h2 className="text-2xl font-black text-[#2B427A] tracking-widest uppercase">HMP BISNIS DIGITAL</h2>
+                 {/* Only show default headers if no custom template (assuming custom template has logos/headers) */}
+                 {!hasCustomTemplate && (
+                     <>
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-12 h-12 bg-[#2B427A] rounded-lg"></div>
+                            <h2 className="text-2xl font-black text-[#2B427A] tracking-widest uppercase">HMP BISNIS DIGITAL</h2>
+                        </div>
+                        <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4 tracking-tight">SERTIFIKAT</h1>
+                        <p className="text-xl text-[#2B427A] font-bold tracking-widest uppercase mb-12">APRESIASI</p>
+                        <p className="text-lg text-gray-500 font-medium italic mb-2">Diberikan dengan bangga kepada:</p>
+                     </>
+                 )}
+
+                 {/* DYNAMIC CONTENT - ADJUST PADDING IF TEMPLATE EXISTS */}
+                 <div className={`relative px-12 pb-2 ${hasCustomTemplate ? 'mt-32' : 'mb-8'}`}>
+                     <h2 className={`text-5xl font-black uppercase ${hasCustomTemplate ? 'text-gray-900 drop-shadow-md' : 'text-[#2B427A]'}`}>{registration.userName}</h2>
+                     {!hasCustomTemplate && <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>}
                  </div>
 
-                 <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4 tracking-tight">SERTIFIKAT</h1>
-                 <p className="text-xl text-[#2B427A] font-bold tracking-widest uppercase mb-12">APRESIASI</p>
+                 {/* Description text */}
+                 {!hasCustomTemplate ? (
+                     <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
+                         Atas partisipasi dan kontribusinya yang luar biasa sebagai Peserta dalam acara:
+                         <br/>
+                         <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
+                     </p>
+                 ) : (
+                     // Minimal text for custom template to avoid clashing
+                     <div className="mt-8 text-center max-w-3xl mx-auto">
+                         <p className="text-xl font-medium text-gray-700">Atas partisipasinya dalam:</p>
+                         <h3 className="text-3xl font-black text-[#0B1CDE] uppercase mt-2">"{registration.eventTitle}"</h3>
+                     </div>
+                 )}
 
-                 <p className="text-lg text-gray-500 font-medium italic mb-2">Diberikan dengan bangga kepada:</p>
-                 
-                 <div className="relative mb-8 px-12 pb-2">
-                     <h2 className="text-5xl font-black text-[#2B427A] uppercase">{registration.userName}</h2>
-                     <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
-                 </div>
-
-                 <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
-                     Atas partisipasi dan kontribusinya yang luar biasa sebagai Peserta dalam acara:
-                     <br/>
-                     <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
-                 </p>
-
+                 {/* Signatures */}
                  <div className="absolute bottom-24 left-0 right-0 px-32 flex justify-between items-end">
-                     <div className="text-center">
-                         <div className="w-48 h-0.5 bg-[#2B427A] mb-2"></div>
-                         <p className="font-bold text-[#2B427A]">KETUA PELAKSANA</p>
+                     <div className="text-center min-w-[200px]">
+                         {/* Signature Image would go here if implemented, for now name only */}
+                         {!hasCustomTemplate && <div className="w-48 h-0.5 bg-[#2B427A] mb-2 mx-auto"></div>}
+                         <p className={`font-bold uppercase ${hasCustomTemplate ? 'text-gray-800' : 'text-[#2B427A]'}`}>
+                             {certSettings?.signer1Name || "KETUA PELAKSANA"}
+                         </p>
+                         <p className="text-xs font-bold text-gray-500">{certSettings?.signer1Role || "Ketua Pelaksana"}</p>
                      </div>
                      
-                     {/* Badge */}
-                     <div className="mb-4">
-                         <Award className="w-24 h-24 text-[#DFFF00] drop-shadow-lg" />
-                     </div>
+                     {/* Badge only for default */}
+                     {!hasCustomTemplate && (
+                         <div className="mb-4">
+                             <Award className="w-24 h-24 text-[#DFFF00] drop-shadow-lg" />
+                         </div>
+                     )}
 
-                     <div className="text-center">
-                         <div className="w-48 h-0.5 bg-[#2B427A] mb-2"></div>
-                         <p className="font-bold text-[#2B427A]">KETUA HMP</p>
+                     <div className="text-center min-w-[200px]">
+                         {!hasCustomTemplate && <div className="w-48 h-0.5 bg-[#2B427A] mb-2 mx-auto"></div>}
+                         <p className={`font-bold uppercase ${hasCustomTemplate ? 'text-gray-800' : 'text-[#2B427A]'}`}>
+                             {certSettings?.signer2Name || "KETUA HMP"}
+                         </p>
+                         <p className="text-xs font-bold text-gray-500">{certSettings?.signer2Role || "Ketua HMP"}</p>
                      </div>
                  </div>
                  

@@ -1,5 +1,5 @@
 
-import { ApiResponse, Event, Registration, UserSession, UserRole, PaymentSettings } from '../types';
+import { ApiResponse, Event, Registration, UserSession, UserRole, PaymentSettings, CertificateSettings } from '../types';
 import { DEFAULT_SCRIPT_URL } from '../constants';
 
 // Utility to read the stored API URL or use default
@@ -102,3 +102,7 @@ export const sendCertificate = (id: string) => {
 // --- Payment Settings ---
 export const savePaymentSettings = (settings: PaymentSettings, qrisBase64?: string) => callScript('savePaymentSettings', { ...settings, qrisBase64 }, 'POST');
 export const fetchPaymentSettings = async (): Promise<PaymentSettings> => callScript('getPaymentSettings');
+
+// --- Certificate Settings ---
+export const saveCertificateSettings = (settings: CertificateSettings, templateBase64?: string) => callScript('saveCertificateSettings', { ...settings, templateBase64 }, 'POST');
+export const fetchCertificateSettings = async (): Promise<CertificateSettings> => callScript('getCertificateSettings');

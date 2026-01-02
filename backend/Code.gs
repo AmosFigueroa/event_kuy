@@ -42,13 +42,17 @@ function handleRequest(e, method) {
     
     else if (action === "registerUser" && method === "POST") data = registerEventParticipant(postData); 
     else if (action === "getRegistrations") data = getRegistrations();
-    else if (action === "getRegistration" && method === "POST") data = getRegistration(postData); // New Action
+    else if (action === "getRegistration" && method === "POST") data = getRegistration(postData); 
     else if (action === "updateRegistrationStatus" && method === "POST") data = updateRegistrationStatus(postData);
     else if (action === "sendCertificate" && method === "POST") data = sendCertificate(postData);
     
     // Payment Settings
     else if (action === "savePaymentSettings" && method === "POST") data = savePaymentSettings(postData);
     else if (action === "getPaymentSettings") data = getPaymentSettings();
+    
+    // Certificate Settings
+    else if (action === "saveCertificateSettings" && method === "POST") data = saveCertificateSettings(postData);
+    else if (action === "getCertificateSettings") data = getCertificateSettings();
 
     // Auth
     else if (action === "signup" && method === "POST") data = signupUser(postData);
@@ -460,6 +464,58 @@ function getPaymentSettings() {
   return {
     bankAccounts: bankAccounts,
     qrisUrl: settings["QRIS_URL"] || ""
+  };
+}
+
+// --- CERTIFICATE SETTINGS ---
+function saveCertificateSettings(data) {
+  var ss = _getDb();
+  var sheet = ss.getSheetByName("Settings");
+  if (!sheet) { sheet = ss.insertSheet("Settings"); sheet.appendRow(["Key", "Value"]); }
+  
+  var setSetting = function(key, val) {
+    var rows = sheet.getDataRange().getValues();
+    for(var i=0; i<rows.length; i++) {
+      if(rows[i][0] == key) { sheet.getRange(i+1, 2).setValue(val); return; }
+    }
+    sheet.appendRow([key, val]);
+  };
+  
+  var templateUrl = data.currentTemplateUrl || "";
+  
+  // Upload Template if exists
+  if (data.templateBase64) {
+    try {
+      var folder = _getUploadFolder();
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.templateBase64), "image/png", "cert_template");
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      templateUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+    } catch(e) {}
+  }
+  
+  setSetting("CERT_TEMPLATE_URL", templateUrl);
+  setSetting("CERT_SIGNER_1_NAME", data.signer1Name || "");
+  setSetting("CERT_SIGNER_1_ROLE", data.signer1Role || "Ketua Pelaksana");
+  setSetting("CERT_SIGNER_2_NAME", data.signer2Name || "");
+  setSetting("CERT_SIGNER_2_ROLE", data.signer2Role || "Ketua HMP");
+  
+  return { success: true, templateUrl: templateUrl };
+}
+
+function getCertificateSettings() {
+  var sheet = _getSheet("Settings");
+  if (!sheet) return { };
+  var data = sheet.getDataRange().getValues();
+  var settings = {};
+  data.forEach(function(r) { settings[r[0]] = r[1]; });
+  
+  return {
+    templateUrl: settings["CERT_TEMPLATE_URL"] || "",
+    signer1Name: settings["CERT_SIGNER_1_NAME"] || "",
+    signer1Role: settings["CERT_SIGNER_1_ROLE"] || "Ketua Pelaksana",
+    signer2Name: settings["CERT_SIGNER_2_NAME"] || "",
+    signer2Role: settings["CERT_SIGNER_2_ROLE"] || "Ketua HMP"
   };
 }
 

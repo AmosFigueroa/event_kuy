@@ -77,6 +77,14 @@ export interface PaymentSettings {
   qrisUrl?: string;
 }
 
+export interface CertificateSettings {
+  templateUrl?: string;
+  signer1Name: string; // e.g. Ketua Pelaksana
+  signer1Role: string;
+  signer2Name: string; // e.g. Ketua Himpunan
+  signer2Role: string;
+}
+
 // Auth Types
 export type UserRole = 'ADMIN' | 'USER';
 
