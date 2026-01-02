@@ -1,0 +1,24 @@
+name: Sync ke Repo Lain
+
+on:
+  push:
+    branches: [ main ] # Ganti 'main' jika branch utama Anda bernama 'master'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Push ke Repository Tujuan
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+        with:
+          source-directory: '.'
+          destination-github-username: 'Hunion-dev' # Ganti ini
+          destination-repository-name: 'Hunion-dev/event_kuy'   # Ganti ini
+          user-email: eventhmpbisdigupy@gmail.com                 # Ganti ini
+          target-branch: main                                # Branch di repo tujuan
