@@ -6,6 +6,7 @@ import { Registration, Event, RegistrationStatus } from '../types';
 import QRCode from 'react-qr-code';
 import html2canvas from 'html2canvas';
 import { Loader, Download, AlertTriangle, Calendar, MapPin, CheckCircle, ArrowLeft } from 'lucide-react';
+import CustomAlert from '../components/CustomAlert';
 
 const PublicTicketPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -14,6 +15,18 @@ const PublicTicketPage: React.FC = () => {
     const [data, setData] = useState<{ registration: Registration, event?: Event } | null>(null);
     const [error, setError] = useState('');
     const [downloading, setDownloading] = useState(false);
+
+    // Alert State
+    const [alertState, setAlertState] = useState<{
+        isOpen: boolean;
+        type: 'success' | 'error' | 'info';
+        title: string;
+        message: string;
+    }>({ isOpen: false, type: 'info', title: '', message: '' });
+
+    const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+        setAlertState({ isOpen: true, type, title, message });
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -64,8 +77,9 @@ const PublicTicketPage: React.FC = () => {
                 link.download = `E-Ticket-${data?.registration.userName.split(' ')[0]}.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
+                showAlert('success', 'Berhasil', 'E-Ticket berhasil diunduh ke perangkat Anda.');
             } catch (e) {
-                alert("Gagal download tiket");
+                showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh tiket.');
             } finally {
                 setDownloading(false);
             }
@@ -91,6 +105,14 @@ const PublicTicketPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] py-12 px-4 flex flex-col items-center">
+            <CustomAlert 
+                isOpen={alertState.isOpen} 
+                type={alertState.type} 
+                title={alertState.title} 
+                message={alertState.message} 
+                onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} 
+            />
+
             <div className="w-full max-w-md mb-6 flex justify-between items-center">
                 <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[#2B427A] font-bold text-sm hover:underline">
                     <ArrowLeft className="w-4 h-4"/> Beranda

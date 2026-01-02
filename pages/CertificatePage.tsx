@@ -6,6 +6,7 @@ import { fetchRegistrationById } from '../services/api';
 import { Registration, RegistrationStatus, CertificateConfig, CertificateElement } from '../types';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import CustomAlert from '../components/CustomAlert';
 
 const CertificatePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,18 @@ const CertificatePage: React.FC = () => {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
   
+  // Alert State
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'info';
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: 'info', title: '', message: '' });
+
+  const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+    setAlertState({ isOpen: true, type, title, message });
+  };
+
   // Responsive Scaling State
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,8 +124,9 @@ const CertificatePage: React.FC = () => {
         const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
 
         pdf.save(fileName);
+        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh.');
     } catch (e) {
-        alert("Gagal mengunduh sertifikat.");
+        showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
         console.error(e);
     } finally {
         setDownloading(false);
@@ -231,6 +245,14 @@ const CertificatePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 flex flex-col items-center">
+      <CustomAlert 
+        isOpen={alertState.isOpen} 
+        type={alertState.type} 
+        title={alertState.title} 
+        message={alertState.message} 
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} 
+      />
+
       <div className="w-full max-w-5xl mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
          <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[#2B427A] font-bold hover:text-[#0B1CDE] self-start md:self-auto">
              <ArrowLeft className="w-5 h-5"/> Kembali

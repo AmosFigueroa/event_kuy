@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download, CheckCircle, Info, LogIn, Paperclip, FileText } from 'lucide-react';
 import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings, getUserSession } from '../services/api';
 import { Event, PaymentSettings } from '../types';
+import CustomAlert from '../components/CustomAlert';
 
 const EventDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -25,6 +26,18 @@ const EventDetail: React.FC = () => {
   const [showQrisModal, setShowQrisModal] = useState(false);
   const [isDownloadingQris, setIsDownloadingQris] = useState(false);
   const [copyToast, setCopyToast] = useState<{show: boolean, msg: string}>({show: false, msg: ''});
+
+  // Alert State
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'info';
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: 'info', title: '', message: '' });
+
+  const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+    setAlertState({ isOpen: true, type, title, message });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -106,16 +119,20 @@ const EventDetail: React.FC = () => {
               
               navigate('/payment-success', { state: { price: event.price } });
           } catch (apiErr: any) {
-              setError("Gagal mendaftar: " + (apiErr.message || "Kesalahan jaringan."));
+              const errMsg = apiErr.message || "Kesalahan jaringan.";
+              setError(errMsg);
+              showAlert('error', 'Gagal Mendaftar', errMsg);
               setRegistering(false);
           }
       };
       reader.onerror = () => {
           setError("Gagal membaca file bukti pembayaran.");
+          showAlert('error', 'Gagal Upload', "File bukti pembayaran rusak atau tidak terbaca.");
           setRegistering(false);
       }
     } catch (err: any) { 
-        setError("Terjadi kesalahan sistem."); 
+        setError("Terjadi kesalahan sistem.");
+        showAlert('error', 'Error Sistem', "Terjadi kesalahan yang tidak terduga. Silakan coba lagi.");
         setRegistering(false); 
     } 
   };
@@ -150,6 +167,14 @@ const EventDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 relative">
+      <CustomAlert 
+        isOpen={alertState.isOpen} 
+        type={alertState.type} 
+        title={alertState.title} 
+        message={alertState.message} 
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} 
+      />
+
       {/* Toast Notification */}
       {copyToast.show && (
           <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up">
@@ -189,7 +214,7 @@ const EventDetail: React.FC = () => {
               <div className="flex justify-between items-center mb-6 pb-4 border-b-2 border-[#2B427A]/10">
                 <div><span className="text-gray-500 text-xs font-black uppercase">Biaya</span><div className="text-2xl md:text-3xl font-black text-[#0B1CDE]">{event.price === 0 ? "GRATIS" : `Rp ${event.price.toLocaleString('id-ID')}`}</div></div>
                 <div className="w-10 h-10 bg-[#DFFF00] rounded-lg border-2 border-[#2B427A] flex items-center justify-center">
-                    <i className="fi fi-bs-money-bill-wave text-[#2B427A] text-xl flex"></i>
+                    <i className="fi fi-bs-money-bill-wave text-[#2B427A] text-2xl flex"></i>
                 </div>
               </div>
 
