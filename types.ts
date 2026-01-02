@@ -38,7 +38,7 @@ export interface Event {
   time: string;
   location: string;
   price: number;
-  category: EventCategory;
+  category: string; // Changed from EventCategory to string to allow custom input
   bannerUrl: string;
   maxParticipants: number;
   currentParticipants: number;

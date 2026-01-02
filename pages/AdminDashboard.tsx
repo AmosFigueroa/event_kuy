@@ -6,6 +6,7 @@ import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, upd
 import { generateEventDescription } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
+import CustomAlert from '../components/CustomAlert';
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'registrations' | 'settings'>('overview');
@@ -16,6 +17,28 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const session = getUserSession();
   
+  // Custom Alert State
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'info';
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    confirmText?: string;
+  }>({ isOpen: false, type: 'info', title: '', message: '' });
+
+  const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+    setAlertState({ isOpen: true, type, title, message });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, confirmText = "YA, LANJUTKAN") => {
+    setAlertState({ isOpen: true, type: 'info', title, message, onConfirm, confirmText });
+  };
+
+  const closeAlert = () => {
+    setAlertState(prev => ({ ...prev, isOpen: false, onConfirm: undefined }));
+  };
+
   // Registration Filter State
   const [selectedEventFilter, setSelectedEventFilter] = useState<string>('ALL');
   
@@ -33,8 +56,11 @@ const AdminDashboard: React.FC = () => {
     maxParticipants: 100,
     formFields: []
   });
+  const [customCategory, setCustomCategory] = useState(''); // For "Other" input
+  const [isCustomCat, setIsCustomCat] = useState(false);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
   
   // Settings
   const [scriptUrl, setScriptUrl] = useState(getApiUrl());
@@ -65,7 +91,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleGenerateDescription = async () => {
-    if (!newEvent.title) { alert("Judul wajib diisi"); return; }
+    if (!newEvent.title) { showAlert('error', 'Gagal', "Judul wajib diisi"); return; }
     setGeneratingDesc(true);
     const desc = await generateEventDescription(newEvent.title, newEvent.category || "General", `Lokasi: ${newEvent.location}, Tanggal: ${newEvent.date}`);
     setNewEvent({...newEvent, description: desc});
@@ -73,7 +99,15 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleCreateEvent = async () => {
-    if (!bannerFile) { alert("Gambar banner diperlukan"); return; }
+    if (!bannerFile) { showAlert('error', 'Validasi Gagal', "Gambar banner diperlukan"); return; }
+    
+    // Apply custom category if selected
+    const finalEventData = { ...newEvent };
+    if (isCustomCat && customCategory) {
+        finalEventData.category = customCategory;
+    }
+
+    setIsSubmittingEvent(true);
     
     const reader = new FileReader();
     reader.readAsDataURL(bannerFile);
@@ -82,33 +116,48 @@ const AdminDashboard: React.FC = () => {
         const base64 = result.includes(',') ? result.split(',')[1] : result;
         
         try {
-            await createEvent(newEvent as any, base64);
-            setShowCreateModal(false);
-            setWizardStep(1);
-            setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [] });
-            setBannerFile(null);
-            loadData();
-            alert("Acara berhasil dibuat!");
+            await createEvent(finalEventData as any, base64);
+            
+            // Add slight delay for animation effect
+            setTimeout(() => {
+                setIsSubmittingEvent(false);
+                setShowCreateModal(false);
+                setWizardStep(1);
+                setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [] });
+                setBannerFile(null);
+                setCustomCategory('');
+                setIsCustomCat(false);
+                loadData();
+                showAlert('success', 'Berhasil', "Acara berhasil dibuat dan dipublikasikan!");
+            }, 800);
+
         } catch (err: any) {
-            alert("Gagal: " + err.message);
+            setIsSubmittingEvent(false);
+            showAlert('error', 'Terjadi Kesalahan', "Gagal: " + err.message);
         }
     };
   };
 
   const handleDeleteEvent = async (id: string) => {
-    if(confirm("Apakah Anda yakin ingin menghapus acara ini secara permanen?")) {
+    showConfirm('Hapus Acara?', "Apakah Anda yakin ingin menghapus acara ini secara permanen? Data tidak bisa dikembalikan.", async () => {
         try {
             await deleteEvent(id);
             setEvents(events.filter(e => e.id !== id));
-        } catch(e) { alert("Gagal menghapus."); }
-    }
+            showAlert('success', 'Terhapus', "Acara berhasil dihapus.");
+        } catch(e) { 
+            showAlert('error', 'Gagal', "Gagal menghapus acara."); 
+        }
+    }, "YA, HAPUS");
   };
 
   const handleToggleStatus = async (id: string) => {
     try {
         const res = await toggleEventStatus(id);
         setEvents(events.map(e => e.id === id ? {...e, isOpen: res.isOpen} : e));
-    } catch(e) { alert("Gagal mengubah status."); }
+        showAlert('success', 'Status Diubah', `Acara kini ${res.isOpen ? 'AKTIF (Publik)' : 'NON-AKTIF (Draft)'}`);
+    } catch(e) { 
+        showAlert('error', 'Gagal', "Gagal mengubah status."); 
+    }
   };
 
   const handleSavePaymentSettings = async (e: React.FormEvent) => {
@@ -121,9 +170,9 @@ const AdminDashboard: React.FC = () => {
               const res = await savePaymentSettings(paymentSettings, qrisBase64);
               if(res) {
                   setPaymentSettings(prev => ({...prev, qrisUrl: (res as any).qrisUrl}));
-                  alert("Pengaturan pembayaran tersimpan!");
+                  showAlert('success', 'Tersimpan', "Pengaturan pembayaran berhasil diperbarui!");
               }
-          } catch(e) { alert("Gagal menyimpan."); }
+          } catch(e) { showAlert('error', 'Gagal', "Gagal menyimpan pengaturan."); }
           finally { setSavingPayment(false); }
       };
 
@@ -144,7 +193,7 @@ const AdminDashboard: React.FC = () => {
         await updateRegistrationStatus(id, status);
         setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
     } catch (e) {
-        alert("Gagal memperbarui status");
+        showAlert('error', 'Gagal', "Gagal memperbarui status");
     }
   };
 
@@ -152,9 +201,9 @@ const AdminDashboard: React.FC = () => {
     setProcessingCert(id);
     try {
       await sendCertificate(id);
-      alert("Sertifikat berhasil dikirim melalui email!");
+      showAlert('success', 'Terkirim', "Sertifikat berhasil dikirim melalui email!");
     } catch (e: any) {
-      alert("Gagal mengirim sertifikat: " + e.message);
+      showAlert('error', 'Gagal', "Gagal mengirim sertifikat: " + e.message);
     } finally {
       setProcessingCert(null);
     }
@@ -185,7 +234,7 @@ const AdminDashboard: React.FC = () => {
 
   const renderCreateEventWizard = () => (
       <div className="fixed inset-0 bg-[#2B427A]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border-4 border-[#DFFF00]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border-4 border-[#DFFF00] animate-scale-up">
               
               {/* Wizard Header */}
               <div className="bg-gray-50 px-8 py-6 border-b-2 border-gray-100 flex justify-between items-center">
@@ -193,7 +242,7 @@ const AdminDashboard: React.FC = () => {
                       <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tight">Buat Acara Baru</h2>
                       <div className="flex gap-2 mt-2">
                           {[1,2,3,4].map(step => (
-                              <div key={step} className={`h-2 w-12 rounded-full transition-all ${step <= wizardStep ? 'bg-[#0B1CDE]' : 'bg-gray-200'}`} />
+                              <div key={step} className={`h-2 w-12 rounded-full transition-all duration-300 ${step <= wizardStep ? 'bg-[#0B1CDE]' : 'bg-gray-200'}`} />
                           ))}
                       </div>
                   </div>
@@ -201,7 +250,15 @@ const AdminDashboard: React.FC = () => {
               </div>
 
               {/* Wizard Content */}
-              <div className="p-8 overflow-y-auto flex-1 bg-white">
+              <div className="p-8 overflow-y-auto flex-1 bg-white relative">
+                  {/* Loading Overlay */}
+                  {isSubmittingEvent && (
+                      <div className="absolute inset-0 bg-white/80 z-10 flex flex-col items-center justify-center backdrop-blur-sm animate-fade-in">
+                          <Loader className="w-16 h-16 text-[#2B427A] animate-spin mb-4" />
+                          <p className="text-xl font-black text-[#2B427A] uppercase tracking-widest animate-pulse">Menyimpan Acara...</p>
+                      </div>
+                  )}
+
                   {wizardStep === 1 && (
                       <div className="space-y-6 animate-fade-in">
                           <h3 className="text-lg font-black text-gray-400 uppercase">Tahap 1: Informasi Dasar</h3>
@@ -212,9 +269,35 @@ const AdminDashboard: React.FC = () => {
                               </div>
                               <div>
                                   <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label>
-                                  <select value={newEvent.category} onChange={e=>setNewEvent({...newEvent, category:e.target.value as any})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold bg-white">
+                                  <select 
+                                    value={isCustomCat ? 'OTHER' : newEvent.category} 
+                                    onChange={(e) => {
+                                        if (e.target.value === 'OTHER') {
+                                            setIsCustomCat(true);
+                                            setNewEvent({...newEvent, category: ''});
+                                        } else {
+                                            setIsCustomCat(false);
+                                            setNewEvent({...newEvent, category: e.target.value});
+                                        }
+                                    }} 
+                                    className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold bg-white"
+                                  >
                                       {Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}
+                                      <option value="OTHER">Lainnya (Custom)...</option>
                                   </select>
+                                  {isCustomCat && (
+                                      <div className="mt-3 animate-fade-in">
+                                          <label className="block text-xs font-bold text-gray-400 mb-1 uppercase">Masukkan Kategori Custom</label>
+                                          <input 
+                                            type="text" 
+                                            value={customCategory} 
+                                            onChange={(e) => setCustomCategory(e.target.value)}
+                                            className="w-full border-2 border-[#DFFF00] rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold bg-[#F8FAFC]" 
+                                            placeholder="Contoh: Talkshow, Gathering, dll"
+                                            autoFocus
+                                          />
+                                      </div>
+                                  )}
                               </div>
                               <div>
                                   <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label>
@@ -244,11 +327,11 @@ const AdminDashboard: React.FC = () => {
                                 </div>
                                 <textarea rows={4} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-medium" placeholder="Jelaskan detail acara..."/>
                            </div>
-                           <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 cursor-pointer relative">
+                           <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 cursor-pointer relative transition-colors duration-200 group">
                                 <input type="file" accept="image/*" onChange={e=>setBannerFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer" />
-                                <div className="flex flex-col items-center">
-                                    <ImageIcon className="w-8 h-8 text-gray-400 mb-2"/>
-                                    <span className="font-bold text-gray-500">{bannerFile ? bannerFile.name : "Unggah Banner Acara (Klik Disini)"}</span>
+                                <div className="flex flex-col items-center group-hover:scale-105 transition-transform">
+                                    <ImageIcon className="w-12 h-12 text-gray-400 mb-2 group-hover:text-[#0B1CDE]"/>
+                                    <span className="font-bold text-gray-500 group-hover:text-[#2B427A]">{bannerFile ? bannerFile.name : "Unggah Banner Acara (Klik Disini)"}</span>
                                 </div>
                            </div>
                       </div>
@@ -258,7 +341,7 @@ const AdminDashboard: React.FC = () => {
                       <div className="space-y-6 animate-fade-in">
                           <div className="flex justify-between items-center">
                               <h3 className="text-lg font-black text-gray-400 uppercase">Tahap 3: Form Pendaftaran</h3>
-                              <button onClick={addFormField} className="text-sm bg-[#0B1CDE] text-white px-3 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]"><PlusCircle className="w-4 h-4"/> TAMBAH FIELD</button>
+                              <button onClick={addFormField} className="text-sm bg-[#0B1CDE] text-white px-3 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A] transition-transform active:scale-95"><PlusCircle className="w-4 h-4"/> TAMBAH FIELD</button>
                           </div>
                           <div className="bg-[#F0F9FF] p-4 rounded-xl border border-blue-100 text-sm text-[#2B427A] font-medium mb-4">
                               <span className="font-bold">Catatan:</span> Nama Lengkap dan Email sudah otomatis tersedia di setiap formulir. Tambahkan field lain sesuai kebutuhan (Misal: NIM, No HP, Asal Instansi).
@@ -266,7 +349,7 @@ const AdminDashboard: React.FC = () => {
                           
                           <div className="space-y-3">
                               {newEvent.formFields?.map((field, idx) => (
-                                  <div key={idx} className="flex gap-4 items-start bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                  <div key={idx} className="flex gap-4 items-start bg-gray-50 p-4 rounded-xl border border-gray-200 animate-scale-up">
                                       <div className="flex-1 space-y-3">
                                           <div className="grid grid-cols-2 gap-4">
                                               <input type="text" placeholder="Label (Misal: No WhatsApp)" value={field.label} onChange={e=>updateFormField(idx, {label: e.target.value})} className="border rounded-lg p-2 text-sm font-bold outline-none focus:border-blue-500" />
@@ -313,6 +396,7 @@ const AdminDashboard: React.FC = () => {
                           <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 mt-4">
                               <h4 className="font-black text-[#2B427A] mb-2 uppercase">Ringkasan Acara</h4>
                               <p className="text-sm font-bold text-gray-600">Judul: <span className="text-[#0B1CDE]">{newEvent.title}</span></p>
+                              <p className="text-sm font-bold text-gray-600">Kategori: <span className="text-[#0B1CDE]">{isCustomCat ? customCategory : newEvent.category}</span></p>
                               <p className="text-sm font-bold text-gray-600">Tanggal: {newEvent.date} @ {newEvent.time}</p>
                               <p className="text-sm font-bold text-gray-600">Lokasi: {newEvent.location}</p>
                               <p className="text-sm font-bold text-gray-600">Field Tambahan: {newEvent.formFields?.length || 0}</p>
@@ -330,8 +414,12 @@ const AdminDashboard: React.FC = () => {
                   {wizardStep < 4 ? (
                       <button onClick={()=>setWizardStep(prev=>prev+1)} className="px-6 py-3 rounded-xl font-black bg-[#2B427A] text-white hover:bg-[#0B1CDE] flex items-center gap-2 transition-all shadow-lg hover:translate-y-[-2px]">SELANJUTNYA <ChevronRight className="w-5 h-5"/></button>
                   ) : (
-                      <button onClick={handleCreateEvent} className="px-8 py-3 rounded-xl font-black bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:bg-white flex items-center gap-2 transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:shadow-[2px_2px_0px_0px_#2B427A]">
-                          <CheckCircle className="w-5 h-5"/> PUBLIKASIKAN ACARA
+                      <button 
+                        onClick={handleCreateEvent} 
+                        disabled={isSubmittingEvent}
+                        className="px-8 py-3 rounded-xl font-black bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:bg-white flex items-center gap-2 transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:shadow-[2px_2px_0px_0px_#2B427A] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          {isSubmittingEvent ? <Loader className="w-5 h-5 animate-spin"/> : <CheckCircle className="w-5 h-5"/>} PUBLIKASIKAN ACARA
                       </button>
                   )}
               </div>
@@ -492,7 +580,7 @@ const AdminDashboard: React.FC = () => {
                   <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Acara Anda</h2>
                   <p className="text-gray-500 mt-1 font-bold">Kelola semua acara yang aktif dan draf</p>
               </div>
-              <button onClick={() => setShowCreateModal(true)} className="bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] px-6 py-3 rounded-lg font-black flex items-center gap-2 hover:bg-white transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none">
+              <button onClick={() => setShowCreateModal(true)} className="bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] px-6 py-3 rounded-lg font-black flex items-center gap-2 hover:bg-white transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none animate-scale-up">
                   <Plus className="w-5 h-5" /> BUAT ACARA
               </button>
           </div>
@@ -521,7 +609,7 @@ const AdminDashboard: React.FC = () => {
                                   <span className={`text-[10px] uppercase font-black px-2 py-1 rounded border tracking-wider ${event.isOpen ? 'bg-green-100 text-green-700 border-green-700' : 'bg-red-100 text-red-700 border-red-700'}`}>
                                       {event.isOpen ? 'PUBLIK' : 'DRAFT/TUTUP'}
                                   </span>
-                                  <button onClick={() => { const url = `${window.location.origin}/#/event/${createSlug(event.title)||event.id}`; navigator.clipboard.writeText(url); alert("Disalin!"); }} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                  <button onClick={() => { const url = `${window.location.origin}/#/event/${createSlug(event.title)||event.id}`; navigator.clipboard.writeText(url); showAlert('success', 'Disalin', "Link acara disalin ke papan klip!"); }} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center gap-1">
                                       <Copy className="w-3 h-3"/> SALIN LINK
                                   </button>
                               </div>
@@ -535,6 +623,16 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans">
+      <CustomAlert 
+          isOpen={alertState.isOpen} 
+          type={alertState.type} 
+          title={alertState.title} 
+          message={alertState.message} 
+          onClose={closeAlert}
+          onConfirm={alertState.onConfirm}
+          confirmText={alertState.confirmText}
+      />
+
       <aside className="w-full md:w-72 bg-[#2B427A] border-r-2 border-[#2B427A] h-auto md:min-h-screen sticky top-0 text-white z-10">
         <div className="p-8 border-b-2 border-white/10">
           <h1 className="text-2xl font-black flex items-center gap-2 uppercase tracking-tighter">
