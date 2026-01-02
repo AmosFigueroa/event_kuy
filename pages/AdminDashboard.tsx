@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings } from '../services/api';
 import { generateEventDescription } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -21,6 +21,9 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const session = getUserSession();
   
+  // Proof Viewer Modal State
+  const [viewingProof, setViewingProof] = useState<string | null>(null);
+
   // Custom Alert State
   const [alertState, setAlertState] = useState<{
     isOpen: boolean;
@@ -95,6 +98,9 @@ const AdminDashboard: React.FC = () => {
   // Banner State
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  // Thumbnail State (4:5)
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
 
   // EVENT WIZARD CERTIFICATE DESIGNER STATE
   const [certBgFile, setCertBgFile] = useState<File | null>(null);
@@ -163,7 +169,9 @@ const AdminDashboard: React.FC = () => {
           align: isImage ? undefined : 'center',
           textTransform: 'none',
           width: isImage ? 150 : 400,
-          height: isImage ? 150 : undefined
+          height: isImage ? 150 : undefined,
+          strokeWidth: 0,
+          strokeColor: '#FFFFFF'
       };
       setCertSettings(prev => ({
           ...prev,
@@ -280,6 +288,8 @@ const AdminDashboard: React.FC = () => {
           align: isImage ? undefined : 'center',
           textTransform: 'none',
           width: isImage ? 150 : 400,
+          strokeWidth: 0,
+          strokeColor: '#FFFFFF'
       };
       const current = newEvent.certificateConfig || { backgroundUrl: '', elements: [] };
       setNewEvent({ ...newEvent, certificateConfig: { ...current, elements: [...current.elements, newEl] } });
@@ -354,35 +364,65 @@ const AdminDashboard: React.FC = () => {
   };
   const handleRemoveBanner = (e: React.MouseEvent) => { e.preventDefault(); setBannerFile(null); setBannerPreview(null); };
 
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) { setThumbnailFile(file); const r = new FileReader(); r.onloadend = () => setThumbnailPreview(r.result as string); r.readAsDataURL(file); }
+  };
+  const handleRemoveThumbnail = (e: React.MouseEvent) => { e.preventDefault(); setThumbnailFile(null); setThumbnailPreview(null); };
+
   const handleCreateOrUpdateEvent = async () => {
     if (!newEvent.title || !newEvent.date) { showAlert('error', 'Validasi', "Judul dan tanggal wajib."); return; }
     setIsSubmittingEvent(true);
     const readFile = (file: File): Promise<string> => new Promise((resolve) => { const r = new FileReader(); r.readAsDataURL(file); r.onload = () => resolve((r.result as string).split(',')[1]); });
     try {
         const bannerB64 = bannerFile ? await readFile(bannerFile) : undefined;
+        const thumbnailB64 = thumbnailFile ? await readFile(thumbnailFile) : undefined;
         const certBgB64 = certBgFile ? await readFile(certBgFile) : undefined;
         const finalData = { ...newEvent, category: isCustomCat ? customCategory : newEvent.category };
-        if (editingId) await updateEvent({ ...finalData, id: editingId }, bannerB64, certBgB64);
-        else await createEvent(finalData as any, bannerB64, certBgB64);
+        
+        // Pass payload with separate fields
+        if (editingId) await updateEvent({ ...finalData, id: editingId } as any, bannerB64, certBgB64, thumbnailB64);
+        else await createEvent(finalData as any, bannerB64, certBgB64, thumbnailB64);
+        
         setShowCreateModal(false); resetWizard(); loadData(); showAlert('success', 'Sukses', "Acara disimpan.");
     } catch(e: any) { showAlert('error', 'Gagal', e.message); } finally { setIsSubmittingEvent(false); }
   };
 
   const resetWizard = () => {
       setWizardStep(1); setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [], time: '09:00', certificateConfig: { backgroundUrl: '', elements: [] } });
-      setBannerFile(null); setBannerPreview(null); setCertBgFile(null); setCertBgPreview(null); setEditingId(null);
+      setBannerFile(null); setBannerPreview(null); 
+      setThumbnailFile(null); setThumbnailPreview(null);
+      setCertBgFile(null); setCertBgPreview(null); setEditingId(null);
   };
 
   const handleEditClick = (event: Event) => {
       setEditingId(event.id);
       setNewEvent({ ...event, date: new Date(event.date).toISOString().split('T')[0] });
       setBannerPreview(event.bannerUrl);
+      setThumbnailPreview(event.thumbnailUrl || null);
       if(event.certificateConfig?.backgroundUrl) setCertBgPreview(event.certificateConfig.backgroundUrl);
       setShowCreateModal(true);
   };
   
   const handleDeleteEvent = async (id: string) => { showConfirm('Hapus?', "Yakin?", async () => { await deleteEvent(id); loadData(); }, "HAPUS"); };
-  const handleToggleStatus = async (id: string) => { await toggleEventStatus(id); loadData(); };
+  
+  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
+      const action = currentStatus ? "MENUTUP" : "MEMBUKA";
+      showConfirm(
+          `Konfirmasi ${action}`, 
+          `Anda yakin ingin ${action.toLowerCase()} pendaftaran untuk event ini? Peserta ${currentStatus ? 'tidak akan bisa' : 'akan bisa'} mendaftar.`, 
+          async () => { 
+              try {
+                  await toggleEventStatus(id); 
+                  loadData(); 
+                  showAlert('success', 'Berhasil', `Event berhasil ${currentStatus ? 'ditutup' : 'dibuka'}.`);
+              } catch(e: any) {
+                  showAlert('error', 'Gagal', e.message);
+              }
+          }, 
+          currentStatus ? "YA, TUTUP" : "YA, BUKA"
+      );
+  };
   
   // --- PAYMENT HANDLERS ---
   const handleAddAccount = () => { if(tempAccount.bankName) { setPaymentSettings(p=>({...p, bankAccounts: [...p.bankAccounts, {...tempAccount, id: Date.now().toString()}]})); setTempAccount({id:'', bankName:'', accountNumber:'', accountHolder:''}); }};
@@ -463,6 +503,7 @@ const AdminDashboard: React.FC = () => {
 
   // --- RENDER HELPERS ---
   const renderElementToolbar = (activeId: string | null, configSource: CertificateConfig | undefined, updateFn: (id: string, p: Partial<CertificateElement>) => void, removeFn: (id: string) => void) => {
+      // ... (No changes to this function)
       if (!activeId || !configSource) return null;
       const el = configSource.elements.find(e => e.id === activeId);
       if (!el) return null;
@@ -471,6 +512,39 @@ const AdminDashboard: React.FC = () => {
           <div className="border-t-2 border-gray-200 pt-4 mt-auto animate-fade-in">
               <label className="text-xs font-black text-[#0B1CDE] uppercase block mb-3">Edit: {el.label}</label>
               <div className="space-y-3">
+                  {/* EDIT LABEL (Internal Name) */}
+                  <div className="mb-3">
+                       <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Label / Nama Layer</label>
+                       <input
+                           type="text"
+                           value={el.label}
+                           onChange={(e) => updateFn(activeId, { label: e.target.value })}
+                           className="w-full border-2 border-gray-200 rounded-lg p-2 text-xs font-bold focus:border-[#0B1CDE] outline-none"
+                       />
+                  </div>
+
+                  {/* EDIT TEXT CONTENT (Only for Text Type) */}
+                  {el.type === 'text' && (
+                      <div className="mb-3">
+                           <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Isi Teks</label>
+                           <textarea
+                               value={el.field}
+                               onChange={(e) => updateFn(activeId, { field: e.target.value })}
+                               className="w-full border-2 border-gray-200 rounded-lg p-2 text-xs font-bold focus:border-[#0B1CDE] outline-none resize-none"
+                               rows={2}
+                           />
+                      </div>
+                  )}
+
+                  {el.type === 'dynamic' && (
+                       <div className="mb-3">
+                           <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Tipe Data</label>
+                           <div className="w-full bg-gray-100 border-2 border-gray-200 rounded-lg p-2 text-xs font-bold text-gray-500 truncate cursor-not-allowed">
+                               {el.field} (Dinamis)
+                           </div>
+                       </div>
+                  )}
+
                   {el.type !== 'image' && (
                       <>
                           <div>
@@ -478,6 +552,36 @@ const AdminDashboard: React.FC = () => {
                             <input type="range" min="10" max="100" value={el.fontSize || 24} onChange={(e) => updateFn(activeId, { fontSize: Number(e.target.value) })} className="w-full accent-[#0B1CDE]" />
                             <div className="text-right text-xs font-bold text-[#0B1CDE]">{Math.round(el.fontSize || 24)}px</div>
                           </div>
+                          
+                          {/* TEXT STROKE CONTROLS */}
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase">Stroke / Outline</label>
+                            <div className="flex items-center gap-2 mt-1">
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="10" 
+                                    step="0.5"
+                                    value={el.strokeWidth || 0} 
+                                    onChange={(e) => updateFn(activeId, { strokeWidth: Number(e.target.value) })} 
+                                    className="w-full accent-[#0B1CDE]" 
+                                />
+                                <span className="text-xs font-bold text-[#0B1CDE] w-8">{el.strokeWidth || 0}px</span>
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                                <label className="text-[10px] text-gray-400 font-bold self-center">Warna Stroke:</label>
+                                {['#FFFFFF', '#000000', '#2B427A', '#0B1CDE', '#DFFF00', '#FF0000'].map(c => (
+                                    <button 
+                                        key={c} 
+                                        type="button" 
+                                        onClick={() => updateFn(activeId, { strokeColor: c })} 
+                                        className={`w-5 h-5 rounded-full border border-gray-300 ${el.strokeColor === c ? 'ring-2 ring-offset-1 ring-[#0B1CDE]' : ''}`} 
+                                        style={{backgroundColor: c}} 
+                                    />
+                                ))}
+                            </div>
+                          </div>
+
                           <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
                              <span className="text-[10px] font-bold text-gray-500 uppercase">Huruf Besar (All Caps)</span>
                              <button 
@@ -546,6 +650,14 @@ const AdminDashboard: React.FC = () => {
       if (el.align === 'left') transform = 'translate(0, -50%)';
       if (el.align === 'right') transform = 'translate(-100%, -50%)';
 
+      const strokeStyle = el.strokeWidth && el.strokeWidth > 0 
+        ? { 
+            WebkitTextStrokeWidth: `${el.strokeWidth}px`, 
+            WebkitTextStrokeColor: el.strokeColor || '#FFFFFF',
+            paintOrder: 'stroke fill'
+          } 
+        : {};
+
       return (
           <div 
                key={el.id} 
@@ -561,7 +673,8 @@ const AdminDashboard: React.FC = () => {
                    textTransform: el.textTransform || 'none',
                    width: el.width ? `${el.width}px` : 'auto', 
                    transform: transform, 
-                   whiteSpace: el.type === 'image' ? 'normal' : 'nowrap'
+                   whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
+                   ...strokeStyle
                }} 
                onMouseDown={onMouseDown}
           >
@@ -603,7 +716,7 @@ const AdminDashboard: React.FC = () => {
                </div>
                <div className="flex gap-2 pt-4 border-t-2 border-dashed border-gray-200">
                   <button onClick={() => handleEditClick(event)} className="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg font-bold text-xs hover:bg-blue-100 flex items-center justify-center gap-1"><Edit2 className="w-3 h-3"/> EDIT</button>
-                  <button onClick={() => handleToggleStatus(event.id)} className={`flex-1 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 ${event.isOpen ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
+                  <button onClick={() => handleToggleStatus(event.id, event.isOpen)} className={`flex-1 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 ${event.isOpen ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}>
                       <Power className="w-3 h-3"/> {event.isOpen ? 'TUTUP' : 'BUKA'}
                   </button>
                   <button onClick={() => handleDeleteEvent(event.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 className="w-4 h-4"/></button>
@@ -625,7 +738,8 @@ const AdminDashboard: React.FC = () => {
   );
 
   const renderRegistrations = () => (
-    <div className="space-y-6 animate-fade-in">
+    // ... (No Changes to this section)
+    <div className="space-y-6 animate-fade-in relative">
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
             <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Data Pendaftaran</h2>
             <div className="flex items-center gap-2">
@@ -665,9 +779,12 @@ const AdminDashboard: React.FC = () => {
                                 <td className="p-4 text-sm font-bold text-gray-600 max-w-xs truncate" title={reg.eventTitle}>{reg.eventTitle}</td>
                                 <td className="p-4 text-center">
                                     {reg.proofUrl ? (
-                                        <a href={reg.proofUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-bold text-[#0B1CDE] hover:underline">
+                                        <button 
+                                            onClick={() => setViewingProof(reg.proofUrl)}
+                                            className="inline-flex items-center gap-1 text-xs font-bold text-[#0B1CDE] hover:underline bg-blue-50 px-2 py-1 rounded"
+                                        >
                                             <ImageIcon className="w-3 h-3"/> LIHAT
-                                        </a>
+                                        </button>
                                     ) : <span className="text-xs text-gray-400">-</span>}
                                 </td>
                                 <td className="p-4 text-center">
@@ -706,6 +823,24 @@ const AdminDashboard: React.FC = () => {
                 </table>
             </div>
         </div>
+
+        {/* PROOF PREVIEW MODAL */}
+        {viewingProof && (
+             <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setViewingProof(null)}>
+                 <div className="relative bg-white p-2 rounded-xl max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
+                     <div className="flex justify-between items-center p-2 border-b">
+                         <h3 className="font-bold text-[#2B427A]">Bukti Pembayaran</h3>
+                         <button onClick={() => setViewingProof(null)} className="p-1 hover:bg-gray-100 rounded-full"><X className="w-6 h-6"/></button>
+                     </div>
+                     <div className="flex-1 overflow-auto p-2 bg-gray-100 flex items-center justify-center min-h-[300px]">
+                         <img src={viewingProof} alt="Bukti Pembayaran" className="max-w-full max-h-[75vh] object-contain rounded" />
+                     </div>
+                     <div className="p-2 border-t flex justify-center">
+                         <a href={viewingProof} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-blue-600 hover:underline">Buka Gambar Asli (Tab Baru)</a>
+                     </div>
+                 </div>
+             </div>
+        )}
     </div>
   );
 
@@ -739,6 +874,7 @@ const AdminDashboard: React.FC = () => {
         
         {activeTab === 'settings' && (
            <div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A]">
+               {/* Settings Tab Content ... (No Changes) */}
                <div className="flex gap-4 border-b-2 border-gray-200 pb-4 mb-6"><button onClick={()=>setSettingsTab('certificate')} className={`px-4 py-2 font-black ${settingsTab==='certificate'?'text-[#0B1CDE] border-b-2 border-[#0B1CDE]':''}`}>Editor Sertifikat</button><button onClick={()=>setSettingsTab('payment')} className={`px-4 py-2 font-black ${settingsTab==='payment'?'text-[#0B1CDE] border-b-2 border-[#0B1CDE]':''}`}>Pembayaran</button></div>
                
                {settingsTab === 'certificate' && (
@@ -768,6 +904,7 @@ const AdminDashboard: React.FC = () => {
                )}
                {settingsTab === 'payment' && (
                    <form onSubmit={handleSavePaymentSettings} className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-fade-in">
+                       {/* Payment Form Content ... (No Changes) */}
                        <div className="space-y-6">
                            <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-100"><h3 className="font-black text-[#2B427A] uppercase mb-4 flex items-center gap-2"><PlusSquare className="w-5 h-5"/> {isEditingAccount ? 'Edit Rekening' : 'Tambah Rekening'}</h3><div className="space-y-4"><div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Bank</label><input type="text" value={tempAccount.bankName} onChange={e=>setTempAccount({...tempAccount, bankName: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: BCA" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nomor Rekening</label><input type="text" value={tempAccount.accountNumber} onChange={e=>setTempAccount({...tempAccount, accountNumber: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold focus:border-[#0B1CDE] outline-none" placeholder="1234xxxx" /></div><div><label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Atas Nama</label><input type="text" value={tempAccount.accountHolder} onChange={e=>setTempAccount({...tempAccount, accountHolder: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold focus:border-[#0B1CDE] outline-none" placeholder="Nama Pemilik" /></div><button type="button" onClick={isEditingAccount ? handleUpdateAccount : handleAddAccount} className="w-full py-2 bg-[#2B427A] text-white font-bold rounded-lg hover:bg-[#0B1CDE] transition-colors uppercase text-sm">{isEditingAccount ? 'Update Rekening' : 'Tambah ke Daftar'}</button>{isEditingAccount && (<button type="button" onClick={() => { setIsEditingAccount(false); setTempAccount({ id: '', bankName: '', accountNumber: '', accountHolder: '' }); }} className="w-full py-2 bg-gray-200 text-gray-600 font-bold rounded-lg hover:bg-gray-300 transition-colors uppercase text-sm mt-2">Batal</button>)}</div></div>
                            <div><label className="block text-sm font-black text-[#2B427A] mb-3 uppercase">Daftar Rekening</label><div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">{paymentSettings.bankAccounts.length === 0 && (<p className="text-gray-400 text-sm font-medium italic text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">Belum ada rekening ditambahkan.</p>)}{paymentSettings.bankAccounts.map((acc, idx) => (<div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex justify-between items-center group hover:border-[#2B427A] transition-colors"><div><div className="font-black text-[#2B427A] uppercase">{acc.bankName}</div><div className="text-sm font-bold text-gray-600">{acc.accountNumber}</div><div className="text-xs text-gray-400 uppercase">{acc.accountHolder}</div></div><div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity"><button type="button" onClick={() => handleEditAccountClick(acc)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Pencil className="w-4 h-4"/></button><button type="button" onClick={() => handleDeleteAccount(acc.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button></div></div>))}</div></div>
@@ -831,7 +968,40 @@ const AdminDashboard: React.FC = () => {
                   </div>
                   <div className="p-8 overflow-y-auto flex-1 bg-white relative">
                      {wizardStep === 1 && (<div className="space-y-6 animate-fade-in"><h3 className="text-lg font-black text-gray-400 uppercase">Tahap 1: Informasi Dasar</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label><div className="relative"><Type className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-bold text-[#2B427A]" /></div></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label><div className="relative"><Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><select value={isCustomCat ? 'OTHER' : newEvent.category} onChange={(e) => { if (e.target.value === 'OTHER') { setIsCustomCat(true); setNewEvent({...newEvent, category: ''}); } else { setIsCustomCat(false); setNewEvent({...newEvent, category: e.target.value}); } }} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-bold bg-white text-[#2B427A] appearance-none">{Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya (Custom)...</option></select></div>{isCustomCat && (<div className="mt-3 animate-fade-in"><input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full border-2 border-[#DFFF00] rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold bg-[#F8FAFC]" placeholder="Contoh: Talkshow" /></div>)}</div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label><div className="relative"><CalendarIcon className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-bold text-[#2B427A]" /></div></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label><div className="relative"><Clock className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-bold text-[#2B427A]" /></div></div></div></div>)}
-                     {wizardStep === 2 && (<div className="space-y-6 animate-fade-in"><h3 className="text-lg font-black text-gray-400 uppercase">Tahap 2: Detail & Media</h3><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi</label><div className="relative"><MapPin className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-bold text-[#2B427A]" /></div></div><div><div className="flex justify-between mb-2"><label className="text-sm font-black text-[#2B427A] uppercase">Deskripsi</label><button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs bg-[#DFFF00] px-3 py-1 rounded-lg font-black text-[#2B427A] border border-[#2B427A] flex items-center gap-1 hover:bg-white transition-colors shadow-sm"><Sparkles className="w-3 h-3"/> {generatingDesc ? 'MEMBUAT...' : 'AI GENERATE'}</button></div><div className="relative"><AlignLeft className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-medium text-sm leading-relaxed resize-none text-[#2B427A]"/></div></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Acara</label><div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 cursor-pointer relative transition-colors duration-200 group overflow-hidden bg-gray-50 min-h-[200px] flex items-center justify-center"><input type="file" accept="image/*" onChange={handleBannerChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" />{bannerPreview ? (<div className="relative w-full h-full"><img src={bannerPreview} alt="Preview" className="max-h-[300px] w-full object-contain rounded-lg shadow-md" /><button onClick={handleRemoveBanner} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full z-20 hover:bg-red-600 shadow-lg" title="Hapus Gambar"><Trash className="w-4 h-4"/></button></div>) : (<div className="flex flex-col items-center group-hover:scale-105 transition-transform"><ImageIcon className="w-12 h-12 text-gray-400 mb-2 group-hover:text-[#0B1CDE]"/><span className="font-bold text-gray-500 group-hover:text-[#2B427A]">Klik untuk unggah Banner (Max 5MB)</span></div>)}</div></div></div>)}
+                     {wizardStep === 2 && (<div className="space-y-6 animate-fade-in"><h3 className="text-lg font-black text-gray-400 uppercase">Tahap 2: Detail & Media</h3>
+                        <div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi</label><div className="relative"><MapPin className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-bold text-[#2B427A]" /></div></div>
+                        <div><div className="flex justify-between mb-2"><label className="text-sm font-black text-[#2B427A] uppercase">Deskripsi</label><button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs bg-[#DFFF00] px-3 py-1 rounded-lg font-black text-[#2B427A] border border-[#2B427A] flex items-center gap-1 hover:bg-white transition-colors shadow-sm"><Sparkles className="w-3 h-3"/> {generatingDesc ? 'MEMBUAT...' : 'AI GENERATE'}</button></div><div className="relative"><AlignLeft className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-medium text-sm leading-relaxed resize-none text-[#2B427A]"/></div></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama (Landscape)</label>
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 cursor-pointer relative transition-colors duration-200 group overflow-hidden bg-gray-50 min-h-[200px] flex items-center justify-center">
+                                    <input type="file" accept="image/*" onChange={handleBannerChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                                    {bannerPreview ? (
+                                        <div className="relative w-full h-full">
+                                            <img src={bannerPreview} alt="Preview" className="max-h-[300px] w-full object-contain rounded-lg shadow-md" />
+                                            <button onClick={handleRemoveBanner} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full z-20 hover:bg-red-600 shadow-lg"><Trash className="w-4 h-4"/></button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center group-hover:scale-105 transition-transform"><ImageIcon className="w-12 h-12 text-gray-400 mb-2 group-hover:text-[#0B1CDE]"/><span className="font-bold text-gray-500 group-hover:text-[#2B427A]">Upload Banner</span></div>
+                                    )}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail Home (Portrait 4:5)</label>
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 cursor-pointer relative transition-colors duration-200 group overflow-hidden bg-gray-50 min-h-[200px] flex items-center justify-center">
+                                    <input type="file" accept="image/*" onChange={handleThumbnailChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                                    {thumbnailPreview ? (
+                                        <div className="relative w-full h-full">
+                                            <img src={thumbnailPreview} alt="Preview Thumb" className="max-h-[300px] w-full object-contain rounded-lg shadow-md" />
+                                            <button onClick={handleRemoveThumbnail} className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full z-20 hover:bg-red-600 shadow-lg"><Trash className="w-4 h-4"/></button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center group-hover:scale-105 transition-transform"><ImageIcon className="w-12 h-12 text-gray-400 mb-2 group-hover:text-[#0B1CDE]"/><span className="font-bold text-gray-500 group-hover:text-[#2B427A]">Upload Thumbnail</span></div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                     </div>)}
                      {wizardStep === 3 && (<div className="space-y-6 animate-fade-in"><div className="flex justify-between items-center"><h3 className="text-lg font-black text-gray-400 uppercase">Tahap 3: Form Pendaftaran</h3><button onClick={addFormField} className="text-sm bg-[#0B1CDE] text-white px-3 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A] transition-transform active:scale-95"><PlusCircle className="w-4 h-4"/> TAMBAH FIELD</button></div><div className="space-y-3">{newEvent.formFields?.map((field, idx) => (<div key={idx} className="flex gap-4 items-start bg-gray-50 p-4 rounded-xl border border-gray-200 animate-scale-up"><div className="flex-1 space-y-3"><div className="grid grid-cols-2 gap-4"><input type="text" placeholder="Label" value={field.label} onChange={e=>updateFormField(idx, {label: e.target.value})} className="border rounded-lg p-2 text-sm font-bold outline-none focus:border-blue-500" /><select value={field.type} onChange={e=>updateFormField(idx, {type: e.target.value as any})} className="border rounded-lg p-2 text-sm font-bold outline-none bg-white"><option value="text">Teks</option><option value="number">Angka</option><option value="email">Email</option><option value="textarea">TextArea</option><option value="select">Pilihan</option></select></div>{field.type === 'select' && <input type="text" placeholder="Opsi..." value={field.options?.join(',')} onChange={e=>updateFormField(idx, {options: e.target.value.split(',')})} className="w-full border rounded-lg p-2 text-sm outline-none" />}<div className="flex items-center gap-2"><input type="checkbox" checked={field.required} onChange={e=>updateFormField(idx, {required: e.target.checked})} id={`req-${idx}`} className="w-4 h-4"/><label htmlFor={`req-${idx}`} className="text-sm font-bold text-gray-600">Wajib Diisi</label></div></div><button onClick={()=>removeFormField(idx)} className="text-red-400 hover:text-red-600 p-2"><MinusCircle className="w-6 h-6"/></button></div>))}{(!newEvent.formFields || newEvent.formFields.length === 0) && <div className="text-center py-8 text-gray-400 font-bold border-2 border-dashed border-gray-200 rounded-xl">Belum ada field tambahan.</div>}</div></div>)}
                      {wizardStep === 4 && (<div className="space-y-6 animate-fade-in"><h3 className="text-lg font-black text-gray-400 uppercase">Tahap 4: Harga & Review</h3><div className="grid grid-cols-2 gap-6"><div><div className="flex justify-between items-center mb-2"><label className="block text-sm font-black text-[#2B427A] uppercase">Harga Tiket</label><div className="flex items-center gap-2"><span className={`text-xs font-bold ${newEvent.price === 0 ? 'text-green-600' : 'text-gray-400'}`}>GRATIS?</span><button onClick={() => setNewEvent({...newEvent, price: newEvent.price === 0 ? 10000 : 0})} className={`w-10 h-5 rounded-full relative transition-colors ${newEvent.price === 0 ? 'bg-green-500' : 'bg-gray-300'}`}><div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${newEvent.price === 0 ? 'left-6' : 'left-1'}`} /></button></div></div><div className={`relative flex items-center border-2 rounded-xl overflow-hidden transition-all ${newEvent.price === 0 ? 'bg-gray-100 border-gray-200' : 'bg-white border-[#2B427A]'}`}><DollarSign className={`absolute left-4 w-5 h-5 ${newEvent.price === 0 ? 'text-gray-400' : 'text-[#2B427A]'}`} /><input type="number" disabled={newEvent.price === 0} value={newEvent.price === 0 ? '' : newEvent.price} onChange={e=>setNewEvent({...newEvent, price: Number(e.target.value)})} className="w-full pl-12 pr-4 py-3 outline-none font-black text-xl text-gray-700 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={newEvent.price === 0 ? "GRATIS" : "0"}/></div></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kuota Peserta</label><div className="relative"><UsersIcon className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" /><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#0B1CDE] outline-none font-black text-lg text-[#2B427A]" /></div></div></div><div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 mt-4"><h4 className="font-black text-[#2B427A] mb-2 uppercase">Ringkasan Acara</h4><div className="grid grid-cols-2 gap-4 mt-2"><div><p className="text-xs text-gray-500 font-bold uppercase">Judul</p><p className="text-sm font-black text-[#0B1CDE]">{newEvent.title}</p></div><div><p className="text-xs text-gray-500 font-bold uppercase">Kategori</p><p className="text-sm font-bold text-gray-700">{isCustomCat ? customCategory : newEvent.category}</p></div><div><p className="text-xs text-gray-500 font-bold uppercase">Jadwal</p><p className="text-sm font-bold text-gray-700">{newEvent.date} @ {newEvent.time}</p></div><div><p className="text-xs text-gray-500 font-bold uppercase">Lokasi</p><p className="text-sm font-bold text-gray-700">{newEvent.location}</p></div></div></div></div>)}
                   </div>

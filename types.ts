@@ -42,9 +42,11 @@ export interface CertificateElement {
   color?: string; // Optional for image
   fontWeight?: 'normal' | 'bold'; // Optional for image
   align?: 'left' | 'center' | 'right'; // Optional for image
-  textTransform?: 'none' | 'uppercase' | 'lowercase'; // ADDED: Uppercase support
+  textTransform?: 'none' | 'uppercase' | 'lowercase';
   width?: number; // Required for image/centering
   height?: number; // Added for image
+  strokeWidth?: number; // ADDED: Text Outline Width
+  strokeColor?: string; // ADDED: Text Outline Color
 }
 
 export interface CertificateConfig {
@@ -63,6 +65,7 @@ export interface Event {
   price: number;
   category: string; 
   bannerUrl: string;
+  thumbnailUrl?: string; // ADDED: Portrait thumbnail for grids (4:5)
   maxParticipants: number;
   currentParticipants: number;
   paymentInstructions?: string;

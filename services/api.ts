@@ -71,11 +71,11 @@ export const fetchEvents = async (): Promise<Event[]> => {
 };
 
 // Updated: Supports certBackgroundBase64 now
-export const createEvent = (eventData: Partial<Event>, bannerBase64: string, certBackgroundBase64?: string) => 
-    callScript('createEvent', { ...eventData, bannerBase64, certBackgroundBase64 }, 'POST');
+export const createEvent = (eventData: Partial<Event>, bannerBase64: string | undefined, certBackgroundBase64?: string, thumbnailBase64?: string) => 
+    callScript('createEvent', { ...eventData, bannerBase64, certBackgroundBase64, thumbnailBase64 }, 'POST');
 
-export const updateEvent = (eventData: Partial<Event>, bannerBase64?: string, certBackgroundBase64?: string) => 
-    callScript('updateEvent', { ...eventData, bannerBase64, certBackgroundBase64 }, 'POST');
+export const updateEvent = (eventData: Partial<Event>, bannerBase64?: string, certBackgroundBase64?: string, thumbnailBase64?: string) => 
+    callScript('updateEvent', { ...eventData, bannerBase64, certBackgroundBase64, thumbnailBase64 }, 'POST');
 
 export const deleteEvent = (id: string) => callScript('deleteEvent', { id }, 'POST');
 

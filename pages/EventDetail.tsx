@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type } from 'lucide-react';
+import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock } from 'lucide-react';
 import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings } from '../services/api';
 import { Event, PaymentSettings } from '../types';
 
@@ -108,115 +108,135 @@ const EventDetail: React.FC = () => {
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm font-bold flex gap-2"><AlertCircle className="w-4 h-4"/> {error}</div>}
-                
-                {/* Standard Fields */}
-                <div>
-                  <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Nama Lengkap</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                    <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
+              {!event.isOpen ? (
+                  // TEMPLATE ACARA DITUTUP
+                  <div className="text-center py-8">
+                      <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-gray-300">
+                          <Clock className="w-10 h-10 text-gray-400" />
+                      </div>
+                      <h3 className="text-xl font-black text-gray-600 uppercase mb-2">Pendaftaran Ditutup</h3>
+                      <p className="text-gray-500 text-sm mb-6 px-4 leading-relaxed font-medium">
+                          Terima kasih atas antusiasme Anda. Kuota telah terpenuhi atau batas waktu pendaftaran untuk acara ini telah berakhir.
+                      </p>
+                      <button 
+                          onClick={() => navigate('/events')}
+                          className="w-full py-3 bg-[#2B427A] text-white font-bold rounded-xl hover:bg-[#0B1CDE] transition-colors text-sm"
+                      >
+                          NANTIKAN EVENT SELANJUTNYA
+                      </button>
                   </div>
-                </div>
-                <div>
-                  <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                    <input type="email" required value={formData.email} onChange={e=>setFormData({...formData, email:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
-                  </div>
-                </div>
+              ) : (
+                  // FORM PENDAFTARAN AKTIF
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm font-bold flex gap-2"><AlertCircle className="w-4 h-4"/> {error}</div>}
+                    
+                    {/* Standard Fields */}
+                    <div>
+                      <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Nama Lengkap</label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Email</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <input type="email" required value={formData.email} onChange={e=>setFormData({...formData, email:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
+                      </div>
+                    </div>
 
-                {/* Custom Fields */}
-                {event.formFields?.map(field => (
-                    <div key={field.id}>
-                        <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">{field.label}</label>
-                        <div className="relative">
-                            <div className="absolute left-3 top-3 w-4 h-4 text-gray-400 pointer-events-none">
-                              {field.type === 'select' ? <Tag className="w-4 h-4"/> : <Edit3 className="w-4 h-4"/>}
+                    {/* Custom Fields */}
+                    {event.formFields?.map(field => (
+                        <div key={field.id}>
+                            <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">{field.label}</label>
+                            <div className="relative">
+                                <div className="absolute left-3 top-3 w-4 h-4 text-gray-400 pointer-events-none">
+                                  {field.type === 'select' ? <Tag className="w-4 h-4"/> : <Edit3 className="w-4 h-4"/>}
+                                </div>
+                                {field.type === 'select' ? (
+                                    <select required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none bg-white text-sm text-[#2B427A]">
+                                        <option value="">Pilih...</option>
+                                        {field.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
+                                    </select>
+                                ) : field.type === 'textarea' ? (
+                                    <textarea required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" rows={3}></textarea>
+                                ) : (
+                                    <input type={field.type} required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" placeholder={field.placeholder} />
+                                )}
                             </div>
-                            {field.type === 'select' ? (
-                                <select required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none bg-white text-sm text-[#2B427A]">
-                                    <option value="">Pilih...</option>
-                                    {field.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
-                                </select>
-                            ) : field.type === 'textarea' ? (
-                                <textarea required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" rows={3}></textarea>
-                            ) : (
-                                <input type={field.type} required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" placeholder={field.placeholder} />
-                            )}
                         </div>
-                    </div>
-                ))}
+                    ))}
 
-                {/* Payment Info Section */}
-                {event.price > 0 && paymentSettings && (
-                    <div className="bg-[#F0F9FF] p-4 rounded-lg border border-blue-200 text-sm">
-                        <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2 text-xs md:text-sm">
-                            <i className="fi fi-bs-money-bill-wave flex text-base"></i> Transfer Pembayaran
-                        </h4>
-                        
-                        <div className="space-y-4">
-                            {/* Loop through bank accounts */}
-                            {paymentSettings.bankAccounts.map((acc, idx) => (
-                                <div key={idx} className="bg-white p-3 rounded border border-blue-100 shadow-sm">
-                                    <div className="flex justify-between items-center mb-1">
-                                        <p className="font-black text-[#2B427A] uppercase text-xs">{acc.bankName}</p>
-                                        <button type="button" onClick={() => navigator.clipboard.writeText(acc.accountNumber)} title="Salin No. Rek" className="hover:scale-110 transition-transform bg-transparent border-none p-0 cursor-pointer text-[#0B1CDE]">
-                                            <Copy className="w-3 h-3" />
-                                        </button>
+                    {/* Payment Info Section */}
+                    {event.price > 0 && paymentSettings && (
+                        <div className="bg-[#F0F9FF] p-4 rounded-lg border border-blue-200 text-sm">
+                            <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2 text-xs md:text-sm">
+                                <i className="fi fi-bs-money-bill-wave flex text-base"></i> Transfer Pembayaran
+                            </h4>
+                            
+                            <div className="space-y-4">
+                                {/* Loop through bank accounts */}
+                                {paymentSettings.bankAccounts.map((acc, idx) => (
+                                    <div key={idx} className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <p className="font-black text-[#2B427A] uppercase text-xs">{acc.bankName}</p>
+                                            <button type="button" onClick={() => navigator.clipboard.writeText(acc.accountNumber)} title="Salin No. Rek" className="hover:scale-110 transition-transform bg-transparent border-none p-0 cursor-pointer text-[#0B1CDE]">
+                                                <Copy className="w-3 h-3" />
+                                            </button>
+                                        </div>
+                                        <div className="font-mono bg-gray-50 px-2 py-1 rounded text-[#0B1CDE] font-bold text-base tracking-wide border border-gray-100 mb-1 select-all break-all">
+                                            {acc.accountNumber}
+                                        </div>
+                                        <p className="text-[10px] md:text-xs text-gray-500 font-medium">a.n {acc.accountHolder}</p>
                                     </div>
-                                    <div className="font-mono bg-gray-50 px-2 py-1 rounded text-[#0B1CDE] font-bold text-base tracking-wide border border-gray-100 mb-1 select-all break-all">
-                                        {acc.accountNumber}
-                                    </div>
-                                    <p className="text-[10px] md:text-xs text-gray-500 font-medium">a.n {acc.accountHolder}</p>
-                                </div>
-                            ))}
+                                ))}
 
-                            {paymentSettings.qrisUrl && (
-                                <div className="mt-3 pt-3 border-t border-blue-100">
-                                    <p className="font-bold text-xs mb-2 text-[#2B427A] uppercase">SCAN QRIS:</p>
-                                    <div className="bg-white p-2 rounded border inline-block">
-                                        <img src={paymentSettings.qrisUrl} alt="QRIS" className="w-24 h-24 md:w-32 md:h-32 object-contain" />
+                                {paymentSettings.qrisUrl && (
+                                    <div className="mt-3 pt-3 border-t border-blue-100">
+                                        <p className="font-bold text-xs mb-2 text-[#2B427A] uppercase">SCAN QRIS:</p>
+                                        <div className="bg-white p-2 rounded border inline-block">
+                                            <img src={paymentSettings.qrisUrl} alt="QRIS" className="w-24 h-24 md:w-32 md:h-32 object-contain" />
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Bukti Pembayaran</label>
+                      <div className="border-2 border-dashed border-[#2B427A]/30 rounded-lg p-4 text-center hover:bg-[#F0F9FF] cursor-pointer relative">
+                           <input type="file" required onChange={e=>setProofFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                           <div className="text-xs font-bold text-gray-500 break-words flex flex-col items-center gap-2">
+                               <Upload className="w-5 h-5 text-[#0B1CDE]" />
+                               {proofFile ? proofFile.name : "Klik Upload File"}
+                           </div>
+                      </div>
                     </div>
-                )}
 
-                <div>
-                  <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Bukti Pembayaran</label>
-                  <div className="border-2 border-dashed border-[#2B427A]/30 rounded-lg p-4 text-center hover:bg-[#F0F9FF] cursor-pointer relative">
-                       <input type="file" required onChange={e=>setProofFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                       <div className="text-xs font-bold text-gray-500 break-words flex flex-col items-center gap-2">
-                           <Upload className="w-5 h-5 text-[#0B1CDE]" />
-                           {proofFile ? proofFile.name : "Klik Upload File"}
-                       </div>
-                  </div>
-                </div>
-
-                <button 
-                  type="submit"
-                  disabled={registering} 
-                  className={`w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg transition-all flex items-center justify-center gap-3
-                    ${registering 
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-2 border-gray-300' 
-                      : 'bg-[#0B1CDE] text-white border-2 border-[#0B1CDE] hover:bg-[#DFFF00] hover:text-[#2B427A] hover:border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_#2B427A]'
-                    }`}
-                >
-                  {registering ? (
-                    <>
-                      <Loader className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
-                      PROSES...
-                    </>
-                  ) : (
-                     <>
-                       DAFTAR SEKARANG <Rocket className="w-4 h-4 md:w-5 md:h-5" />
-                     </>
-                  )}
-                </button>
-              </form>
+                    <button 
+                      type="submit"
+                      disabled={registering} 
+                      className={`w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg transition-all flex items-center justify-center gap-3
+                        ${registering 
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-2 border-gray-300' 
+                          : 'bg-[#0B1CDE] text-white border-2 border-[#0B1CDE] hover:bg-[#DFFF00] hover:text-[#2B427A] hover:border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_#2B427A]'
+                        }`}
+                    >
+                      {registering ? (
+                        <>
+                          <Loader className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
+                          PROSES...
+                        </>
+                      ) : (
+                         <>
+                           DAFTAR SEKARANG <Rocket className="w-4 h-4 md:w-5 md:h-5" />
+                         </>
+                      )}
+                    </button>
+                  </form>
+              )}
             </div>
           </div>
         </div>

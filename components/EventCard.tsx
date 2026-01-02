@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Calendar, MapPin, Users, ArrowRight, Tag } from 'lucide-react';
 import { Event } from '../types';
@@ -10,18 +11,27 @@ interface EventCardProps {
 
 const EventCard: React.FC<EventCardProps> = ({ event }) => {
   const eventLink = `/event/${createSlug(event.title) || event.id}`;
+  // Use thumbnail if available for portrait aspect ratio, otherwise fallback to banner
+  const displayImage = event.thumbnailUrl || event.bannerUrl || `https://picsum.photos/400/500?random=${event.id}`;
 
   return (
     <div className="group bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full relative">
-      <div className="relative h-52 bg-gray-200 overflow-hidden border-b-2 border-[#2B427A]">
+      <div className="relative h-64 bg-gray-200 overflow-hidden border-b-2 border-[#2B427A]">
         <img 
-          src={event.bannerUrl || `https://picsum.photos/400/200?random=${event.id}`} 
+          src={displayImage} 
           alt={event.title} 
           className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
         />
         <div className="absolute top-0 right-0 bg-[#DFFF00] border-l-2 border-b-2 border-[#2B427A] px-4 py-2 text-xs font-black text-[#2B427A] uppercase tracking-wider">
           {event.category}
         </div>
+        {!event.isOpen && (
+            <div className="absolute inset-0 bg-gray-900/60 flex items-center justify-center">
+                <div className="bg-red-500 text-white px-6 py-2 font-black border-2 border-white transform -rotate-12 shadow-lg text-lg tracking-widest uppercase">
+                    SELESAI
+                </div>
+            </div>
+        )}
       </div>
       
       <div className="p-6 flex-1 flex flex-col">
@@ -61,9 +71,12 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
                 DAFTAR
               </Link>
             ) : (
-              <span className="px-4 py-2 bg-gray-200 text-gray-500 text-sm font-bold rounded-lg border-2 border-gray-300 cursor-not-allowed">
-                TUTUP
-              </span>
+              <Link 
+                to={eventLink}
+                className="px-4 py-2 bg-gray-200 text-gray-500 text-sm font-bold rounded-lg border-2 border-gray-300 hover:bg-gray-300 transition-colors"
+              >
+                DETAIL
+              </Link>
             )}
           </div>
         </div>

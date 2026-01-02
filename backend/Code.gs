@@ -174,6 +174,7 @@ function getEvents() {
     obj.isOpen = row[11]; 
     try { obj.formFields = row[12] ? JSON.parse(row[12]) : []; } catch(e) { obj.formFields = []; }
     try { obj.certificateConfig = row[13] ? JSON.parse(row[13]) : null; } catch(e) { obj.certificateConfig = null; }
+    obj.thumbnailUrl = row[14] || ""; // Column O
     return obj;
   });
 }
@@ -182,21 +183,30 @@ function createEvent(data) {
   var sheet = _getSheet("Events");
   var id = Utilities.getUuid();
   var bannerUrl = "";
+  var thumbnailUrl = "";
   
-  // Save Banner to Admin Folder
+  var folder = _getAdminFolder();
+
+  // Save Banner
   if (data.bannerBase64) {
     try {
-      var folder = _getAdminFolder();
       var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + id);
       bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
     } catch (e) { }
   }
+
+  // Save Thumbnail
+  if (data.thumbnailBase64) {
+    try {
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.thumbnailBase64), "image/jpeg", "thumb_" + id);
+      thumbnailUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
+    } catch (e) { }
+  }
   
-  // Save Certificate Background to Admin Folder
+  // Save Certificate Background
   var certConfig = data.certificateConfig || null;
   if (certConfig && data.certBackgroundBase64) {
      try {
-        var folder = _getAdminFolder();
         var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + id);
         var file = folder.createFile(blob);
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -210,7 +220,7 @@ function createEvent(data) {
   sheet.appendRow([
     id, data.title, data.description, data.date, data.time, data.location, 
     data.price, data.category, bannerUrl, data.maxParticipants, 0, true,
-    formFieldsJson, certConfigJson
+    formFieldsJson, certConfigJson, thumbnailUrl
   ]);
   return { id: id };
 }
@@ -222,13 +232,22 @@ function updateEvent(data) {
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] == data.id) {
       var bannerUrl = rows[i][8];
+      var thumbnailUrl = rows[i][14] || "";
+      var folder = _getAdminFolder();
       
-      // Update Banner (Admin Folder)
+      // Update Banner
       if (data.bannerBase64) {
         try {
-          var folder = _getAdminFolder();
           var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + data.id + "_" + new Date().getTime());
           bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
+        } catch(e) {}
+      }
+
+      // Update Thumbnail
+      if (data.thumbnailBase64) {
+        try {
+          var blob = Utilities.newBlob(Utilities.base64Decode(data.thumbnailBase64), "image/jpeg", "thumb_" + data.id + "_" + new Date().getTime());
+          thumbnailUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
         } catch(e) {}
       }
       
@@ -237,10 +256,9 @@ function updateEvent(data) {
       var certConfig = data.certificateConfig;
       
       if (certConfig) {
-          // Update Cert Background (Admin Folder)
+          // Update Cert Background
           if (data.certBackgroundBase64) {
              try {
-                var folder = _getAdminFolder();
                 var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + data.id + "_" + new Date().getTime());
                 var file = folder.createFile(blob);
                 file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -266,10 +284,18 @@ function updateEvent(data) {
       sheet.getRange(i+1, 10).setValue(data.maxParticipants);
       sheet.getRange(i+1, 13).setValue(formFieldsJson);
       
+      // Ensure columns exist for Cert Config and Thumbnail
       if (sheet.getLastColumn() < 14) {
          sheet.getRange(i+1, 14).setValue(certConfigJson);
+         sheet.getRange(i+1, 15).setValue(thumbnailUrl);
       } else {
          sheet.getRange(i+1, 14).setValue(certConfigJson);
+         if (sheet.getLastColumn() >= 15) {
+             sheet.getRange(i+1, 15).setValue(thumbnailUrl);
+         } else {
+             // If col 15 doesn't exist yet but we have logic
+             sheet.getRange(i+1, 15).setValue(thumbnailUrl);
+         }
       }
       
       return { id: data.id, updated: true };
@@ -408,9 +434,6 @@ function getRegistration(data) {
      }
   }
   
-  // Try to load Global CSV data for lookups if needed (though best done client side with cached data)
-  // For simplicity, we just return the config as is.
-  
   return { registration: reg, certificateConfig: certConfig };
 }
 
@@ -515,7 +538,7 @@ function saveCertificateSettings(data) {
 
   // Handle CSV Data Upload
   var csvDataUrl = data.csvDataUrl || "";
-  if (data.csvDataJson) { // Use a specific field for the JSON string of CSV data
+  if (data.csvDataJson) { 
      try {
        var folder = _getAdminFolder();
        var blob = Utilities.newBlob(data.csvDataJson, "application/json", "cert_data_csv_" + new Date().getTime() + ".json");
@@ -578,11 +601,14 @@ function _getSheet(name) {
 function _initDbIfNeeded() {
   var ss = _getDb();
   if(!ss.getSheetByName("Events")) {
-     ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig"]);
+     ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig","thumbnail"]);
   } else {
      var eSheet = ss.getSheetByName("Events");
      if (eSheet.getLastColumn() < 14) {
          eSheet.getRange(1, 14).setValue("certificateConfig");
+     }
+     if (eSheet.getLastColumn() < 15) {
+         eSheet.getRange(1, 15).setValue("thumbnail");
      }
   }
   if(!ss.getSheetByName("Registrations")) ss.insertSheet("Registrations").appendRow(["id","eventId","evtTitle","name","email","proof","status","date","customData"]);
@@ -590,17 +616,13 @@ function _initDbIfNeeded() {
   if(!ss.getSheetByName("Settings")) ss.insertSheet("Settings").appendRow(["Key", "Value"]);
 }
 
-// --- DRIVE FOLDER HELPERS (REFACTORED) ---
-
-// 1. Get or Create Master Folder
+// --- DRIVE FOLDER HELPERS ---
 function _getMasterFolder() {
   var id = SCRIPT_PROP.getProperty("MASTER_FOLDER_ID");
   if (id) {
     try { 
       return DriveApp.getFolderById(id); 
-    } catch(e) {
-      // If folder deleted, recover
-    }
+    } catch(e) {}
   }
   var f = DriveApp.createFolder("EventHorizon_Master");
   f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -608,26 +630,20 @@ function _getMasterFolder() {
   return f;
 }
 
-// 2. Get or Create Admin Folder (For Banners, Cert Templates, QRIS)
 function _getAdminFolder() {
   var master = _getMasterFolder();
   var folders = master.getFoldersByName("Admin_Assets");
   if (folders.hasNext()) return folders.next();
-  
   var f = master.createFolder("Admin_Assets");
-  // Assets must be public for frontend display
   f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return f;
 }
 
-// 3. Get or Create User Folder (For Payment Proofs)
 function _getUserFolder() {
   var master = _getMasterFolder();
   var folders = master.getFoldersByName("User_Uploads");
   if (folders.hasNext()) return folders.next();
-  
   var f = master.createFolder("User_Uploads");
-  // Proofs need to be viewable by Admin via link
   f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); 
   return f;
 }

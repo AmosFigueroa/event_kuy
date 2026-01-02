@@ -144,6 +144,15 @@ const CertificatePage: React.FC = () => {
       if (el.align === 'left') transform = 'translate(0, -50%)';
       if (el.align === 'right') transform = 'translate(-100%, -50%)';
 
+      const strokeStyle = el.strokeWidth && el.strokeWidth > 0 
+        ? { 
+            WebkitTextStrokeWidth: `${el.strokeWidth}px`, 
+            WebkitTextStrokeColor: el.strokeColor || '#FFFFFF',
+            // Paint order ensures the stroke doesn't eat the text fill too much
+            paintOrder: 'stroke fill'
+          } 
+        : {};
+
       return (
         <div
             key={el.id}
@@ -159,7 +168,8 @@ const CertificatePage: React.FC = () => {
                 width: el.width ? `${el.width}px` : 'auto',
                 transform: transform, 
                 whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
-                textTransform: el.textTransform || 'none'
+                textTransform: el.textTransform || 'none',
+                ...strokeStyle
             }}
         >
             {content}
