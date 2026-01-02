@@ -127,6 +127,36 @@ const AdminDashboard: React.FC = () => {
     }
   }, [navigate]);
 
+  // Helper to fix Drive URLs
+  const formatDriveUrl = (url: string) => {
+      if (!url) return '';
+      // If it's already a direct link or not a google drive link, return as is
+      if (url.includes('lh3.googleusercontent.com') || !url.includes('google.com')) return url;
+      
+      // Extract ID
+      let id = '';
+      // Pattern 1: /file/d/ID/view
+      const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if (match1) id = match1[1];
+      
+      // Pattern 2: id=ID
+      if (!id && url.includes('id=')) {
+          try {
+            const urlObj = new URL(url);
+            id = urlObj.searchParams.get('id') || '';
+          } catch(e) {
+             const params = url.split('?')[1];
+             if(params) {
+                 const p = new URLSearchParams(params);
+                 id = p.get('id') || '';
+             }
+          }
+      }
+
+      if (id) return `https://lh3.googleusercontent.com/d/${id}`;
+      return url;
+  };
+
   // AUTO AI TRIGGER
   useEffect(() => {
     if (viewingProof && viewingProof.proofUrl && !aiResult && !isAnalyzing) {
@@ -174,9 +204,11 @@ const AdminDashboard: React.FC = () => {
       setAiResult(null);
 
       try {
+          const directUrl = formatDriveUrl(viewingProof.proofUrl);
+          
           // Convert Image URL to Base64 (Using fetch)
           // Note: This relies on the image URL allowing CORS or being accessible
-          const response = await fetch(viewingProof.proofUrl, { mode: 'cors' });
+          const response = await fetch(directUrl, { mode: 'cors' });
           const blob = await response.blob();
           const reader = new FileReader();
           
@@ -907,8 +939,18 @@ const AdminDashboard: React.FC = () => {
               {/* ... (Existing Proof Modal Code) ... */}
               <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
                   <div className="w-full md:w-1/2 bg-gray-900 flex items-center justify-center p-4 relative bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-                      <img src={viewingProof.proofUrl} className="max-w-full max-h-[60vh] md:max-h-full object-contain rounded shadow-2xl border border-gray-700" alt="Bukti Pembayaran" referrerPolicy="no-referrer" crossOrigin="anonymous"/>
-                      <a href={viewingProof.proofUrl} target="_blank" rel="noopener noreferrer" className="absolute top-4 right-4 bg-white/20 p-2 rounded-full hover:bg-white/40 text-white backdrop-blur-sm transition-colors" title="Buka Asli"><ExternalLink className="w-5 h-5"/></a>
+                      <img 
+                        src={formatDriveUrl(viewingProof.proofUrl)} 
+                        className="max-w-full max-h-[60vh] md:max-h-full object-contain rounded shadow-2xl border border-gray-700 bg-gray-800" 
+                        alt="Bukti Pembayaran" 
+                        referrerPolicy="no-referrer" 
+                        crossOrigin="anonymous"
+                        onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = "https://placehold.co/400x300/1a202c/FFF?text=Gagal+Memuat+Gambar";
+                        }}
+                      />
+                      <a href={formatDriveUrl(viewingProof.proofUrl)} target="_blank" rel="noopener noreferrer" className="absolute top-4 right-4 bg-white/20 p-2 rounded-full hover:bg-white/40 text-white backdrop-blur-sm transition-colors" title="Buka Asli"><ExternalLink className="w-5 h-5"/></a>
                   </div>
                   <div className="w-full md:w-1/2 p-6 flex flex-col overflow-y-auto bg-white">
                       <div className="flex justify-between items-start mb-6"><div><h3 className="text-xl font-black text-[#2B427A] uppercase">Verifikasi Pembayaran</h3><p className="text-sm text-gray-500 font-bold">{viewingProof.userName}</p></div><button onClick={() => setViewingProof(null)} className="text-gray-400 hover:text-red-500"><XCircle className="w-8 h-8"/></button></div>
