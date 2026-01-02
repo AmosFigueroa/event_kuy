@@ -42,6 +42,7 @@ function handleRequest(e, method) {
     
     else if (action === "registerUser" && method === "POST") data = registerEventParticipant(postData); 
     else if (action === "getRegistrations") data = getRegistrations();
+    else if (action === "getRegistration" && method === "POST") data = getRegistration(postData); // New Action
     else if (action === "updateRegistrationStatus" && method === "POST") data = updateRegistrationStatus(postData);
     else if (action === "sendCertificate" && method === "POST") data = sendCertificate(postData);
     
@@ -278,6 +279,16 @@ function registerEventParticipant(data) {
   }
   if (eventRowIndex == -1) throw new Error("Event not found");
   
+  // FIX: Check for duplicate registration to prevent double emails/entries
+  var rSheet = _getSheet("Registrations");
+  var rRows = rSheet.getDataRange().getValues();
+  for(var i=1; i<rRows.length; i++) {
+      // Check if this email is already registered for this eventId
+      if(rRows[i][1] == data.eventId && rRows[i][4].toString().toLowerCase() == data.email.toString().toLowerCase()) {
+          throw new Error("Email ini sudah terdaftar untuk acara tersebut.");
+      }
+  }
+
   var proofUrl = "";
   if (data.proofBase64) {
     try {
@@ -287,7 +298,6 @@ function registerEventParticipant(data) {
     } catch(e) {}
   }
   
-  var rSheet = _getSheet("Registrations");
   var customDataJson = data.customData ? JSON.stringify(data.customData) : "{}";
   
   rSheet.appendRow([
@@ -320,6 +330,21 @@ function getRegistrations() {
   });
 }
 
+function getRegistration(data) {
+  var sheet = _getSheet("Registrations");
+  var rows = sheet.getDataRange().getValues();
+  for(var i=1; i<rows.length; i++) {
+    if(rows[i][0] == data.id) {
+       return {
+          id: rows[i][0], eventId: rows[i][1], eventTitle: rows[i][2],
+          userName: rows[i][3], userEmail: rows[i][4], status: rows[i][6],
+          registrationDate: rows[i][7]
+       };
+    }
+  }
+  throw new Error("Pendaftaran tidak ditemukan.");
+}
+
 function updateRegistrationStatus(data) {
   var sheet = _getSheet("Registrations");
   var rows = sheet.getDataRange().getValues();
@@ -350,30 +375,24 @@ function updateRegistrationStatus(data) {
 function sendCertificate(data) {
   var sheet = _getSheet("Registrations");
   var rows = sheet.getDataRange().getValues();
+  
+  // Construct URL for certificate page
+  // data.baseUrl comes from frontend window.location.origin
+  var certLink = (data.baseUrl || "https://bisdig.upy.ac.id/hmp/") + "/#/certificate/" + data.id;
+
   for(var i=1; i<rows.length; i++) {
     if(rows[i][0] == data.id) {
        var name = rows[i][3];
        var evtTitle = rows[i][2];
        
-       // Create simple PDF blob (In production, use a template)
-       var blob = Utilities.newBlob(
-         "<div style='text-align:center; padding: 50px; font-family: sans-serif; border: 10px solid #2B427A; height: 100%;'>" +
-            "<h1 style='color:#2B427A; font-size: 40px;'>SERTIFIKAT APRESIASI</h1>" +
-            "<p>Diberikan kepada:</p>" +
-            "<h2 style='font-size: 30px; margin: 20px 0;'>" + name + "</h2>" +
-            "<p>Atas partisipasinya dalam acara:</p>" +
-            "<h3 style='color:#0B1CDE;'>" + evtTitle + "</h3>" +
-         "</div>", 
-         "text/html", 
-         "Sertifikat_" + name + ".html"
-       ).getAs("application/pdf");
-       blob.setName("Sertifikat_" + name + ".pdf");
-       
        var body = "<p>Halo " + name + ",</p>" +
                   "<p>Terima kasih telah berpartisipasi dalam acara <strong>" + evtTitle + "</strong>.</p>" +
-                  "<p>Terlampir adalah e-sertifikat Anda. Sampai jumpa di acara berikutnya!</p>";
+                  "<p>Sertifikat elektronik Anda telah terbit. Silakan klik tombol di bawah ini untuk melihat dan mengunduh sertifikat Anda:</p>" +
+                  "<div style='text-align: center; margin: 30px 0;'>" +
+                    "<a href='" + certLink + "' style='background-color: #DFFF00; color: #2B427A; padding: 15px 30px; text-decoration: none; font-weight: 900; border-radius: 8px; border: 2px solid #2B427A; box-shadow: 4px 4px 0px #2B427A; display: inline-block;'>LIHAT SERTIFIKAT</a>" +
+                  "</div>";
        
-       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat - " + evtTitle, "SERTIFIKAT KEGIATAN", body, blob);
+       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat - " + evtTitle, "SERTIFIKAT KEGIATAN", body);
        
        return { sent: true };
     }

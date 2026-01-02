@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -8,6 +9,8 @@ import EventDetail from './pages/EventDetail';
 import AdminDashboard from './pages/AdminDashboard';
 import UserDashboard from './pages/UserDashboard';
 import LoginPage from './pages/LoginPage';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
+import CertificatePage from './pages/CertificatePage';
 import './types';
 
 const App: React.FC = () => {
@@ -23,6 +26,8 @@ const App: React.FC = () => {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/dashboard/admin" element={<AdminDashboard />} />
             <Route path="/dashboard/user" element={<UserDashboard />} />
+            <Route path="/payment-success" element={<PaymentSuccessPage />} />
+            <Route path="/certificate/:id" element={<CertificatePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

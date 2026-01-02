@@ -89,8 +89,15 @@ export const fetchUserRegistrations = async (email: string) => {
   const all = await fetchRegistrations();
   return all.filter(r => r.userEmail && r.userEmail.toLowerCase() === email.toLowerCase());
 };
+export const fetchRegistrationById = async (id: string): Promise<Registration> => {
+    return await callScript('getRegistration', { id }, 'POST');
+};
 export const updateRegistrationStatus = (id: string, status: string) => callScript('updateRegistrationStatus', { id, status }, 'POST');
-export const sendCertificate = (id: string) => callScript('sendCertificate', { id }, 'POST');
+export const sendCertificate = (id: string) => {
+    // Pass current window origin to backend so email links are correct
+    const baseUrl = window.location.origin + window.location.pathname;
+    return callScript('sendCertificate', { id, baseUrl }, 'POST');
+};
 
 // --- Payment Settings ---
 export const savePaymentSettings = (settings: PaymentSettings, qrisBase64?: string) => callScript('savePaymentSettings', { ...settings, qrisBase64 }, 'POST');
