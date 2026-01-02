@@ -23,6 +23,9 @@ const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const session = getUserSession();
   
+  // Sidebar State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  
   // Toast State
   const [toast, setToast] = useState<{show: boolean, msg: string}>({show: false, msg: ''});
 
@@ -878,15 +881,42 @@ const AdminDashboard: React.FC = () => {
       )}
 
       {/* Sidebar navigation */}
-      <aside className="w-full md:w-72 bg-[#2B427A] border-r-2 border-[#2B427A] h-auto md:min-h-screen sticky top-0 text-white z-10">
-        <div className="p-8 border-b-2 border-white/10">
-          <h1 className="text-2xl font-black flex items-center gap-2 uppercase tracking-tighter">ADMIN PANEL <div className="w-3 h-3 bg-[#DFFF00]"></div></h1>
-          <div className="mt-4 text-xs bg-[#0B1CDE] p-2 rounded text-white font-mono truncate">{session?.email}</div>
+      <aside className={`bg-[#2B427A] border-r-2 border-[#2B427A] h-auto md:min-h-screen sticky top-0 text-white z-10 transition-all duration-300 ${isSidebarCollapsed ? 'md:w-24' : 'md:w-72'} w-full flex flex-col`}>
+        {/* Toggle Button - Only visible on Desktop */}
+        <button
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className="hidden md:flex absolute -right-3 top-9 bg-[#DFFF00] text-[#2B427A] p-1 rounded-full border-2 border-[#2B427A] hover:scale-110 transition-transform z-50 shadow-sm items-center justify-center"
+        >
+            {isSidebarCollapsed ? <ChevronRight size={16} strokeWidth={3} /> : <ChevronLeft size={16} strokeWidth={3} />}
+        </button>
+
+        <div className={`p-6 border-b-2 border-white/10 ${isSidebarCollapsed ? 'flex justify-center' : ''}`}>
+            {isSidebarCollapsed ? (
+                <div className="w-10 h-10 bg-[#DFFF00] rounded border-2 border-white flex items-center justify-center shadow-md">
+                    <div className="w-4 h-4 bg-[#2B427A]"></div>
+                </div>
+            ) : (
+                <>
+                    <h1 className="text-2xl font-black flex items-center gap-2 uppercase tracking-tighter">ADMIN PANEL <div className="w-3 h-3 bg-[#DFFF00]"></div></h1>
+                    <div className="mt-4 text-xs bg-[#0B1CDE] p-2 rounded text-white font-mono truncate">{session?.email}</div>
+                </>
+            )}
         </div>
-        <nav className="p-6 space-y-3">
+        
+        <nav className="p-4 space-y-3 flex-1 overflow-y-auto">
             {[ {id: 'overview', label: 'Ringkasan', icon: LayoutDashboard}, {id: 'events', label: 'Acara', icon: CalendarIcon}, {id: 'registrations', label: 'Pendaftaran', icon: UsersIcon}, {id: 'settings', label: 'Pengaturan', icon: SettingsIcon} ].map(item => (
-                <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full text-left px-5 py-4 rounded-lg flex items-center gap-3 transition-all duration-200 font-black border-2 uppercase tracking-wide ${activeTab === item.id || (item.id === 'events' && activeTab === 'event-editor') ? 'bg-[#DFFF00] text-[#2B427A] border-[#2B427A] shadow-[4px_4px_0px_0px_#000] transform -translate-y-1' : 'text-white border-transparent hover:bg-white/10'}`}>
-                    <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-[#2B427A]' : 'text-[#DFFF00]'}`} /> {item.label}
+                <button 
+                    key={item.id} 
+                    onClick={() => setActiveTab(item.id as any)} 
+                    title={isSidebarCollapsed ? item.label : ''}
+                    className={`
+                        w-full flex items-center gap-3 px-3 py-3 rounded-lg font-black border-2 uppercase tracking-wide transition-all duration-200
+                        ${isSidebarCollapsed ? 'justify-center' : 'text-left px-5'}
+                        ${activeTab === item.id || (item.id === 'events' && activeTab === 'event-editor') ? 'bg-[#DFFF00] text-[#2B427A] border-[#2B427A] shadow-[4px_4px_0px_0px_#000] transform -translate-y-1' : 'text-white border-transparent hover:bg-white/10'}
+                    `}
+                >
+                    <item.icon className={`w-5 h-5 flex-shrink-0 ${activeTab === item.id ? 'text-[#2B427A]' : 'text-[#DFFF00]'}`} /> 
+                    {!isSidebarCollapsed && <span>{item.label}</span>}
                 </button>
             ))}
         </nav>
