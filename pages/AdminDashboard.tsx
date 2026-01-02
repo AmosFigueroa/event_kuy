@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings } from '../services/api';
@@ -7,6 +7,10 @@ import { generateEventDescription } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings } from '../types';
 import { useNavigate } from 'react-router-dom';
 import CustomAlert from '../components/CustomAlert';
+
+// Time Picker Constants
+const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0'));
+const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'registrations' | 'settings'>('overview');
@@ -54,7 +58,8 @@ const AdminDashboard: React.FC = () => {
     category: EventCategory.SEMINAR,
     price: 0,
     maxParticipants: 100,
-    formFields: []
+    formFields: [],
+    time: '09:00' // Default time
   });
   const [customCategory, setCustomCategory] = useState(''); // For "Other" input
   const [isCustomCat, setIsCustomCat] = useState(false);
@@ -65,6 +70,10 @@ const AdminDashboard: React.FC = () => {
   // Settings
   const [scriptUrl, setScriptUrl] = useState(getApiUrl());
   const [testingConnection, setTestingConnection] = useState(false);
+
+  // Refs for auto-scrolling time picker
+  const hourRef = useRef<HTMLDivElement>(null);
+  const minuteRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!session || session.role !== 'ADMIN') {
@@ -123,7 +132,7 @@ const AdminDashboard: React.FC = () => {
                 setIsSubmittingEvent(false);
                 setShowCreateModal(false);
                 setWizardStep(1);
-                setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [] });
+                setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [], time: '09:00' });
                 setBannerFile(null);
                 setCustomCategory('');
                 setIsCustomCat(false);
@@ -209,6 +218,18 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Helper to handle time selection
+  const handleTimeChange = (type: 'hour' | 'minute', value: string) => {
+      const [currentH, currentM] = (newEvent.time || '09:00').split(':');
+      let newTime = '';
+      if (type === 'hour') {
+          newTime = `${value}:${currentM}`;
+      } else {
+          newTime = `${currentH}:${value}`;
+      }
+      setNewEvent({...newEvent, time: newTime});
+  };
+
   // --- WIZARD HANDLERS ---
   const addFormField = () => {
       const newField: FormField = {
@@ -231,6 +252,9 @@ const AdminDashboard: React.FC = () => {
       updated.splice(index, 1);
       setNewEvent({...newEvent, formFields: updated});
   };
+
+  // Render Time Picker Helper
+  const [currentHour, currentMinute] = (newEvent.time || '09:00').split(':');
 
   const renderCreateEventWizard = () => (
       <div className="fixed inset-0 bg-[#2B427A]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -303,9 +327,51 @@ const AdminDashboard: React.FC = () => {
                                   <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label>
                                   <input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" />
                               </div>
+                              
+                              {/* Custom Inline Time Picker */}
                               <div>
-                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label>
-                                  <input type="time" value={newEvent.time||''} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" />
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu (Jam : Menit)</label>
+                                  <div className="flex h-48 border-2 border-gray-200 rounded-xl overflow-hidden bg-white shadow-inner relative">
+                                      {/* Hours */}
+                                      <div className="flex-1 flex flex-col items-center overflow-y-auto scroll-smooth snap-y snap-mandatory no-scrollbar" ref={hourRef} style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+                                          <div className="sticky top-0 w-full text-center bg-gray-50 border-b border-gray-100 text-[10px] font-black py-1 text-gray-400 z-10">JAM</div>
+                                          <div className="py-2 w-full">
+                                              {HOURS.map(h => (
+                                                  <div 
+                                                    key={h} 
+                                                    onClick={() => handleTimeChange('hour', h)}
+                                                    className={`h-10 flex items-center justify-center cursor-pointer snap-center transition-all ${currentHour === h ? 'bg-[#2B427A] text-white font-black text-xl scale-110 shadow-lg my-1 rounded-lg mx-2' : 'text-gray-400 font-bold hover:text-[#2B427A] hover:bg-gray-50'}`}
+                                                  >
+                                                      {h}
+                                                  </div>
+                                              ))}
+                                          </div>
+                                      </div>
+                                      
+                                      {/* Separator */}
+                                      <div className="w-8 flex items-center justify-center bg-gray-50 border-x border-gray-100 z-20 shadow-md">
+                                          <span className="text-2xl font-black text-[#2B427A] animate-pulse">:</span>
+                                      </div>
+
+                                      {/* Minutes */}
+                                      <div className="flex-1 flex flex-col items-center overflow-y-auto scroll-smooth snap-y snap-mandatory no-scrollbar" ref={minuteRef} style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+                                          <div className="sticky top-0 w-full text-center bg-gray-50 border-b border-gray-100 text-[10px] font-black py-1 text-gray-400 z-10">MENIT</div>
+                                          <div className="py-2 w-full">
+                                              {MINUTES.map(m => (
+                                                  <div 
+                                                    key={m} 
+                                                    onClick={() => handleTimeChange('minute', m)}
+                                                    className={`h-10 flex items-center justify-center cursor-pointer snap-center transition-all ${currentMinute === m ? 'bg-[#DFFF00] text-[#2B427A] font-black text-xl scale-110 shadow-lg my-1 rounded-lg mx-2' : 'text-gray-400 font-bold hover:text-[#2B427A] hover:bg-gray-50'}`}
+                                                  >
+                                                      {m}
+                                                  </div>
+                                              ))}
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <div className="text-center mt-2 font-bold text-[#0B1CDE] bg-blue-50 py-1 rounded-lg border border-blue-100">
+                                      Terpilih: {currentHour}:{currentMinute}
+                                  </div>
                               </div>
                           </div>
                       </div>
