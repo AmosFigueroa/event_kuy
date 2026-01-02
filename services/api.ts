@@ -123,3 +123,8 @@ export const fetchPaymentSettings = async (): Promise<PaymentSettings> => callSc
 // --- Legacy Certificate Settings (Deprecated but kept for type safety if needed) ---
 export const saveCertificateSettings = (settings: any, templateBase64?: string) => callScript('saveCertificateSettings', { ...settings, templateBase64 }, 'POST');
 export const fetchCertificateSettings = async (): Promise<any> => callScript('getCertificateSettings');
+
+// --- Ticket Scanning & Export ---
+export const validateTicket = (ticketId: string, eventId: string) => callScript('validateTicket', { ticketId, eventId }, 'POST');
+
+export const fetchParticipantsCsv = (eventId: string) => callScript('exportParticipants', { eventId }, 'POST');

@@ -38,10 +38,12 @@ const Home: React.FC = () => {
       try {
         const data = await fetchEvents();
         
-        // Calculate dynamic stats
-        const totalParticipants = data.reduce((sum, ev) => sum + (ev.currentParticipants || 0), 0);
+        // Calculate dynamic stats (REALTIME DATA)
+        // Menjumlahkan seluruh currentParticipants dari semua event yang ada di database
+        const totalParticipants = data.reduce((sum, ev) => sum + (Number(ev.currentParticipants) || 0), 0);
+        
         setStats({
-            participants: totalParticipants > 500 ? totalParticipants : 500 + totalParticipants, // Start with base 500 as dummy base + real
+            participants: totalParticipants, // Data asli tanpa manipulasi
             prokers: data.length
         });
 
@@ -129,7 +131,8 @@ const Home: React.FC = () => {
                 <div className="flex items-center justify-center md:justify-center gap-5 px-4">
                     <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><Users className="w-8 h-8"/></div>
                     <div className="text-left">
-                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.participants}+</div>
+                        {/* Display Exact Count without + */}
+                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.participants}</div>
                         <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PARTISIPAN</div>
                     </div>
                 </div>

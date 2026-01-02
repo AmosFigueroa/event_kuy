@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard } from 'lucide-react';
+import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard, QrCode } from 'lucide-react';
 import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession, createSlug } from '../services/api';
 import { Registration, RegistrationStatus, Event } from '../types';
 import { useNavigate } from 'react-router-dom';
+import QRCode from 'react-qr-code';
 
 const UserDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -12,6 +13,9 @@ const UserDashboard: React.FC = () => {
   const [certLoading, setCertLoading] = useState<string | null>(null);
   const navigate = useNavigate();
   const session = getUserSession();
+  
+  // QR Modal
+  const [showQr, setShowQr] = useState<string | null>(null);
 
   useEffect(() => {
     // Auth Check
@@ -197,6 +201,16 @@ const UserDashboard: React.FC = () => {
                         </span>
                     </div>
                   </div>
+                  
+                  {/* QR BUTTON FOR ACTIVE APPROVED TICKETS */}
+                  {ticket.status === RegistrationStatus.APPROVED && ticket.eventDetails?.enableTicketScanner && (
+                     <button 
+                        onClick={() => setShowQr(ticket.id)}
+                        className="mt-6 flex items-center gap-2 bg-[#F0F9FF] text-[#2B427A] px-4 py-2 rounded-lg font-black border-2 border-[#2B427A] hover:bg-[#2B427A] hover:text-white transition-all text-sm uppercase"
+                     >
+                        <QrCode className="w-5 h-5" /> Tampilkan QR Code
+                     </button>
+                  )}
                 </div>
 
                 {/* Actions (Right) */}
@@ -205,7 +219,11 @@ const UserDashboard: React.FC = () => {
                         <>
                             <div className="text-center w-full">
                                 <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Status Tiket</span>
-                                <span className="text-3xl font-black text-[#0B1CDE] tracking-tighter">VALID</span>
+                                {ticket.checkInStatus === 'CHECKED_IN' ? (
+                                     <span className="text-xl font-black text-green-600 tracking-tighter bg-green-100 px-3 py-1 rounded block w-full">SUDAH CHECK-IN</span>
+                                ) : (
+                                     <span className="text-3xl font-black text-[#0B1CDE] tracking-tighter">VALID</span>
+                                )}
                             </div>
                             <button 
                                 onClick={() => requestCertificate(ticket.id)}
@@ -238,6 +256,27 @@ const UserDashboard: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* QR MODAL */}
+      {showQr && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowQr(null)}>
+              <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center animate-scale-up" onClick={e=>e.stopPropagation()}>
+                   <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-1">Tiket Masuk</h3>
+                   <p className="text-gray-500 font-bold text-sm mb-6">Tunjukkan QR ini kepada panitia saat kedatangan.</p>
+                   
+                   <div className="bg-white p-4 rounded-xl border-4 border-[#2B427A] inline-block mb-6 shadow-xl">
+                       <QRCode value={showQr} size={200} fgColor="#2B427A" />
+                   </div>
+                   
+                   <button 
+                       onClick={() => setShowQr(null)}
+                       className="w-full py-3 bg-gray-100 text-[#2B427A] font-bold rounded-lg hover:bg-gray-200 uppercase"
+                   >
+                       Tutup
+                   </button>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

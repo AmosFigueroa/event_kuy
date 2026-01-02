@@ -72,6 +72,7 @@ export interface Event {
   isOpen: boolean;
   formFields?: FormField[];
   certificateConfig?: CertificateConfig; // NEW: Event-specific cert config
+  enableTicketScanner?: boolean; // NEW: Toggle for QR Code feature
 }
 
 export enum RegistrationStatus {
@@ -90,6 +91,8 @@ export interface Registration {
   status: RegistrationStatus;
   registrationDate: string;
   customData?: string; // JSON string of custom form answers
+  checkInStatus?: 'NOT_USED' | 'CHECKED_IN'; // NEW
+  checkInTime?: string; // NEW: ISO String
 }
 
 export interface BankAccount {

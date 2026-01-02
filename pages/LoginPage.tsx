@@ -81,11 +81,15 @@ const LoginPage: React.FC = () => {
     try {
       // 1. REGISTER FLOW
       if (isRegistering) {
-        if (!name || !password) { setError("Lengkapi data pendaftaran."); setLoading(false); return; }
+        if (!name || !email || !password) { 
+            setError("Lengkapi semua kolom pendaftaran."); 
+            setLoading(false); 
+            return; 
+        }
         await registerAccount(name, email, password);
         setIsRegistering(false);
         setSuccessMsg("Akun berhasil dibuat! Silakan login.");
-        setPassword('');
+        setPassword(''); // Clear password for login
         setLoading(false);
         return;
       } 
@@ -124,7 +128,8 @@ const LoginPage: React.FC = () => {
       }
       
     } catch (err: any) {
-      setError(err.message || "Autentikasi gagal.");
+      console.error(err);
+      setError(err.message || "Gagal menghubungkan ke server.");
     } finally {
       setLoading(false);
     }
