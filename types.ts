@@ -19,7 +19,7 @@ export enum EventCategory {
   COMPETITION = 'Competition'
 }
 
-export type FormFieldType = 'text' | 'number' | 'email' | 'select' | 'textarea';
+export type FormFieldType = 'text' | 'number' | 'email' | 'select' | 'textarea' | 'file';
 
 export interface FormField {
   id: string;

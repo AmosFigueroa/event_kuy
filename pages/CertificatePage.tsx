@@ -102,7 +102,9 @@ const CertificatePage: React.FC = () => {
 
   const getElementContent = (field: string) => {
       if (!registration) return '';
-      if (field === 'userName') return registration.userName;
+      // Force Uppercase for Name as requested
+      if (field === 'userName') return registration.userName.toUpperCase();
+      
       if (field === 'eventTitle') return registration.eventTitle;
       if (field === 'date') return new Date(registration.registrationDate).toLocaleDateString('id-ID'); 
       if (field === 'id') return registration.id;
@@ -121,10 +123,24 @@ const CertificatePage: React.FC = () => {
   const renderElement = (el: CertificateElement) => {
       let content: React.ReactNode = el.field;
       let textContent = '';
+      let dynamicFontSize = el.fontSize || 12;
 
       if (el.type === 'dynamic') {
           textContent = getElementContent(el.field);
           content = textContent;
+
+          // Auto-resize logic for Long Names (userName)
+          if (el.field === 'userName') {
+              const len = textContent.length;
+              if (len > 40) {
+                  dynamicFontSize = dynamicFontSize * 0.5; // Very long name
+              } else if (len > 30) {
+                  dynamicFontSize = dynamicFontSize * 0.65; // Long name
+              } else if (len > 20) {
+                  dynamicFontSize = dynamicFontSize * 0.8; // Medium name
+              }
+          }
+
       } else if (el.type === 'text') {
           textContent = el.field;
           content = textContent;
@@ -161,7 +177,7 @@ const CertificatePage: React.FC = () => {
                 left: el.x,
                 top: el.y,
                 color: el.color || '#000000',
-                fontSize: el.type === 'image' ? undefined : `${el.fontSize}px`,
+                fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
                 fontFamily: el.fontFamily || 'Helvetica',
                 fontWeight: el.fontWeight || 'bold',
                 textAlign: el.align || 'center',
@@ -250,7 +266,7 @@ const CertificatePage: React.FC = () => {
                         <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
                             <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
                             <div className="relative px-12 pb-2 mb-8">
-                                 <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName}</h2>
+                                 <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName.toUpperCase()}</h2>
                                  <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
                             </div>
                             <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">

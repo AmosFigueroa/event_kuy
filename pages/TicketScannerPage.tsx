@@ -2,9 +2,17 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { Loader, CheckCircle, XCircle, ArrowLeft, Camera, QrCode, RefreshCw, AlertCircle } from 'lucide-react';
+import { Loader, CheckCircle, XCircle, ArrowLeft, Camera, QrCode, RefreshCw, AlertCircle, History, Trash2, Clock } from 'lucide-react';
 import { validateTicket, fetchEvents } from '../services/api';
 import { Event } from '../types';
+import CustomAlert from '../components/CustomAlert';
+
+interface ScanHistoryItem {
+    id: string; // Ticket ID
+    name: string;
+    timestamp: string;
+    status: 'VALID' | 'INVALID';
+}
 
 const TicketScannerPage: React.FC = () => {
     const { eventId } = useParams<{ eventId: string }>();
@@ -17,8 +25,32 @@ const TicketScannerPage: React.FC = () => {
     const [permissionDenied, setPermissionDenied] = useState(false);
     const [cameraError, setCameraError] = useState<string>('');
     
+    // History State
+    const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+    
+    // Alert State
+    const [alertState, setAlertState] = useState<{
+        isOpen: boolean;
+        type: 'success' | 'error' | 'info';
+        title: string;
+        message: string;
+        onConfirm?: () => void;
+    }>({ isOpen: false, type: 'info', title: '', message: '' });
+
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const isMounted = useRef(true);
+
+    // Load History from LocalStorage on Mount
+    useEffect(() => {
+        if (eventId) {
+            const savedHistory = localStorage.getItem(`scan_history_${eventId}`);
+            if (savedHistory) {
+                try {
+                    setScanHistory(JSON.parse(savedHistory));
+                } catch (e) {}
+            }
+        }
+    }, [eventId]);
 
     useEffect(() => {
         isMounted.current = true;
@@ -105,10 +137,41 @@ const TicketScannerPage: React.FC = () => {
         };
     }, [eventId, scannerActive, scanResult]);
 
+    const addToHistory = (name: string, status: 'VALID' | 'INVALID', ticketId: string) => {
+        const newItem: ScanHistoryItem = {
+            id: ticketId || `unknown-${Date.now()}`,
+            name: name,
+            timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            status: status
+        };
+        
+        setScanHistory(prev => {
+            // Prevent duplicates at the top of the list (debounce check)
+            if (prev.length > 0 && prev[0].id === ticketId && prev[0].status === status) return prev;
+            
+            const updated = [newItem, ...prev].slice(0, 50); // Keep last 50
+            if (eventId) localStorage.setItem(`scan_history_${eventId}`, JSON.stringify(updated));
+            return updated;
+        });
+    };
+
+    const clearHistory = () => {
+        setAlertState({
+            isOpen: true,
+            type: 'info',
+            title: 'Hapus Riwayat?',
+            message: 'Apakah Anda yakin ingin menghapus semua riwayat scan sesi ini?',
+            onConfirm: () => {
+                setScanHistory([]);
+                if (eventId) localStorage.removeItem(`scan_history_${eventId}`);
+            }
+        });
+    };
+
     const handleScanSuccess = async (decodedText: string) => {
         if (loading) return;
         
-        // Stop scanner immediately to freeze frame logic visually (though we just unmount/hide it via state)
+        // Stop scanner immediately to freeze frame logic visually
         if (scannerRef.current) {
             try {
                 await scannerRef.current.pause();
@@ -125,6 +188,7 @@ const TicketScannerPage: React.FC = () => {
                     message: "TIKET VALID", 
                     data: res 
                 });
+                addToHistory(res.participantName, 'VALID', decodedText);
             }
         } catch (error: any) {
             if (isMounted.current) {
@@ -132,6 +196,8 @@ const TicketScannerPage: React.FC = () => {
                     success: false, 
                     message: error.message || "TIKET TIDAK VALID" 
                 });
+                // Try to extract ID or text for history even if invalid
+                addToHistory("Tiket Tidak Dikenal/Invalid", 'INVALID', decodedText);
             }
         } finally {
             if (isMounted.current) setLoading(false);
@@ -146,6 +212,15 @@ const TicketScannerPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-4">
+             <CustomAlert 
+                isOpen={alertState.isOpen} 
+                type={alertState.type} 
+                title={alertState.title} 
+                message={alertState.message} 
+                onClose={() => setAlertState(prev => ({...prev, isOpen: false}))}
+                onConfirm={alertState.onConfirm}
+             />
+
              <div className="w-full max-w-md">
                  <div className="flex items-center gap-4 mb-6">
                      <button onClick={() => navigate('/dashboard/admin')} className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition-colors"><ArrowLeft className="w-5 h-5"/></button>
@@ -228,6 +303,44 @@ const TicketScannerPage: React.FC = () => {
                          </div>
                      </div>
                  )}
+
+                 {/* SCAN HISTORY SECTION */}
+                 <div className="mt-8 border-t border-gray-700 pt-6">
+                     <div className="flex justify-between items-center mb-4">
+                         <h3 className="font-bold text-[#DFFF00] flex items-center gap-2 uppercase text-sm">
+                             <History className="w-4 h-4"/> Riwayat Sesi Ini
+                         </h3>
+                         {scanHistory.length > 0 && (
+                             <button onClick={clearHistory} className="text-xs text-gray-400 hover:text-red-400 flex items-center gap-1">
+                                 <Trash2 className="w-3 h-3"/> Hapus
+                             </button>
+                         )}
+                     </div>
+                     
+                     <div className="space-y-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                         {scanHistory.length === 0 ? (
+                             <div className="text-center text-gray-600 text-xs py-4 font-medium italic">Belum ada data scan.</div>
+                         ) : (
+                             scanHistory.map((item, idx) => (
+                                 <div key={idx} className={`p-3 rounded-lg flex items-center justify-between border border-gray-700/50 ${item.status === 'VALID' ? 'bg-gray-800/50' : 'bg-red-900/20'}`}>
+                                     <div className="flex items-center gap-3 overflow-hidden">
+                                         <div className={`w-2 h-8 rounded-full flex-shrink-0 ${item.status === 'VALID' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                                         <div className="min-w-0">
+                                             <p className={`font-bold text-sm truncate ${item.status === 'VALID' ? 'text-white' : 'text-red-300'}`}>{item.name}</p>
+                                             <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono">
+                                                 <Clock className="w-3 h-3"/> {item.timestamp}
+                                                 {item.status === 'INVALID' && <span className="text-red-400 font-bold ml-1">GAGAL</span>}
+                                             </div>
+                                         </div>
+                                     </div>
+                                     <div className={`p-1.5 rounded-full ${item.status === 'VALID' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                         {item.status === 'VALID' ? <CheckCircle className="w-4 h-4"/> : <XCircle className="w-4 h-4"/>}
+                                     </div>
+                                 </div>
+                             ))
+                         )}
+                     </div>
+                 </div>
              </div>
              
              {/* Info Footer */}

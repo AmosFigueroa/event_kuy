@@ -104,7 +104,11 @@ export const fetchUserRegistrations = async (email: string) => {
 export const fetchRegistrationById = async (id: string): Promise<{registration: Registration, certificateConfig: CertificateConfig | null}> => {
     return await callScript('getRegistration', { id }, 'POST');
 };
-export const updateRegistrationStatus = (id: string, status: string) => callScript('updateRegistrationStatus', { id, status }, 'POST');
+export const updateRegistrationStatus = (id: string, status: string) => {
+    // Pass current window origin to backend so email links are correct
+    const baseUrl = window.location.origin + window.location.pathname;
+    return callScript('updateRegistrationStatus', { id, status, baseUrl }, 'POST');
+};
 export const sendCertificate = (id: string) => {
     // Pass current window origin to backend so email links are correct
     const baseUrl = window.location.origin + window.location.pathname;

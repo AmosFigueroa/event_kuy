@@ -87,34 +87,31 @@ export interface PaymentAnalysisResult {
 
 export const analyzePaymentProof = async (imageBase64: string, expectedAmount: number): Promise<PaymentAnalysisResult> => {
     const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("API Key missing");
+    if (!apiKey) throw new Error("API Key missing. Cek konfigurasi environment.");
 
     const ai = new GoogleGenAI({ apiKey });
 
     try {
         const prompt = `
-            Anda adalah asisten verifikasi pembayaran otomatis. 
-            Tugas Anda adalah menganalisis gambar bukti transfer ini.
+            Anda adalah auditor keuangan otomatis. Tugas Anda: Analisis bukti transfer ini.
+            Target Pembayaran: Rp ${expectedAmount.toLocaleString('id-ID')}
             
-            Informasi yang diharapkan:
-            - Nominal yang harus dibayar: Rp ${expectedAmount.toLocaleString('id-ID')}
+            Lakukan pengecekan ketat:
+            1. APAKAH INI BUKTI TRANSFER SAH? (Bukan foto selfie, bukan foto kosong, bukan struk gagal).
+            2. CARI NOMINAL: Apakah nominal yang tertera >= ${expectedAmount}? (Abaikan titik/koma pemisah ribuan).
+            3. CARI STATUS: Apakah ada kata "BERHASIL", "SUKSES", "SUCCESS", atau "TRANSFER DONE"?
             
-            Instruksi:
-            1. Periksa apakah gambar ini terlihat seperti bukti transfer bank/e-wallet yang sah (bukan gambar sembarang).
-            2. Cari nominal uang di dalam gambar. Apakah cocok dengan nominal yang diharapkan (atau lebih)?
-            3. Periksa status transaksi jika ada (harus BERHASIL/SUKSES).
-            
-            Berikan output HANYA dalam format JSON sebagai berikut, jangan ada teks lain:
+            Output JSON Only:
             {
-                "isValid": boolean, // true jika terlihat sah dan nominal cocok
-                "reason": string, // Penjelasan singkat dalam Bahasa Indonesia (maks 20 kata)
-                "confidence": "HIGH" | "MEDIUM" | "LOW", // Seberapa yakin Anda
-                "detectedAmount": string // Nominal yang terbaca (contoh: "50000" atau "Tidak terbaca")
+                "isValid": boolean, // TRUE jika (Nominal Cukup) DAN (Status Berhasil/Sukses) DAN (Gambar Valid)
+                "reason": string, // Penjelasan singkat (maks 15 kata). Contoh: "Nominal sesuai dan status berhasil." atau "Nominal kurang."
+                "confidence": "HIGH" | "MEDIUM" | "LOW",
+                "detectedAmount": string // Nominal yang ditemukan, atau "Tidak terbaca"
             }
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview', // Using gemini-3-flash-preview for vision tasks as per guidelines
+            model: 'gemini-3-flash-preview',
             contents: {
                 parts: [
                     {
@@ -129,7 +126,6 @@ export const analyzePaymentProof = async (imageBase64: string, expectedAmount: n
         });
 
         const text = response.text || "";
-        // Clean markdown code blocks if any
         const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
         
         return JSON.parse(jsonStr) as PaymentAnalysisResult;
@@ -138,7 +134,7 @@ export const analyzePaymentProof = async (imageBase64: string, expectedAmount: n
         console.error("AI Analysis Error:", error);
         return {
             isValid: false,
-            reason: "Gagal menganalisis gambar (Error Sistem). Cek manual.",
+            reason: "Gagal memproses AI: " + (error.message || "Unknown Error"),
             confidence: 'LOW'
         };
     }

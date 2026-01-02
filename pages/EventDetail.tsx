@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download, CheckCircle, Info, LogIn } from 'lucide-react';
+import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download, CheckCircle, Info, LogIn, Paperclip, FileText } from 'lucide-react';
 import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings, getUserSession } from '../services/api';
 import { Event, PaymentSettings } from '../types';
 
@@ -53,6 +53,32 @@ const EventDetail: React.FC = () => {
       navigator.clipboard.writeText(text);
       setCopyToast({ show: true, msg: `${label} Disalin!` });
       setTimeout(() => setCopyToast(prev => ({...prev, show: false})), 3000);
+  };
+
+  const handleCustomFileChange = (label: string, file: File | null) => {
+      if (file) {
+          // Read file as base64 immediately to store in state
+          const reader = new FileReader();
+          reader.onload = (e) => {
+              const base64 = (e.target?.result as string).split(',')[1];
+              setFormData(prev => ({
+                  ...prev,
+                  [label]: {
+                      fileName: file.name,
+                      mimeType: file.type,
+                      data: base64,
+                      isCustomFile: true // Flag for backend
+                  }
+              }));
+          };
+          reader.readAsDataURL(file);
+      } else {
+          setFormData(prev => {
+              const newData = { ...prev };
+              delete newData[label];
+              return newData;
+          });
+      }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -237,8 +263,11 @@ const EventDetail: React.FC = () => {
                                 <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">{field.label}</label>
                                 <div className="relative">
                                     <div className="absolute left-3 top-3 w-4 h-4 text-gray-400 pointer-events-none">
-                                    {field.type === 'select' ? <Tag className="w-4 h-4"/> : <Edit3 className="w-4 h-4"/>}
+                                        {field.type === 'select' ? <Tag className="w-4 h-4"/> : 
+                                         field.type === 'file' ? <Paperclip className="w-4 h-4"/> : 
+                                         <Edit3 className="w-4 h-4"/>}
                                     </div>
+                                    
                                     {field.type === 'select' ? (
                                         <select required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none bg-white text-sm text-[#2B427A]">
                                             <option value="">Pilih...</option>
@@ -246,6 +275,13 @@ const EventDetail: React.FC = () => {
                                         </select>
                                     ) : field.type === 'textarea' ? (
                                         <textarea required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" rows={3}></textarea>
+                                    ) : field.type === 'file' ? (
+                                        <input 
+                                            type="file" 
+                                            required={field.required} 
+                                            onChange={e => handleCustomFileChange(field.label, e.target.files?.[0] || null)}
+                                            className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]"
+                                        />
                                     ) : (
                                         <input type={field.type} required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" placeholder={field.placeholder} />
                                     )}
@@ -348,6 +384,7 @@ const EventDetail: React.FC = () => {
 
       {showQrisModal && paymentSettings?.qrisUrl && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#2B427A]/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowQrisModal(false)}>
+              {/* ... existing modal code ... */}
               <div className="bg-white w-full max-w-sm rounded-2xl p-6 relative shadow-2xl animate-scale-up border-4 border-[#DFFF00]" onClick={e => e.stopPropagation()}>
                   <button 
                       onClick={() => setShowQrisModal(false)}

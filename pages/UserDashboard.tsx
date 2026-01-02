@@ -6,6 +6,7 @@ import { Registration, RegistrationStatus, Event } from '../types';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import html2canvas from 'html2canvas';
+import CustomAlert from '../components/CustomAlert';
 
 const UserDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -13,6 +14,18 @@ const UserDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [certLoading, setCertLoading] = useState<string | null>(null);
   const [downloadingTicket, setDownloadingTicket] = useState<string | null>(null);
+  
+  // Alert State
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'info';
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: 'info', title: '', message: '' });
+
+  const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+    setAlertState({ isOpen: true, type, title, message });
+  };
   
   const navigate = useNavigate();
   const session = getUserSession();
@@ -56,9 +69,9 @@ const UserDashboard: React.FC = () => {
     setCertLoading(regId);
     try {
       await sendCertificate(regId);
-      alert("Sertifikat telah dikirim ke email Anda!");
+      showAlert('success', 'Terkirim', 'Sertifikat telah dikirim ke email Anda!');
     } catch (e: any) {
-      alert("Gagal mengirim sertifikat. " + e.message);
+      showAlert('error', 'Gagal', "Gagal mengirim sertifikat. " + e.message);
     } finally {
       setCertLoading(null);
     }
@@ -85,7 +98,7 @@ const UserDashboard: React.FC = () => {
               link.click();
           } catch (err) {
               console.error("Download failed:", err);
-              alert("Gagal mengunduh tiket.");
+              showAlert('error', 'Gagal', "Gagal mengunduh tiket.");
           } finally {
               setDownloadingTicket(null);
           }
@@ -138,6 +151,10 @@ const UserDashboard: React.FC = () => {
   // Filter Tickets Logic
   const activeTickets = tickets.filter(t => {
       if (!t.eventDetails) return false;
+      
+      // Jika tiket sudah CHECKED_IN, pindahkan ke history (bukan aktif lagi)
+      if (t.checkInStatus === 'CHECKED_IN') return false;
+
       const eventDate = new Date(t.eventDetails.date);
       const now = new Date();
       now.setHours(0,0,0,0);
@@ -145,6 +162,9 @@ const UserDashboard: React.FC = () => {
   });
 
   const historyTickets = tickets.filter(t => {
+      // Jika tiket sudah CHECKED_IN, masuk ke history/selesai
+      if (t.checkInStatus === 'CHECKED_IN') return true;
+
       if (!t.eventDetails) return true; // Keep deleted events in history
       const eventDate = new Date(t.eventDetails.date);
       const now = new Date();
@@ -164,6 +184,14 @@ const UserDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-16 px-4 sm:px-6 lg:px-8 font-sans">
+      <CustomAlert 
+        isOpen={alertState.isOpen} 
+        type={alertState.type} 
+        title={alertState.title} 
+        message={alertState.message} 
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} 
+      />
+
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <div className="inline-block bg-[#DFFF00] text-[#2B427A] px-4 py-1 rounded-full text-sm font-black mb-4 border border-[#2B427A]">
