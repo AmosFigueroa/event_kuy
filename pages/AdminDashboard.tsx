@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -47,6 +47,9 @@ const AdminDashboard: React.FC = () => {
     onConfirm?: () => void;
     confirmText?: string;
   }>({ isOpen: false, type: 'info', title: '', message: '' });
+
+  // Calculated Stats
+  const [uniqueUserCount, setUniqueUserCount] = useState(0);
 
   const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
     setAlertState({ isOpen: true, type, title, message });
@@ -144,6 +147,10 @@ const AdminDashboard: React.FC = () => {
       setRegistrations(regs || []);
       setPaymentSettings(payment || { bankAccounts: [], qrisUrl: '' });
       
+      // Calculate Unique Users (based on unique emails in registrations as proxy)
+      const uniqueEmails = new Set(regs?.map(r => r.userEmail.toLowerCase()) || []);
+      setUniqueUserCount(uniqueEmails.size);
+
       // Load Cert Settings
       const loadedCert = certs || { backgroundUrl: '', elements: [] };
       setCertSettings(loadedCert);
@@ -499,9 +506,8 @@ const AdminDashboard: React.FC = () => {
               {/* LEFT SIDEBAR: TOOLS + PROPERTIES */}
               <div className="w-full lg:w-80 bg-gray-50 border-r border-gray-200 flex flex-col z-30 shadow-xl h-full">
                   
-                  {/* SCROLLABLE TOP AREA: ADD ELEMENTS & BACKGROUND */}
+                  {/* TOP SCROLLABLE: TOOLS */}
                   <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                      
                       {/* Add Elements Group */}
                       <div>
                           <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">TAMBAH ELEMEN</h4>
@@ -560,7 +566,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
 
                   {/* BOTTOM AREA: PROPERTIES PANEL (Sticky at bottom of sidebar) */}
-                  <div className="bg-white border-t-2 border-gray-200 p-5 flex-shrink-0 max-h-[60%] overflow-y-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] custom-scrollbar">
+                  <div className="bg-white border-t-2 border-gray-200 p-5 flex-shrink-0 max-h-[50%] overflow-y-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] custom-scrollbar">
                       <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
                         <h4 className="text-xs font-black text-[#2B427A] uppercase tracking-wider flex items-center gap-2">
                             <SettingsIcon className="w-3 h-3"/> PROPERTI ITEM
@@ -661,7 +667,7 @@ const AdminDashboard: React.FC = () => {
                   </div>
               </div>
 
-              {/* CENTER: CANVAS */}
+              {/* RIGHT: CANVAS */}
               <div className="flex-1 flex flex-col min-w-0 bg-[#F0F2F5] relative">
                   <div className="flex-1 overflow-auto p-8 flex items-center justify-center relative shadow-inner" 
                       onMouseMove={handleMouseMove} 
@@ -711,43 +717,92 @@ const AdminDashboard: React.FC = () => {
   };
 
   const renderEventsList = () => (
-      <div className="grid grid-cols-1 gap-6 animate-fade-in">
+      <div className="space-y-6 animate-fade-in">
           <div className="flex justify-between items-center mb-4">
               <h3 className="font-black text-[#2B427A] text-2xl uppercase">Daftar Acara</h3>
               <button onClick={() => { resetWizard(); setActiveTab('event-editor'); }} className="px-6 py-2 bg-[#DFFF00] text-[#2B427A] rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2">
                   <Plus className="w-5 h-5"/> BUAT ACARA BARU
               </button>
           </div>
-          {events.map(event => (
-              <div key={event.id} className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div>
-                      <h4 className="font-black text-xl text-[#2B427A] uppercase">{event.title}</h4>
-                      <p className="text-sm font-bold text-gray-500">{new Date(event.date).toLocaleDateString()} | {event.location}</p>
-                      <div className="flex gap-2 mt-2">
-                          <span className={`px-2 py-1 text-xs font-black rounded uppercase ${event.isOpen ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{event.isOpen ? 'BUKA' : 'TUTUP'}</span>
-                          <span className="px-2 py-1 text-xs font-black bg-blue-100 text-blue-700 rounded uppercase">{event.category}</span>
-                      </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                      <button onClick={() => navigate(`/scanner/${event.id}`)} className="p-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200" title="Scan Tiket"><ScanLine className="w-5 h-5"/></button>
-                      <button onClick={() => {
-                          resetWizard();
-                          setEditingId(event.id);
-                          setNewEvent(event);
-                          setBannerPreview(event.bannerUrl);
-                          setThumbnailPreview(event.thumbnailUrl);
-                          setCertBgPreview(event.certificateConfig?.backgroundUrl || null);
-                          setActiveTab('event-editor');
-                      }} className="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"><Pencil className="w-5 h-5"/></button>
-                      <button onClick={() => showConfirm('Hapus Acara?', 'Yakin ingin menghapus acara ini? Data pendaftar juga akan hilang.', async () => {
-                          await deleteEvent(event.id);
-                          loadData();
-                      })} className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 className="w-5 h-5"/></button>
-                      <button onClick={async () => { await toggleEventStatus(event.id); loadData(); }} className="p-2 bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200"><Power className="w-5 h-5"/></button>
-                  </div>
-              </div>
-          ))}
-          {events.length === 0 && <div className="text-center py-12 text-gray-400 font-bold">Belum ada acara.</div>}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.map(event => (
+                <div key={event.id} className="bg-white rounded-2xl border-2 border-[#2B427A] overflow-hidden flex flex-col shadow-[6px_6px_0px_0px_#2B427A] hover:translate-y-[-2px] transition-transform">
+                    {/* Top Image Section */}
+                    <div className="h-48 relative bg-gray-200">
+                        {event.bannerUrl ? (
+                            <img src={event.bannerUrl} alt={event.title} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 font-bold">NO IMAGE</div>
+                        )}
+                        {/* Status Badge */}
+                        <div className="absolute top-4 right-4 bg-[#DFFF00] text-[#2B427A] font-black px-3 py-1 text-xs uppercase border border-[#2B427A] rounded shadow-sm">
+                            {event.category}
+                        </div>
+                    </div>
+
+                    {/* Content Section */}
+                    <div className="p-5 flex-1">
+                        <h4 className="text-2xl font-black text-[#2B427A] uppercase mb-3 leading-tight line-clamp-2">{event.title}</h4>
+                        
+                        <div className="flex items-center gap-4 text-sm text-gray-500 font-bold mb-2">
+                            <div className="flex items-center gap-2">
+                                <CalendarIcon className="w-4 h-4 text-[#0B1CDE]" />
+                                <span>{new Date(event.date).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <UsersIcon className="w-4 h-4 text-[#0B1CDE]" />
+                                <span>{event.currentParticipants}/{event.maxParticipants}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400 font-bold uppercase mt-2">
+                            <span className={`w-2 h-2 rounded-full ${event.isOpen ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                            {event.isOpen ? 'PENDAFTARAN DIBUKA' : 'DITUTUP'}
+                        </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="p-4 bg-gray-50 border-t-2 border-dashed border-[#2B427A]/20 flex gap-2">
+                        <button 
+                            onClick={() => {
+                                resetWizard();
+                                setEditingId(event.id);
+                                setNewEvent(event);
+                                setBannerPreview(event.bannerUrl);
+                                setThumbnailPreview(event.thumbnailUrl);
+                                setCertBgPreview(event.certificateConfig?.backgroundUrl || null);
+                                setActiveTab('event-editor');
+                            }} 
+                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-[#0B1CDE] font-black rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors uppercase text-xs"
+                        >
+                            <Edit2 className="w-4 h-4"/> EDIT
+                        </button>
+                        
+                        <button 
+                            onClick={async () => { await toggleEventStatus(event.id); loadData(); }} 
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 font-black rounded-lg border transition-colors uppercase text-xs ${event.isOpen ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100' : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'}`}
+                        >
+                            <Power className="w-4 h-4"/> {event.isOpen ? 'TUTUP' : 'BUKA'}
+                        </button>
+
+                        <button 
+                            onClick={() => showConfirm('Hapus Acara?', 'Yakin ingin menghapus acara ini? Data pendaftar juga akan hilang.', async () => {
+                                await deleteEvent(event.id);
+                                loadData();
+                            })} 
+                            className="p-2 bg-red-50 text-red-500 rounded-lg border border-red-200 hover:bg-red-100 transition-colors"
+                        >
+                            <Trash2 className="w-5 h-5"/>
+                        </button>
+                        
+                        <button onClick={() => navigate(`/scanner/${event.id}`)} className="p-2 bg-gray-100 text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-200" title="Scan Tiket">
+                            <ScanLine className="w-5 h-5"/>
+                        </button>
+                    </div>
+                </div>
+            ))}
+          </div>
+          {events.length === 0 && <div className="text-center py-12 text-gray-400 font-bold border-2 border-dashed border-gray-200 rounded-xl">Belum ada acara yang dibuat.</div>}
       </div>
   );
 
@@ -1044,14 +1099,33 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'events' && renderEventsList()}
         {activeTab === 'registrations' && renderRegistrations()}
         {activeTab === 'overview' && (
-             <div className="grid grid-cols-3 gap-6 animate-fade-in">
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><h3 className="text-gray-400 font-bold text-xs uppercase">Total Acara</h3><p className="text-4xl font-black text-[#2B427A]">{events.length}</p></div>
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><h3 className="text-gray-400 font-bold text-xs uppercase">Pendaftar</h3><p className="text-4xl font-black text-[#0B1CDE]">{registrations.length}</p></div>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total Acara</h3>
+                        <p className="text-4xl font-black text-[#2B427A]">{events.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><CalendarIcon className="w-8 h-8"/></div>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Pendaftar</h3>
+                        <p className="text-4xl font-black text-[#0B1CDE]">{registrations.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#0B1CDE]"><UsersIcon className="w-8 h-8"/></div>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total User</h3>
+                        <p className="text-4xl font-black text-[#DFFF00] drop-shadow-sm text-outline">{uniqueUserCount}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><UserCheck className="w-8 h-8"/></div>
+                 </div>
              </div>
         )}
       </main>
       
-      <style>{`@keyframes slide-up {0% { transform: translate(-50%, 100%); opacity: 0; }100% { transform: translate(-50%, 0); opacity: 1; }}.animate-slide-up {animation: slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;}`}</style>
+      <style>{`@keyframes slide-up {0% { transform: translate(-50%, 100%); opacity: 0; }100% { transform: translate(-50%, 0); opacity: 1; }}.animate-slide-up {animation: slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;} .text-outline { -webkit-text-stroke: 1px #2B427A; text-shadow: 2px 2px 0px #2B427A; }`}</style>
     </div>
   );
 };
