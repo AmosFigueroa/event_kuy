@@ -71,6 +71,7 @@ export const fetchEvents = async (): Promise<Event[]> => {
 };
 
 export const createEvent = (eventData: Partial<Event>, bannerBase64: string) => callScript('createEvent', { ...eventData, bannerBase64 }, 'POST');
+export const updateEvent = (eventData: Partial<Event>, bannerBase64?: string) => callScript('updateEvent', { ...eventData, bannerBase64 }, 'POST');
 
 export const deleteEvent = (id: string) => callScript('deleteEvent', { id }, 'POST');
 

@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 
 // Ensure process is typed to avoid TS errors if @types/node is missing
@@ -12,13 +13,20 @@ export const generateEventDescription = async (title: string, category: string, 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
   try {
-    // Updated prompt to request Indonesian output
+    // Updated prompt to request Indonesian output with better structure
     const prompt = `
-      Buatlah deskripsi acara yang menarik dan profesional dalam Bahasa Indonesia untuk acara berjudul "${title}".
-      Kategori: ${category}.
-      Detail utama yang harus disertakan: ${keyDetails}.
-      Nada bicaranya harus antusias namun profesional. Usahakan di bawah 200 kata.
-      Jangan gunakan format markdown seperti **tebal** atau *miring*, hanya teks paragraf biasa.
+      Bertindaklah sebagai Event Organizer profesional. Buatkan deskripsi acara yang menarik, persuasif, dan profesional dalam Bahasa Indonesia untuk acara berikut:
+      
+      Judul Acara: ${title}
+      Kategori: ${category}
+      Detail Tambahan: ${keyDetails}
+
+      Instruksi Penulisan:
+      1. Gunakan nada bicara yang antusias, mengundang, namun tetap formal.
+      2. Jelaskan mengapa orang harus hadir ke acara ini (Value Proposition).
+      3. Panjang tulisan sekitar 100-150 kata.
+      4. JANGAN gunakan format Markdown (seperti **bold**, # header, atau *italic*). Tulis dalam paragraf teks biasa yang rapi agar mudah dibaca di aplikasi.
+      5. Jangan sertakan placeholder seperti [Masukkan Tanggal], gunakan data yang ada atau buat kalimat umum yang mengundang.
     `;
 
     const response = await ai.models.generateContent({
@@ -26,10 +34,11 @@ export const generateEventDescription = async (title: string, category: string, 
       contents: prompt,
     });
 
-    return response.text || "Tidak dapat membuat deskripsi.";
+    return response.text?.trim() || "Deskripsi tidak dapat dibuat saat ini.";
   } catch (error) {
     console.error("Error generating description:", error);
-    return "Kesalahan dalam membuat deskripsi. Silakan coba lagi.";
+    // Return empty string or specific error message handled by UI
+    throw new Error("Gagal terhubung ke AI Service.");
   }
 };
 

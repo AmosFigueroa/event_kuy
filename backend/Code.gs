@@ -36,6 +36,7 @@ function handleRequest(e, method) {
     // --- ROUTING ---
     if (action === "getEvents") data = getEvents();
     else if (action === "createEvent" && method === "POST") data = createEvent(postData);
+    else if (action === "updateEvent" && method === "POST") data = updateEvent(postData);
     else if (action === "deleteEvent" && method === "POST") data = deleteEvent(postData);
     else if (action === "toggleEventStatus" && method === "POST") data = toggleEventStatus(postData);
     
@@ -67,7 +68,42 @@ function handleRequest(e, method) {
   }
 }
 
-// --- AUTH FUNCTIONS (UNCHANGED logic, condensed for brevity) ---
+// --- HELPER: HTML EMAIL TEMPLATE ---
+function _sendBrandedEmail(to, subject, title, bodyContent, attachmentBlob) {
+  var htmlBody = 
+    '<div style="background-color: #F8FAFC; padding: 40px 0; font-family: \'Helvetica\', sans-serif;">' +
+      '<div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 3px solid #2B427A; border-radius: 16px; overflow: hidden; box-shadow: 8px 8px 0px 0px #DFFF00;">' +
+        '<div style="background-color: #2B427A; padding: 30px; text-align: center;">' +
+           '<h1 style="color: #DFFF00; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase;">EVENT BISDIG</h1>' +
+           '<p style="color: #ffffff; margin: 5px 0 0 0; font-size: 12px; font-weight: bold; letter-spacing: 2px;">HIMPUNAN MAHASISWA</p>' +
+        '</div>' +
+        '<div style="padding: 40px 30px;">' +
+           '<h2 style="color: #2B427A; font-weight: 900; margin-top: 0; text-transform: uppercase;">' + title + '</h2>' +
+           '<div style="color: #4a5568; font-size: 16px; line-height: 1.6;">' +
+              bodyContent +
+           '</div>' +
+           '<div style="margin-top: 30px; padding-top: 20px; border-top: 2px dashed #e2e8f0; text-align: center;">' +
+              '<a href="https://bisdig.upy.ac.id/hmp/" style="display: inline-block; background-color: #2B427A; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px;">KUNJUNGI WEBSITE</a>' +
+           '</div>' +
+        '</div>' +
+        '<div style="background-color: #f1f5f9; padding: 15px; text-align: center; font-size: 11px; color: #94a3b8; font-weight: bold;">' +
+           '&copy; ' + new Date().getFullYear() + ' HMP Bisnis Digital UPY. All rights reserved.' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  var options = {
+    htmlBody: htmlBody
+  };
+  
+  if (attachmentBlob) {
+    options.attachments = [attachmentBlob];
+  }
+
+  MailApp.sendEmail(to, subject, bodyContent.replace(/<[^>]*>/g, ""), options);
+}
+
+// --- AUTH FUNCTIONS ---
 function signupUser(data) {
   var sheet = _getSheet("Users");
   var rows = sheet.getDataRange().getValues();
@@ -94,7 +130,13 @@ function loginUser(data) {
   if (ADMIN_EMAILS.indexOf(found.email) > -1) {
     var otp = Math.floor(100000 + Math.random() * 900000).toString();
     CacheService.getScriptCache().put("OTP_" + found.email, otp, 300);
-    MailApp.sendEmail(found.email, "Admin OTP", "OTP: " + otp);
+    
+    var body = "<p>Halo Admin,</p><p>Berikut adalah kode verifikasi (OTP) untuk masuk ke dashboard admin:</p>" +
+               "<h1 style='font-size: 32px; color: #0B1CDE; letter-spacing: 5px; margin: 20px 0;'>" + otp + "</h1>" +
+               "<p>Kode ini berlaku selama 5 menit. Jangan berikan kepada siapapun.</p>";
+               
+    _sendBrandedEmail(found.email, "🔒 Login OTP - Admin Event Bisdig", "KODE AKSES ADMIN", body);
+    
     return { valid: false, requireOtp: true };
   }
   return { valid: true, role: "USER", email: found.email, name: found.name };
@@ -103,7 +145,12 @@ function loginUser(data) {
 function requestOtp(data) {
   var otp = Math.floor(100000 + Math.random() * 900000).toString();
   CacheService.getScriptCache().put("OTP_" + data.email, otp, 300);
-  MailApp.sendEmail(data.email, "Login OTP", "OTP: " + otp);
+  
+  var body = "<p>Halo,</p><p>Gunakan kode berikut untuk memverifikasi login Anda:</p>" +
+             "<h1 style='font-size: 32px; color: #0B1CDE; letter-spacing: 5px; margin: 20px 0;'>" + otp + "</h1>" +
+             "<p>Kode ini berlaku selama 5 menit.</p>";
+               
+  _sendBrandedEmail(data.email, "🔑 Kode Login Event Bisdig", "VERIFIKASI LOGIN", body);
   return { sent: true };
 }
 
@@ -124,13 +171,11 @@ function getEvents() {
   var headers = rows.shift(); // Remove header
   return rows.map(function(row) {
     var obj = {};
-    // Basic mapping
     obj.id = row[0]; obj.title = row[1]; obj.description = row[2];
     obj.date = row[3]; obj.time = row[4]; obj.location = row[5];
     obj.price = row[6]; obj.category = row[7]; obj.bannerUrl = row[8];
     obj.maxParticipants = row[9]; obj.currentParticipants = row[10];
     obj.isOpen = row[11]; 
-    // New: Form Fields
     try { obj.formFields = row[12] ? JSON.parse(row[12]) : []; } catch(e) { obj.formFields = []; }
     return obj;
   });
@@ -147,8 +192,6 @@ function createEvent(data) {
       bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
     } catch (e) { }
   }
-  
-  // Column 13 (Index 12) is formFields JSON
   var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]";
   
   sheet.appendRow([
@@ -157,6 +200,39 @@ function createEvent(data) {
     formFieldsJson
   ]);
   return { id: id };
+}
+
+function updateEvent(data) {
+  var sheet = _getSheet("Events");
+  var rows = sheet.getDataRange().getValues();
+  
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] == data.id) {
+      var bannerUrl = rows[i][8];
+      if (data.bannerBase64) {
+        try {
+          var folder = _getUploadFolder();
+          var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + data.id + "_" + new Date().getTime());
+          bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
+        } catch(e) {}
+      }
+      var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]";
+      
+      sheet.getRange(i+1, 2).setValue(data.title);
+      sheet.getRange(i+1, 3).setValue(data.description);
+      sheet.getRange(i+1, 4).setValue(data.date);
+      sheet.getRange(i+1, 5).setValue(data.time);
+      sheet.getRange(i+1, 6).setValue(data.location);
+      sheet.getRange(i+1, 7).setValue(data.price);
+      sheet.getRange(i+1, 8).setValue(data.category);
+      sheet.getRange(i+1, 9).setValue(bannerUrl);
+      sheet.getRange(i+1, 10).setValue(data.maxParticipants);
+      sheet.getRange(i+1, 13).setValue(formFieldsJson);
+      
+      return { id: data.id, updated: true };
+    }
+  }
+  throw new Error("Event not found for update");
 }
 
 function deleteEvent(data) {
@@ -219,10 +295,15 @@ function registerEventParticipant(data) {
     proofUrl, "PENDING", new Date().toISOString(), customDataJson
   ]);
   
-  // Increment Count
   var current = Number(events[eventRowIndex][10]) || 0;
   eSheet.getRange(eventRowIndex + 1, 11).setValue(current + 1);
   
+  var body = "<p>Halo " + data.name + ",</p>" +
+             "<p>Terima kasih telah mendaftar untuk acara <strong>" + eventTitle + "</strong>.</p>" +
+             "<p>Pendaftaran Anda sedang kami verifikasi. Anda akan menerima email konfirmasi jika pembayaran/data telah disetujui.</p>";
+  
+  _sendBrandedEmail(data.email, "✅ Pendaftaran Diterima - " + eventTitle, "MENUNGGU VERIFIKASI", body);
+
   return { status: "PENDING" };
 }
 
@@ -230,8 +311,6 @@ function getRegistrations() {
   var sheet = _getSheet("Registrations");
   var rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) return [];
-  // Hardcoded mapping for reliability
-  // ID, EventID, Title, Name, Email, Proof, Status, Date, CustomData
   return rows.slice(1).map(function(row) {
     return {
       id: row[0], eventId: row[1], eventTitle: row[2], userName: row[3],
@@ -247,7 +326,21 @@ function updateRegistrationStatus(data) {
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] == data.id) {
       sheet.getRange(i + 1, 7).setValue(data.status);
-      try { MailApp.sendEmail(rows[i][4], "Update Status: " + rows[i][2], "Status: " + data.status); } catch(e){}
+      var email = rows[i][4];
+      var name = rows[i][3];
+      var evtTitle = rows[i][2];
+      
+      var statusTitle = data.status === 'APPROVED' ? 'PENDAFTARAN DISETUJUI' : 'PENDAFTARAN DITOLAK';
+      var color = data.status === 'APPROVED' ? '#0B1CDE' : '#e53e3e';
+      
+      var body = "<p>Halo " + name + ",</p>" +
+                 "<p>Status pendaftaran Anda untuk acara <strong>" + evtTitle + "</strong> telah diperbarui menjadi:</p>" +
+                 "<h2 style='color:" + color + "; margin: 20px 0;'>" + (data.status === 'APPROVED' ? '✅ DISETUJUI' : '❌ DITOLAK') + "</h2>" +
+                 (data.status === 'APPROVED' ? "<p>Silakan login ke dashboard untuk melihat tiket Anda.</p>" : "<p>Mohon hubungi admin untuk informasi lebih lanjut.</p>");
+
+      try { 
+         _sendBrandedEmail(email, "Update Status: " + evtTitle, statusTitle, body);
+      } catch(e){}
       return { status: data.status };
     }
   }
@@ -259,8 +352,29 @@ function sendCertificate(data) {
   var rows = sheet.getDataRange().getValues();
   for(var i=1; i<rows.length; i++) {
     if(rows[i][0] == data.id) {
-       var blob = Utilities.newBlob("<h1>Certificate for " + rows[i][3] + "</h1>", "text/html", "cert.html").getAs("application/pdf");
-       MailApp.sendEmail({to: rows[i][4], subject: "Certificate", body: "Attached.", attachments: [blob]});
+       var name = rows[i][3];
+       var evtTitle = rows[i][2];
+       
+       // Create simple PDF blob (In production, use a template)
+       var blob = Utilities.newBlob(
+         "<div style='text-align:center; padding: 50px; font-family: sans-serif; border: 10px solid #2B427A; height: 100%;'>" +
+            "<h1 style='color:#2B427A; font-size: 40px;'>SERTIFIKAT APRESIASI</h1>" +
+            "<p>Diberikan kepada:</p>" +
+            "<h2 style='font-size: 30px; margin: 20px 0;'>" + name + "</h2>" +
+            "<p>Atas partisipasinya dalam acara:</p>" +
+            "<h3 style='color:#0B1CDE;'>" + evtTitle + "</h3>" +
+         "</div>", 
+         "text/html", 
+         "Sertifikat_" + name + ".html"
+       ).getAs("application/pdf");
+       blob.setName("Sertifikat_" + name + ".pdf");
+       
+       var body = "<p>Halo " + name + ",</p>" +
+                  "<p>Terima kasih telah berpartisipasi dalam acara <strong>" + evtTitle + "</strong>.</p>" +
+                  "<p>Terlampir adalah e-sertifikat Anda. Sampai jumpa di acara berikutnya!</p>";
+       
+       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat - " + evtTitle, "SERTIFIKAT KEGIATAN", body, blob);
+       
        return { sent: true };
     }
   }
@@ -274,26 +388,17 @@ function savePaymentSettings(data) {
   var sheet = ss.getSheetByName("Settings");
   if (!sheet) { sheet = ss.insertSheet("Settings"); sheet.appendRow(["Key", "Value"]); }
   
-  // Store Bank details in Properties or separate rows. Using rows for file URL capability easier.
-  // Structure in Settings Sheet:
-  // Row 1: BANK_NAME, Value
-  // Row 2: ACCOUNT_NUM, Value
-  // Row 3: ACCOUNT_HOLDER, Value
-  // Row 4: QRIS_URL, Value
-  
   var qrisUrl = data.currentQrisUrl || "";
   if (data.qrisBase64) {
     try {
       var folder = _getUploadFolder();
       var blob = Utilities.newBlob(Utilities.base64Decode(data.qrisBase64), "image/jpeg", "qris_master");
-      // Delete old file if possible, or just overwrite reference
       var file = folder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       qrisUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
     } catch(e) {}
   }
   
-  // Helper to set/update row
   var setSetting = function(key, val) {
     var data = sheet.getDataRange().getValues();
     for(var i=0; i<data.length; i++) {

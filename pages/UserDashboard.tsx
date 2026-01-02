@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader } from 'lucide-react';
+import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard } from 'lucide-react';
 import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession, createSlug } from '../services/api';
 import { Registration, RegistrationStatus, Event } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 const UserDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<(Registration & { eventDetails?: Event })[]>([]);
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [certLoading, setCertLoading] = useState<string | null>(null);
   const navigate = useNavigate();
   const session = getUserSession();
@@ -32,6 +34,7 @@ const UserDashboard: React.FC = () => {
                 eventDetails: allEvents.find(ev => ev.id === reg.eventId)
             }));
 
+            // Sort newest first
             setTickets(enrichedTickets.sort((a, b) => 
                 new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime()
             ));
@@ -81,6 +84,25 @@ const UserDashboard: React.FC = () => {
     }
   };
 
+  // Filter Tickets Logic
+  const activeTickets = tickets.filter(t => {
+      if (!t.eventDetails) return false;
+      const eventDate = new Date(t.eventDetails.date);
+      const now = new Date();
+      now.setHours(0,0,0,0);
+      return eventDate >= now; // Upcoming or today
+  });
+
+  const historyTickets = tickets.filter(t => {
+      if (!t.eventDetails) return true; // Keep deleted events in history
+      const eventDate = new Date(t.eventDetails.date);
+      const now = new Date();
+      now.setHours(0,0,0,0);
+      return eventDate < now; // Past events
+  });
+
+  const displayedTickets = activeTab === 'active' ? activeTickets : historyTickets;
+
   if (loading) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
@@ -92,27 +114,49 @@ const UserDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-16 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <div className="inline-block bg-[#DFFF00] text-[#2B427A] px-4 py-1 rounded-full text-sm font-black mb-4 border border-[#2B427A]">
              AKUN: {session?.email}
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-[#2B427A] mb-4 uppercase tracking-tighter">PORTAL TIKET SAYA</h1>
-          <p className="text-lg text-gray-500 font-bold max-w-lg mx-auto">Berikut adalah daftar acara yang telah Anda daftarkan.</p>
+          <p className="text-lg text-gray-500 font-bold max-w-lg mx-auto">Kelola tiket acara yang akan datang dan lihat riwayat acara Anda.</p>
         </div>
 
-        {tickets.length === 0 && (
+        {/* Navigation Tabs */}
+        <div className="flex gap-4 mb-8 justify-center">
+            <button 
+                onClick={() => setActiveTab('active')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl border-2 font-black transition-all ${activeTab === 'active' ? 'bg-[#2B427A] text-white border-[#2B427A] shadow-[4px_4px_0px_0px_#DFFF00]' : 'bg-white text-[#2B427A] border-[#2B427A] hover:bg-gray-50'}`}
+            >
+                <Ticket className="w-5 h-5"/> TIKET AKTIF ({activeTickets.length})
+            </button>
+            <button 
+                onClick={() => setActiveTab('history')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl border-2 font-black transition-all ${activeTab === 'history' ? 'bg-[#2B427A] text-white border-[#2B427A] shadow-[4px_4px_0px_0px_#DFFF00]' : 'bg-white text-[#2B427A] border-[#2B427A] hover:bg-gray-50'}`}
+            >
+                <History className="w-5 h-5"/> RIWAYAT SELESAI ({historyTickets.length})
+            </button>
+        </div>
+
+        {displayedTickets.length === 0 && (
           <div className="text-center py-16 bg-white rounded-xl border-2 border-[#2B427A] shadow-[8px_8px_0px_0px_#DFFF00]">
             <div className="w-20 h-20 bg-gray-100 rounded-full border-2 border-[#2B427A] flex items-center justify-center mx-auto mb-6">
                 <Ticket className="w-10 h-10 text-gray-400" />
             </div>
-            <h3 className="text-xl font-black text-[#2B427A] mb-2 uppercase">Belum ada tiket</h3>
-            <p className="text-gray-500 font-medium">Anda belum mendaftar di acara manapun.</p>
-            <a href="#/events" className="mt-6 inline-block bg-[#2B427A] text-white px-6 py-2 rounded-lg font-bold hover:bg-[#DFFF00] hover:text-[#2B427A] transition-colors">Cari Acara</a>
+            <h3 className="text-xl font-black text-[#2B427A] mb-2 uppercase">
+                {activeTab === 'active' ? "Tidak ada tiket aktif" : "Belum ada riwayat"}
+            </h3>
+            <p className="text-gray-500 font-medium">
+                {activeTab === 'active' ? "Anda belum mendaftar di acara yang akan datang." : "Anda belum pernah mengikuti acara sebelumnya."}
+            </p>
+            {activeTab === 'active' && (
+                <a href="#/events" className="mt-6 inline-block bg-[#2B427A] text-white px-6 py-2 rounded-lg font-bold hover:bg-[#DFFF00] hover:text-[#2B427A] transition-colors">Cari Acara Baru</a>
+            )}
           </div>
         )}
 
         <div className="grid gap-8">
-          {tickets.map((ticket) => (
+          {displayedTickets.map((ticket) => (
             <div key={ticket.id} className="group bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden hover:shadow-[8px_8px_0px_0px_#0B1CDE] transition-all duration-300">
               <div className="flex flex-col md:flex-row">
                 {/* Event Image (Left) */}
@@ -120,7 +164,7 @@ const UserDashboard: React.FC = () => {
                   {ticket.eventDetails?.bannerUrl ? (
                      <img src={ticket.eventDetails.bannerUrl} alt="Acara" className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 mix-blend-overlay opacity-80" />
                   ) : (
-                     <div className="w-full h-full flex items-center justify-center text-white/50 font-bold">TANPA GAMBAR</div>
+                     <div className="w-full h-full flex items-center justify-center text-white/50 font-bold">EVENT SELESAI/DIHAPUS</div>
                   )}
                   {/* Overlay for small screens */}
                   <div className="absolute top-4 left-4 md:hidden">
