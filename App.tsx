@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
 import CertificatePage from './pages/CertificatePage';
 import TicketScannerPage from './pages/TicketScannerPage';
+import PublicTicketPage from './pages/PublicTicketPage';
 import './types';
 
 const App: React.FC = () => {
@@ -30,6 +31,8 @@ const App: React.FC = () => {
             <Route path="/payment-success" element={<PaymentSuccessPage />} />
             <Route path="/certificate/:id" element={<CertificatePage />} />
             <Route path="/scanner/:eventId" element={<TicketScannerPage />} />
+            {/* New Public Route */}
+            <Route path="/ticket-view/:id" element={<PublicTicketPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

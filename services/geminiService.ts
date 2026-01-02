@@ -114,16 +114,18 @@ export const analyzePaymentProof = async (imageBase64: string, expectedAmount: n
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image', // Using vision model capabilities
-            contents: [
-                {
-                    inlineData: {
-                        mimeType: "image/jpeg",
-                        data: imageBase64
-                    }
-                },
-                { text: prompt }
-            ]
+            model: 'gemini-3-flash-preview', // Using gemini-3-flash-preview for vision tasks as per guidelines
+            contents: {
+                parts: [
+                    {
+                        inlineData: {
+                            mimeType: "image/jpeg",
+                            data: imageBase64
+                        }
+                    },
+                    { text: prompt }
+                ]
+            }
         });
 
         const text = response.text || "";

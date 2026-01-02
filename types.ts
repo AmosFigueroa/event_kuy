@@ -121,6 +121,7 @@ export interface UserSession {
   email: string;
   role: UserRole;
   isLoggedIn: boolean;
+  name?: string;
 }
 
 export interface ApiResponse<T> {

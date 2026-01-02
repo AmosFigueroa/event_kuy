@@ -621,12 +621,17 @@ function updateRegistrationStatus(data) {
       
       var body = "";
       if (isApproved) {
+          // Construct Public Ticket Link
+          var ticketLink = "https://bisdig.upy.ac.id/hmp/#/ticket-view/" + data.id;
+          
           body = `
             <p>Halo <strong>${name}</strong>,</p>
             <p>Selamat! Pembayaran Anda telah kami verifikasi.</p>
             <p>Tiket Anda untuk acara <strong>"${evtTitle}"</strong> sekarang berstatus <strong>VALID</strong>.</p>
-            <p>Silakan login ke dashboard untuk melihat tiket dan QR Code masuk Anda.</p>
+            <p>Klik tombol di bawah ini untuk melihat dan mengunduh E-Ticket Anda:</p>
+            ${_generateEmailButton(ticketLink, "LIHAT E-TICKET SAYA")}
             <br/>
+            <p style="font-size:12px; color:gray;">Atau login ke dashboard jika Anda memiliki akun.</p>
             <p>Sampai jumpa di acara!</p>
           `;
       } else {

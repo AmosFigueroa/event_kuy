@@ -1,16 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard, QrCode } from 'lucide-react';
+import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard, QrCode, Download } from 'lucide-react';
 import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession, createSlug } from '../services/api';
 import { Registration, RegistrationStatus, Event } from '../types';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
+import html2canvas from 'html2canvas';
 
 const UserDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [tickets, setTickets] = useState<(Registration & { eventDetails?: Event })[]>([]);
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [certLoading, setCertLoading] = useState<string | null>(null);
+  const [downloadingTicket, setDownloadingTicket] = useState<string | null>(null);
+  
   const navigate = useNavigate();
   const session = getUserSession();
   
@@ -59,6 +62,34 @@ const UserDashboard: React.FC = () => {
     } finally {
       setCertLoading(null);
     }
+  };
+
+  const handleDownloadTicket = async (ticket: Registration & { eventDetails?: Event }) => {
+      setDownloadingTicket(ticket.id);
+      
+      // Delay slightly to ensure the hidden element is rendered if it depends on state
+      setTimeout(async () => {
+          try {
+              const element = document.getElementById(`ticket-export-${ticket.id}`);
+              if (!element) throw new Error("Ticket element not found");
+
+              const canvas = await html2canvas(element, {
+                  scale: 3, // High quality
+                  backgroundColor: null,
+                  useCORS: true
+              });
+
+              const link = document.createElement('a');
+              link.download = `E-Ticket_${ticket.eventTitle.substring(0, 10)}_${ticket.userName.split(' ')[0]}.png`;
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+          } catch (err) {
+              console.error("Download failed:", err);
+              alert("Gagal mengunduh tiket.");
+          } finally {
+              setDownloadingTicket(null);
+          }
+      }, 100);
   };
 
   // Helper to check if certificate button should be shown (24 hours after event date)
@@ -178,6 +209,46 @@ const UserDashboard: React.FC = () => {
         <div className="grid gap-8">
           {displayedTickets.map((ticket) => (
             <div key={ticket.id} className="group bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden hover:shadow-[8px_8px_0px_0px_#0B1CDE] transition-all duration-300">
+              
+              {/* HIDDEN TICKET EXPORT TEMPLATE (Portrait / B3 Style scaled down) */}
+              <div id={`ticket-export-${ticket.id}`} style={{ position: 'fixed', top: -9999, left: -9999, width: '375px', height: '600px', backgroundColor: '#F8FAFC', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <div style={{ flex: 1, backgroundColor: '#2B427A', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', borderBottom: '4px dashed #DFFF00' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0.3, backgroundImage: `url(${ticket.eventDetails?.bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'grayscale(100%)' }}></div>
+                      <div style={{ position: 'relative', zIndex: 10, textAlign: 'center', color: 'white' }}>
+                          <div style={{ backgroundColor: '#DFFF00', color: '#2B427A', padding: '5px 15px', fontWeight: 900, fontSize: '14px', borderRadius: '20px', display: 'inline-block', marginBottom: '10px' }}>E-TICKET</div>
+                          <h1 style={{ fontSize: '32px', fontWeight: 900, lineHeight: 1.1, marginBottom: '5px', textTransform: 'uppercase' }}>{ticket.eventTitle}</h1>
+                          <p style={{ fontSize: '14px', fontWeight: 'bold', color: '#DFFF00', marginTop: '10px' }}>{ticket.eventDetails ? new Date(ticket.eventDetails.date).toLocaleDateString('id-ID', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}) : ''}</p>
+                      </div>
+                  </div>
+                  <div style={{ flex: 1, backgroundColor: 'white', padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', position: 'relative' }}>
+                      {/* Cutout Circles */}
+                      <div style={{ position: 'absolute', top: -15, left: -15, width: 30, height: 30, borderRadius: '50%', backgroundColor: '#F8FAFC' }}></div>
+                      <div style={{ position: 'absolute', top: -15, right: -15, width: 30, height: 30, borderRadius: '50%', backgroundColor: '#F8FAFC' }}></div>
+                      
+                      <div style={{ width: '100%', textAlign: 'center' }}>
+                          <p style={{ fontSize: '10px', color: '#9CA3AF', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '2px' }}>PEMEGANG TIKET</p>
+                          <h2 style={{ fontSize: '24px', color: '#2B427A', fontWeight: 900, margin: '5px 0 20px 0', textTransform: 'uppercase' }}>{ticket.userName}</h2>
+                          
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', textAlign: 'left', backgroundColor: '#F0F9FF', padding: '15px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+                              <div>
+                                  <p style={{ fontSize: '9px', fontWeight: 800, color: '#94A3B8' }}>LOKASI</p>
+                                  <p style={{ fontSize: '11px', fontWeight: 800, color: '#2B427A' }}>{ticket.eventDetails?.location}</p>
+                              </div>
+                              <div>
+                                  <p style={{ fontSize: '9px', fontWeight: 800, color: '#94A3B8' }}>WAKTU</p>
+                                  <p style={{ fontSize: '11px', fontWeight: 800, color: '#2B427A' }}>{ticket.eventDetails?.time} WIB</p>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div style={{ marginTop: '20px', padding: '10px', backgroundColor: 'white', borderRadius: '10px', border: '2px solid #2B427A', boxShadow: '4px 4px 0px 0px #0B1CDE' }}>
+                          <QRCode value={ticket.id} size={120} fgColor="#2B427A" />
+                      </div>
+                      <p style={{ fontSize: '10px', fontWeight: 800, color: '#CBD5E1', marginTop: '10px' }}>ID: {ticket.id}</p>
+                  </div>
+              </div>
+              {/* END HIDDEN TEMPLATE */}
+
               <div className="flex flex-col md:flex-row h-full">
                 {/* Event Image (Left) */}
                 <div className="w-full md:w-64 h-48 md:h-auto bg-[#2B427A] relative overflow-hidden border-b-2 md:border-b-0 md:border-r-2 border-[#2B427A] flex-shrink-0">
@@ -247,21 +318,32 @@ const UserDashboard: React.FC = () => {
                                 )}
                             </div>
 
-                            {/* CERTIFICATE BUTTON LOGIC */}
-                            {isCertificateUnlocked(ticket.eventDetails?.date) ? (
+                            {/* ACTIONS */}
+                            <div className="w-full space-y-2 mt-2">
                                 <button 
-                                    onClick={() => requestCertificate(ticket.id)}
-                                    disabled={certLoading === ticket.id}
-                                    className="w-full text-sm bg-white border-2 border-[#0B1CDE] text-[#0B1CDE] hover:bg-[#0B1CDE] hover:text-white px-4 py-3 rounded-lg font-black transition-all shadow-[2px_2px_0px_0px_#0B1CDE] hover:translate-y-0.5 hover:shadow-none uppercase mt-2"
+                                    onClick={() => handleDownloadTicket(ticket)}
+                                    disabled={downloadingTicket === ticket.id}
+                                    className="w-full flex items-center justify-center gap-2 text-sm bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:bg-[#2B427A] hover:text-[#DFFF00] px-4 py-2 rounded-lg font-black transition-all shadow-sm"
                                 >
-                                    {certLoading === ticket.id ? 'MENGIRIM...' : 'KIRIM SERTIFIKAT'}
+                                    {downloadingTicket === ticket.id ? <Loader className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4"/>}
+                                    {downloadingTicket === ticket.id ? 'MENYIAPKAN...' : 'DOWNLOAD TIKET'}
                                 </button>
-                            ) : (
-                                <div className="mt-4 bg-gray-100 px-4 py-2 rounded-lg border border-gray-300 text-center w-full">
-                                    <p className="text-[10px] font-bold text-gray-500 uppercase">Sertifikat Tersedia Mulai</p>
-                                    <p className="text-xs font-black text-[#2B427A]">{getUnlockDateString(ticket.eventDetails?.date)}</p>
-                                </div>
-                            )}
+
+                                {isCertificateUnlocked(ticket.eventDetails?.date) ? (
+                                    <button 
+                                        onClick={() => requestCertificate(ticket.id)}
+                                        disabled={certLoading === ticket.id}
+                                        className="w-full text-sm bg-white border-2 border-[#0B1CDE] text-[#0B1CDE] hover:bg-[#0B1CDE] hover:text-white px-4 py-2 rounded-lg font-black transition-all shadow-sm"
+                                    >
+                                        {certLoading === ticket.id ? 'MENGIRIM...' : 'KIRIM SERTIFIKAT'}
+                                    </button>
+                                ) : (
+                                    <div className="mt-2 bg-gray-100 px-4 py-2 rounded-lg border border-gray-300 text-center w-full">
+                                        <p className="text-[10px] font-bold text-gray-500 uppercase">Sertifikat Tersedia Mulai</p>
+                                        <p className="text-xs font-black text-[#2B427A]">{getUnlockDateString(ticket.eventDetails?.date)}</p>
+                                    </div>
+                                )}
+                            </div>
                         </>
                     ) : ticket.status === RegistrationStatus.REJECTED ? (
                         <div className="text-center text-red-500 font-bold flex flex-col items-center p-4 bg-red-50 border-2 border-red-200 rounded-lg w-full">

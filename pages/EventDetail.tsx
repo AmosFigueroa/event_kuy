@@ -1,8 +1,8 @@
 
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download, CheckCircle } from 'lucide-react';
-import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings } from '../services/api';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download, CheckCircle, Info, LogIn } from 'lucide-react';
+import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings, getUserSession } from '../services/api';
 import { Event, PaymentSettings } from '../types';
 
 const EventDetail: React.FC = () => {
@@ -12,6 +12,9 @@ const EventDetail: React.FC = () => {
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [loading, setLoading] = useState(true);
   
+  // Auth State
+  const userSession = getUserSession();
+
   // Form State
   const [registering, setRegistering] = useState(false);
   const [formData, setFormData] = useState<any>({ name: '', email: '' }); 
@@ -30,6 +33,16 @@ const EventDetail: React.FC = () => {
         const found = events.find(e => createSlug(e.title) === slug || e.id === slug);
         if (found) setEvent(found);
         setPaymentSettings(settings);
+
+        // Auto-fill form if logged in
+        if (userSession) {
+            setFormData(prev => ({
+                ...prev,
+                name: userSession.name || '',
+                email: userSession.email || ''
+            }));
+        }
+
       } catch (err) { setError("Gagal memuat data."); } 
       finally { setLoading(false); }
     };
@@ -171,131 +184,162 @@ const EventDetail: React.FC = () => {
                       </button>
                   </div>
               ) : (
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm font-bold flex gap-2"><AlertCircle className="w-4 h-4"/> {error}</div>}
-                    
-                    <div>
-                      <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Nama Lengkap</label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                        <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Email</label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                        <input type="email" required value={formData.email} onChange={e=>setFormData({...formData, email:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
-                      </div>
-                    </div>
-
-                    {event.formFields?.map(field => (
-                        <div key={field.id}>
-                            <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">{field.label}</label>
-                            <div className="relative">
-                                <div className="absolute left-3 top-3 w-4 h-4 text-gray-400 pointer-events-none">
-                                  {field.type === 'select' ? <Tag className="w-4 h-4"/> : <Edit3 className="w-4 h-4"/>}
-                                </div>
-                                {field.type === 'select' ? (
-                                    <select required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none bg-white text-sm text-[#2B427A]">
-                                        <option value="">Pilih...</option>
-                                        {field.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
-                                    </select>
-                                ) : field.type === 'textarea' ? (
-                                    <textarea required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" rows={3}></textarea>
-                                ) : (
-                                    <input type={field.type} required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" placeholder={field.placeholder} />
-                                )}
-                            </div>
-                        </div>
-                    ))}
-
-                    {event.price > 0 && paymentSettings && (
-                        <div className="bg-[#F0F9FF] p-4 rounded-lg border border-blue-200 text-sm">
-                            <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2 text-xs md:text-sm">
-                                <i className="fi fi-bs-money-bill-wave flex text-base"></i> Transfer Pembayaran
-                            </h4>
-                            
-                            <div className="space-y-4">
-                                {paymentSettings.bankAccounts.map((acc, idx) => (
-                                    <div key={idx} className="bg-white p-3 rounded border border-blue-100 shadow-sm relative group">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <p className="font-black text-[#2B427A] uppercase text-xs">{acc.bankName}</p>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => handleCopy(acc.accountNumber, "No. Rekening")} 
-                                                title="Salin No. Rek" 
-                                                className="hover:scale-110 transition-transform bg-transparent border-none p-1 rounded hover:bg-gray-100 text-[#0B1CDE] flex items-center gap-1"
-                                            >
-                                                <span className="text-[10px] font-bold hidden group-hover:block">SALIN</span>
-                                                <Copy className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                        <div className="font-mono bg-gray-50 px-2 py-1 rounded text-[#0B1CDE] font-bold text-base tracking-wide border border-gray-100 mb-1 select-all break-all cursor-pointer hover:bg-blue-50 transition-colors" onClick={() => handleCopy(acc.accountNumber, "No. Rekening")}>
-                                            {acc.accountNumber}
-                                        </div>
-                                        <p className="text-[10px] md:text-xs text-gray-500 font-medium">a.n {acc.accountHolder}</p>
-                                    </div>
-                                ))}
-
-                                {paymentSettings.qrisUrl && (
-                                    <div className="mt-4 pt-3 border-t border-blue-100">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <p className="font-bold text-xs text-[#2B427A] uppercase flex items-center gap-2">
-                                                <QrCode className="w-4 h-4"/> Scan QRIS:
-                                            </p>
-                                        </div>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setShowQrisModal(true)}
-                                            className="w-full bg-white border-2 border-dashed border-[#2B427A] p-3 rounded-xl flex items-center justify-between hover:bg-[#DFFF00]/20 transition-all group"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-gray-100 rounded border border-gray-300 overflow-hidden">
-                                                    <img src={paymentSettings.qrisUrl} alt="Mini QR" className="w-full h-full object-cover opacity-50" />
-                                                </div>
-                                                <span className="font-black text-[#2B427A] text-sm group-hover:underline decoration-2 underline-offset-2">LIHAT QRIS (SCAN)</span>
-                                            </div>
-                                            <Maximize2 className="w-5 h-5 text-[#2B427A]" />
-                                        </button>
-                                    </div>
-                                )}
+                  <>
+                    {!userSession && (
+                        <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-lg flex gap-3 items-start">
+                            <Info className="w-5 h-5 text-[#0B1CDE] flex-shrink-0 mt-0.5" />
+                            <div>
+                                <p className="text-xs font-bold text-[#2B427A] mb-1">Anda belum Login</p>
+                                <p className="text-[10px] text-gray-600 leading-tight mb-2">
+                                    Tiket akan dikirim <strong>via Email saja</strong>. Agar tiket tersimpan aman di Dashboard, silakan login.
+                                </p>
+                                <Link to="/login" className="text-[10px] font-black text-[#0B1CDE] underline uppercase flex items-center gap-1">
+                                    <LogIn className="w-3 h-3"/> Login Sekarang
+                                </Link>
                             </div>
                         </div>
                     )}
 
-                    <div>
-                      <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Bukti Pembayaran</label>
-                      <div className="border-2 border-dashed border-[#2B427A]/30 rounded-lg p-4 text-center hover:bg-[#F0F9FF] cursor-pointer relative">
-                           <input type="file" required onChange={e=>setProofFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
-                           <div className="text-xs font-bold text-gray-500 break-words flex flex-col items-center gap-2">
-                               <Upload className="w-5 h-5 text-[#0B1CDE]" />
-                               {proofFile ? proofFile.name : "Klik Upload File"}
-                           </div>
-                      </div>
-                    </div>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {error && <div className="bg-red-50 text-red-600 p-3 rounded text-sm font-bold flex gap-2"><AlertCircle className="w-4 h-4"/> {error}</div>}
+                        
+                        <div>
+                        <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Nama Lengkap</label>
+                        <div className="relative">
+                            <User className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                            <input type="text" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" />
+                        </div>
+                        <p className="text-[10px] text-orange-600 mt-1 font-bold flex items-center gap-1 bg-orange-50 p-1.5 rounded border border-orange-100">
+                            <Info className="w-3 h-3 flex-shrink-0"/>
+                            *Nama ini akan digunakan untuk sertifikat. Pastikan ejaan & gelar benar.
+                        </p>
+                        </div>
+                        <div>
+                        <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Email</label>
+                        <div className="relative">
+                            <Mail className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                            <input 
+                                type="email" 
+                                required 
+                                value={formData.email} 
+                                readOnly={!!userSession} // Lock email if logged in
+                                onChange={e=>setFormData({...formData, email:e.target.value})} 
+                                className={`w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold outline-none text-sm text-[#2B427A] ${userSession ? 'bg-gray-100 cursor-not-allowed text-gray-500' : 'bg-white focus:border-[#0B1CDE]'}`} 
+                            />
+                        </div>
+                        {userSession && (
+                            <p className="text-[10px] text-gray-400 mt-1 italic">Email otomatis terisi sesuai akun login.</p>
+                        )}
+                        </div>
 
-                    <button 
-                      type="submit"
-                      disabled={registering} 
-                      className={`w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg transition-all flex items-center justify-center gap-3
-                        ${registering 
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-2 border-gray-300' 
-                          : 'bg-[#0B1CDE] text-white border-2 border-[#0B1CDE] hover:bg-[#DFFF00] hover:text-[#2B427A] hover:border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_#2B427A]'
-                        }`}
-                    >
-                      {registering ? (
-                        <>
-                          <Loader className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
-                          PROSES...
-                        </>
-                      ) : (
-                         <>
-                           DAFTAR SEKARANG <Rocket className="w-4 h-4 md:w-5 md:h-5" />
-                         </>
-                      )}
-                    </button>
-                  </form>
+                        {event.formFields?.map(field => (
+                            <div key={field.id}>
+                                <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">{field.label}</label>
+                                <div className="relative">
+                                    <div className="absolute left-3 top-3 w-4 h-4 text-gray-400 pointer-events-none">
+                                    {field.type === 'select' ? <Tag className="w-4 h-4"/> : <Edit3 className="w-4 h-4"/>}
+                                    </div>
+                                    {field.type === 'select' ? (
+                                        <select required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none bg-white text-sm text-[#2B427A]">
+                                            <option value="">Pilih...</option>
+                                            {field.options?.map(opt=><option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                    ) : field.type === 'textarea' ? (
+                                        <textarea required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" rows={3}></textarea>
+                                    ) : (
+                                        <input type={field.type} required={field.required} onChange={e=>setFormData({...formData, [field.label]: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg pl-10 pr-3 py-2.5 font-bold focus:border-[#0B1CDE] outline-none text-sm text-[#2B427A]" placeholder={field.placeholder} />
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        {event.price > 0 && paymentSettings && (
+                            <div className="bg-[#F0F9FF] p-4 rounded-lg border border-blue-200 text-sm">
+                                <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2 text-xs md:text-sm">
+                                    <i className="fi fi-bs-money-bill-wave flex text-base"></i> Transfer Pembayaran
+                                </h4>
+                                
+                                <div className="space-y-4">
+                                    {paymentSettings.bankAccounts.map((acc, idx) => (
+                                        <div key={idx} className="bg-white p-3 rounded border border-blue-100 shadow-sm relative group">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <p className="font-black text-[#2B427A] uppercase text-xs">{acc.bankName}</p>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => handleCopy(acc.accountNumber, "No. Rekening")} 
+                                                    title="Salin No. Rek" 
+                                                    className="hover:scale-110 transition-transform bg-transparent border-none p-1 rounded hover:bg-gray-100 text-[#0B1CDE] flex items-center gap-1"
+                                                >
+                                                    <span className="text-[10px] font-bold hidden group-hover:block">SALIN</span>
+                                                    <Copy className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                            <div className="font-mono bg-gray-50 px-2 py-1 rounded text-[#0B1CDE] font-bold text-base tracking-wide border border-gray-100 mb-1 select-all break-all cursor-pointer hover:bg-blue-50 transition-colors" onClick={() => handleCopy(acc.accountNumber, "No. Rekening")}>
+                                                {acc.accountNumber}
+                                            </div>
+                                            <p className="text-[10px] md:text-xs text-gray-500 font-medium">a.n {acc.accountHolder}</p>
+                                        </div>
+                                    ))}
+
+                                    {paymentSettings.qrisUrl && (
+                                        <div className="mt-4 pt-3 border-t border-blue-100">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="font-bold text-xs text-[#2B427A] uppercase flex items-center gap-2">
+                                                    <QrCode className="w-4 h-4"/> Scan QRIS:
+                                                </p>
+                                            </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setShowQrisModal(true)}
+                                                className="w-full bg-white border-2 border-dashed border-[#2B427A] p-3 rounded-xl flex items-center justify-between hover:bg-[#DFFF00]/20 transition-all group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-gray-100 rounded border border-gray-300 overflow-hidden">
+                                                        <img src={paymentSettings.qrisUrl} alt="Mini QR" className="w-full h-full object-cover opacity-50" />
+                                                    </div>
+                                                    <span className="font-black text-[#2B427A] text-sm group-hover:underline decoration-2 underline-offset-2">LIHAT QRIS (SCAN)</span>
+                                                </div>
+                                                <Maximize2 className="w-5 h-5 text-[#2B427A]" />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div>
+                        <label className="text-xs font-black text-[#2B427A] uppercase mb-1 block">Bukti Pembayaran</label>
+                        <div className="border-2 border-dashed border-[#2B427A]/30 rounded-lg p-4 text-center hover:bg-[#F0F9FF] cursor-pointer relative">
+                            <input type="file" required onChange={e=>setProofFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                            <div className="text-xs font-bold text-gray-500 break-words flex flex-col items-center gap-2">
+                                <Upload className="w-5 h-5 text-[#0B1CDE]" />
+                                {proofFile ? proofFile.name : "Klik Upload File"}
+                            </div>
+                        </div>
+                        </div>
+
+                        <button 
+                        type="submit"
+                        disabled={registering} 
+                        className={`w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg transition-all flex items-center justify-center gap-3
+                            ${registering 
+                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed border-2 border-gray-300' 
+                            : 'bg-[#0B1CDE] text-white border-2 border-[#0B1CDE] hover:bg-[#DFFF00] hover:text-[#2B427A] hover:border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-0.5 hover:shadow-[2px_2px_0px_0px_#2B427A]'
+                            }`}
+                        >
+                        {registering ? (
+                            <>
+                            <Loader className="w-5 h-5 md:w-6 md:h-6 animate-spin" />
+                            PROSES...
+                            </>
+                        ) : (
+                            <>
+                            DAFTAR SEKARANG <Rocket className="w-4 h-4 md:w-5 md:h-5" />
+                            </>
+                        )}
+                        </button>
+                    </form>
+                  </>
               )}
             </div>
           </div>

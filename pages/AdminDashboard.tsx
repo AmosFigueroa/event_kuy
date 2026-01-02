@@ -26,7 +26,7 @@ const AdminDashboard: React.FC = () => {
   const [toast, setToast] = useState<{show: boolean, msg: string}>({show: false, msg: ''});
 
   // Proof Viewer & AI Analysis State
-  const [viewingProof, setViewingProof] = useState<Registration | null>(null); // Changed to store full object
+  const [viewingProof, setViewingProof] = useState<Registration | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<PaymentAnalysisResult | null>(null);
 
@@ -121,6 +121,13 @@ const AdminDashboard: React.FC = () => {
     }
   }, [navigate]);
 
+  // AUTO AI TRIGGER
+  useEffect(() => {
+    if (viewingProof && viewingProof.proofUrl && !aiResult && !isAnalyzing) {
+        handleAiAnalysis();
+    }
+  }, [viewingProof]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -182,113 +189,106 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
-  // ... (Keep existing Certificate Designer Logic, Canvas Handlers, etc.)
-  const getCurrentCertElements = (isWizard: boolean) => {
-      if (isWizard) return newEvent.certificateConfig?.elements || [];
-      return certSettings.elements || [];
-  };
-
-  const updateCertElement = (isWizard: boolean, id: string, updates: Partial<CertificateElement>) => {
-      if (isWizard) {
-           const current = newEvent.certificateConfig || { backgroundUrl: '', elements: [] };
-           const updatedEls = current.elements.map(el => el.id === id ? { ...el, ...updates } : el);
-           setNewEvent({ ...newEvent, certificateConfig: { ...current, elements: updatedEls }});
-      } else {
-           const updatedEls = certSettings.elements.map(el => el.id === id ? { ...el, ...updates } : el);
-           setCertSettings({ ...certSettings, elements: updatedEls });
+  const handleStatusUpdate = async (id: string, status: RegistrationStatus) => {
+      try {
+          await updateRegistrationStatus(id, status);
+          setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+          if (viewingProof?.id === id) {
+               setViewingProof(null); // Close modal
+          }
+          setToast({ show: true, msg: `Status diperbarui menjadi ${status}` });
+          setTimeout(() => setToast({show: false, msg: ''}), 3000);
+      } catch (error: any) {
+          showAlert('error', 'Gagal', error.message);
       }
   };
 
-  const addCertElement = (isWizard: boolean, type: 'text' | 'dynamic' | 'image', field: string, label: string) => {
-      const isImage = type === 'image';
-      const newEl: CertificateElement = {
-          id: Date.now().toString(),
-          type,
-          field,
-          label: label || 'Element',
-          x: CANVAS_WIDTH / 2, 
-          y: CANVAS_HEIGHT / 2,
-          fontSize: isImage ? undefined : 24,
-          fontFamily: isImage ? undefined : 'Helvetica',
-          color: isImage ? undefined : '#000000',
-          fontWeight: isImage ? undefined : 'bold',
-          align: isImage ? undefined : 'center',
-          textTransform: 'none',
-          width: isImage ? 150 : 400,
-          strokeWidth: 0,
-          strokeColor: '#FFFFFF'
-      };
-      
-      if (isWizard) {
-          const current = newEvent.certificateConfig || { backgroundUrl: '', elements: [] };
-          setNewEvent({ ...newEvent, certificateConfig: { ...current, elements: [...current.elements, newEl] } });
-      } else {
-          setCertSettings({ ...certSettings, elements: [...certSettings.elements, newEl] });
-      }
-      setActiveElementId(newEl.id);
-  };
-
-  const removeCertElement = (isWizard: boolean, id: string) => {
-      if (isWizard) {
-           const current = newEvent.certificateConfig || { backgroundUrl: '', elements: [] };
-           const updated = current.elements.filter(el => el.id !== id);
-           setNewEvent({ ...newEvent, certificateConfig: { ...current, elements: updated } });
-      } else {
-           const updated = certSettings.elements.filter(el => el.id !== id);
-           setCertSettings({ ...certSettings, elements: updated });
-      }
-      setActiveElementId(null);
-  };
-
-  const handleCanvasMouseDown = (e: React.MouseEvent, id: string, isWizard: boolean) => {
-      e.stopPropagation();
-      setActiveElementId(id);
-      
-      const elements = getCurrentCertElements(isWizard);
-      const el = elements.find(e => e.id === id);
-      if (el) {
-          setDragStart({ x: e.clientX, y: e.clientY });
-          setInitialPos({ x: el.x, y: el.y });
+  const handleExportData = async () => {
+      setExportLoading(true);
+      try {
+          const csvString = await fetchParticipantsCsv(selectedEventFilter);
+          const blob = new Blob([csvString], { type: 'text/csv' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `participants_export_${new Date().toISOString()}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+          setShowExportModal(false);
+      } catch (e: any) {
+          showAlert('error', 'Gagal', 'Gagal mengunduh CSV.');
+      } finally {
+          setExportLoading(false);
       }
   };
 
-  const handleCanvasMouseMove = (e: React.MouseEvent, isWizard: boolean) => {
-      if (activeElementId && dragStart && initialPos) {
-          const dx = e.clientX - dragStart.x;
-          const dy = e.clientY - dragStart.y;
-          
-          updateCertElement(isWizard, activeElementId, {
-              x: initialPos.x + dx,
-              y: initialPos.y + dy
-          });
+  const handleSaveCertSettings = async () => {
+      setSavingCertSettings(true);
+      try {
+           let bgBase64 = undefined;
+          if (certTemplateFile) {
+              bgBase64 = await new Promise<string>((resolve) => {
+                 const reader = new FileReader();
+                 reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                 reader.readAsDataURL(certTemplateFile);
+             });
+          }
+          await saveCertificateSettings(certSettings, bgBase64);
+          showAlert('success', 'Tersimpan', 'Template sertifikat default disimpan.');
+      } catch (e: any) {
+          showAlert('error', 'Gagal', e.message);
+      } finally {
+          setSavingCertSettings(false);
       }
   };
 
-  const handleCanvasMouseUp = () => {
-      setDragStart(null);
-      setInitialPos(null);
+  const handleSavePaymentSettings = async () => {
+      setSavingPayment(true);
+      try {
+          let qrisBase64 = undefined;
+          if (qrisFile) {
+              qrisBase64 = await new Promise<string>((resolve) => {
+                 const reader = new FileReader();
+                 reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                 reader.readAsDataURL(qrisFile);
+             });
+          }
+          await savePaymentSettings(paymentSettings, qrisBase64);
+          showAlert('success', 'Tersimpan', 'Pengaturan pembayaran berhasil disimpan.');
+      } catch (e: any) {
+          showAlert('error', 'Gagal', e.message);
+      } finally {
+          setSavingPayment(false);
+      }
   };
 
-  // --- EVENT HANDLERS ---
-  const handleGenerateDescription = async () => {
-    if (!newEvent.title || !newEvent.category) {
-        showAlert('error', 'Info Kurang', 'Mohon isi Judul dan Kategori terlebih dahulu.');
-        return;
-    }
-    setGeneratingDesc(true);
-    try {
-        const desc = await generateEventDescription(newEvent.title, newEvent.category, newEvent.location || "");
-        setNewEvent(prev => ({ ...prev, description: desc }));
-    } catch (error: any) {
-        showAlert('error', 'AI Error', error.message);
-    } finally {
-        setGeneratingDesc(false);
-    }
+  const resetWizard = () => {
+    setNewEvent({
+      category: EventCategory.SEMINAR,
+      price: 0,
+      maxParticipants: 100,
+      formFields: [],
+      time: '09:00',
+      certificateConfig: { backgroundUrl: '', elements: [] },
+      enableTicketScanner: false
+    });
+    setBannerFile(null);
+    setBannerPreview(null);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setCertBgFile(null);
+    setCertBgPreview(null);
+    setIsCustomCat(false);
+    setCustomCategory('');
+    setWizardStep(1);
+    setEditingId(null);
   };
 
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+    const file = e.target.files?.[0];
+    if (file) {
       setBannerFile(file);
       const reader = new FileReader();
       reader.onload = (ev) => setBannerPreview(ev.target?.result as string);
@@ -297,8 +297,8 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+    const file = e.target.files?.[0];
+    if (file) {
       setThumbnailFile(file);
       const reader = new FileReader();
       reader.onload = (ev) => setThumbnailPreview(ev.target?.result as string);
@@ -306,315 +306,349 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleCertBgChange = (e: React.ChangeEvent<HTMLInputElement>, isWizard: boolean) => {
-      if (e.target.files && e.target.files[0]) {
-          const file = e.target.files[0];
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-              const res = ev.target?.result as string;
-              if (isWizard) {
-                  setCertBgFile(file);
-                  setCertBgPreview(res);
-                  const current = newEvent.certificateConfig || { backgroundUrl: '', elements: [] };
-                  setNewEvent({ ...newEvent, certificateConfig: { ...current, backgroundUrl: res } });
-              } else {
-                  setCertTemplateFile(file);
-                  setCertSettingsBgPreview(res);
-                  setCertSettings({ ...certSettings, backgroundUrl: res });
-              }
-          };
-          reader.readAsDataURL(file);
-      }
+  const handleGenerateDescription = async () => {
+    if (!newEvent.title || !newEvent.category) {
+        showAlert('error', 'Error', 'Mohon isi Judul dan Kategori terlebih dahulu.');
+        return;
+    }
+    setGeneratingDesc(true);
+    try {
+        const desc = await generateEventDescription(
+            newEvent.title, 
+            isCustomCat ? customCategory : newEvent.category || '', 
+            `Lokasi: ${newEvent.location || '-'}, Waktu: ${newEvent.time || '-'}`
+        );
+        setNewEvent(prev => ({ ...prev, description: desc }));
+    } catch (e: any) {
+        showAlert('error', 'AI Error', e.message);
+    } finally {
+        setGeneratingDesc(false);
+    }
+  };
+
+  const addFormField = () => {
+    setNewEvent(prev => ({
+        ...prev,
+        formFields: [...(prev.formFields || []), { id: Date.now().toString(), label: '', type: 'text', required: true, options: [] }]
+    }));
+  };
+
+  const updateFormField = (index: number, updates: Partial<FormField>) => {
+    const fields = [...(newEvent.formFields || [])];
+    fields[index] = { ...fields[index], ...updates };
+    setNewEvent(prev => ({ ...prev, formFields: fields }));
+  };
+
+  const removeFormField = (index: number) => {
+    const fields = [...(newEvent.formFields || [])];
+    fields.splice(index, 1);
+    setNewEvent(prev => ({ ...prev, formFields: fields }));
   };
 
   const handleCreateOrUpdateEvent = async () => {
-    if (!newEvent.title || !newEvent.date) { showAlert('error', 'Validasi', "Judul dan tanggal wajib."); return; }
-    setIsSubmittingEvent(true);
-    const readFile = (file: File): Promise<string> => new Promise((resolve) => { const r = new FileReader(); r.readAsDataURL(file); r.onload = () => resolve((r.result as string).split(',')[1]); });
-    try {
-        const bannerB64 = bannerFile ? await readFile(bannerFile) : undefined;
-        const thumbnailB64 = thumbnailFile ? await readFile(thumbnailFile) : undefined;
-        const certBgB64 = certBgFile ? await readFile(certBgFile) : undefined;
-        const finalData = { ...newEvent, category: isCustomCat ? customCategory : newEvent.category };
-        
-        if (editingId) await updateEvent({ ...finalData, id: editingId } as any, bannerB64, certBgB64, thumbnailB64);
-        else await createEvent(finalData as any, bannerB64, certBgB64, thumbnailB64);
-        
-        setShowCreateModal(false); resetWizard(); loadData(); showAlert('success', 'Sukses', "Acara disimpan.");
-    } catch(e: any) { showAlert('error', 'Gagal', e.message); } finally { setIsSubmittingEvent(false); }
-  };
-
-  const resetWizard = () => {
-      setWizardStep(1); setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [], time: '09:00', certificateConfig: { backgroundUrl: '', elements: [] }, enableTicketScanner: false });
-      setBannerFile(null); setBannerPreview(null); 
-      setThumbnailFile(null); setThumbnailPreview(null);
-      setCertBgFile(null); setCertBgPreview(null); setEditingId(null);
-  };
-
-  const handleEditClick = (event: Event) => {
-      setEditingId(event.id);
-      setNewEvent({ ...event, date: new Date(event.date).toISOString().split('T')[0] });
-      setBannerPreview(event.bannerUrl);
-      setThumbnailPreview(event.thumbnailUrl || null);
-      if(event.certificateConfig?.backgroundUrl) {
-          setCertBgPreview(event.certificateConfig.backgroundUrl);
-      }
-      setShowCreateModal(true);
-  };
-  
-  const handleDeleteEvent = async (id: string) => { showConfirm('Hapus?', "Yakin?", async () => { await deleteEvent(id); loadData(); }, "HAPUS"); };
-  const handleToggleStatus = async (id: string, currentStatus: boolean) => { 
+      setIsSubmittingEvent(true);
       try {
-          const res = await toggleEventStatus(id);
-          setEvents(events.map(e => e.id === id ? { ...e, isOpen: res.isOpen } : e));
-      } catch (e: any) { showAlert('error', 'Error', e.message); }
-  };
-  
-  const handleCopyScannerLink = (eventId: string) => {
-      const link = `${window.location.origin}${window.location.pathname}#/scanner/${eventId}`;
-      navigator.clipboard.writeText(link);
-      setToast({ show: true, msg: 'Link Scanner Disalin!' });
-      setTimeout(() => setToast({show: false, msg: ''}), 3000);
-  };
-
-  const handleExportData = async () => {
-      if (!selectedEventFilter) return; 
-      setExportLoading(true);
-      try {
-          const res = await fetchParticipantsCsv(selectedEventFilter);
-          const link = document.createElement("a");
-          link.href = `data:text/csv;base64,${res.csv}`;
-          link.download = res.filename;
-          link.click();
-          setShowExportModal(false);
-          showAlert('success', 'Unduhan Mulai', "File CSV sedang diunduh.");
-      } catch(e: any) {
-          showAlert('error', 'Gagal', e.message);
-      } finally {
-          setExportLoading(false);
-      }
-  };
-
-  const handleSavePaymentSettings = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setSavingPayment(true);
-      try {
-          let qrisBase64 = undefined;
-          if (qrisFile) {
-              const reader = new FileReader();
-              qrisBase64 = await new Promise((resolve) => {
-                  reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
-                  reader.readAsDataURL(qrisFile);
-              });
+          // Prepare Base64s
+          let bannerBase64 = undefined;
+          if (bannerFile) {
+             bannerBase64 = await new Promise<string>((resolve) => {
+                 const reader = new FileReader();
+                 reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                 reader.readAsDataURL(bannerFile);
+             });
           }
-          await savePaymentSettings(paymentSettings, qrisBase64 as string);
-          showAlert('success', 'Tersimpan', "Pengaturan pembayaran diperbarui.");
+
+          let thumbnailBase64 = undefined;
+          if (thumbnailFile) {
+             thumbnailBase64 = await new Promise<string>((resolve) => {
+                 const reader = new FileReader();
+                 reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                 reader.readAsDataURL(thumbnailFile);
+             });
+          }
+
+          let certBgBase64 = undefined;
+          if (certBgFile) {
+              certBgBase64 = await new Promise<string>((resolve) => {
+                 const reader = new FileReader();
+                 reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]);
+                 reader.readAsDataURL(certBgFile);
+             });
+          }
+
+          const eventPayload = {
+              ...newEvent,
+              category: isCustomCat ? customCategory : newEvent.category
+          };
+
+          if (editingId) {
+              await updateEvent({ ...eventPayload, id: editingId }, bannerBase64, certBgBase64, thumbnailBase64);
+              showAlert('success', 'Berhasil', 'Acara berhasil diperbarui.');
+          } else {
+              await createEvent(eventPayload, bannerBase64 || '', certBgBase64, thumbnailBase64);
+              showAlert('success', 'Berhasil', 'Acara berhasil dibuat.');
+          }
+          setShowCreateModal(false);
+          loadData();
       } catch (e: any) {
           showAlert('error', 'Gagal', e.message);
       } finally {
-          setSavingPayment(false);
+          setIsSubmittingEvent(false);
       }
   };
 
-  const handleSaveCertSettings = async () => {
-      setSavingCertSettings(true);
-      try {
-          let templateBase64 = undefined;
-          if (certTemplateFile) {
-              const reader = new FileReader();
-              templateBase64 = await new Promise((resolve) => {
-                  reader.onload = (ev) => resolve((ev.target?.result as string).split(',')[1]);
-                  reader.readAsDataURL(certTemplateFile);
-              });
+  const renderDesigner = (isEventSpecific: boolean) => {
+      const currentConfig = isEventSpecific ? newEvent.certificateConfig : certSettings;
+      const elements = currentConfig?.elements || [];
+      const bgUrl = isEventSpecific ? (certBgPreview || currentConfig?.backgroundUrl) : (certSettingsBgPreview || currentConfig?.backgroundUrl);
+
+      const updateConfig = (newElements: CertificateElement[]) => {
+          if (isEventSpecific) {
+              setNewEvent(prev => ({ ...prev, certificateConfig: { ...prev.certificateConfig!, elements: newElements } }));
+          } else {
+              setCertSettings(prev => ({ ...prev, elements: newElements }));
           }
-          await saveCertificateSettings(certSettings, templateBase64 as string);
-          showAlert('success', 'Tersimpan', "Template sertifikat default diperbarui.");
-      } catch (e: any) {
-          showAlert('error', 'Gagal', e.message);
-      } finally {
-          setSavingCertSettings(false);
-      }
-  };
-  
-  const handleStatusUpdate = async (id: string, status: RegistrationStatus) => {
-    try { 
-        await updateRegistrationStatus(id, status); 
-        setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r)); 
-        if (viewingProof) {
-            setViewingProof(null); // Close modal if open
-            setAiResult(null);
-        }
-        showAlert('success', 'Berhasil', `Status diubah menjadi ${status}`);
-    } catch (e) { showAlert('error', 'Gagal', "Gagal update status"); }
-  };
+      };
 
-  const handleSendCertificate = async (id: string) => { 
-      setProcessingCert(id);
-      try {
-          await sendCertificate(id);
-          showAlert('success', 'Terkirim', 'Sertifikat telah dikirim ke email peserta.');
-      } catch(e: any) {
-          showAlert('error', 'Gagal', e.message);
-      } finally {
-          setProcessingCert(null);
-      }
-  };
-  const handleBulkSend = async () => { 
-      if (!window.confirm("Kirim sertifikat ke semua peserta yang disetujui untuk acara ini?")) return;
-      setIsBulkSending(true);
-      try {
-          const approved = registrations.filter(r => r.eventId === selectedEventFilter && r.status === RegistrationStatus.APPROVED);
-          const ids = approved.map(r => r.id);
-          const res = await sendBulkCertificates(ids);
-          showAlert('success', 'Selesai', `Berhasil kirim: ${res.sent}, Gagal: ${res.failed}`);
-      } catch(e: any) {
-          showAlert('error', 'Gagal', e.message);
-      } finally {
-          setIsBulkSending(false);
-      }
-  };
+      const handleAddElement = (type: 'text'|'dynamic'|'image') => {
+          const newEl: CertificateElement = {
+              id: Date.now().toString(),
+              type,
+              field: type === 'dynamic' ? 'userName' : (type === 'text' ? 'Teks Baru' : 'https://via.placeholder.com/100'),
+              label: 'Element Baru',
+              x: 421, // Center of A4 width (842)
+              y: 297, // Center of A4 height (595)
+              fontSize: 24,
+              fontFamily: 'Helvetica',
+              align: 'center',
+              width: type === 'image' ? 100 : undefined,
+              color: '#000000',
+              fontWeight: 'bold'
+          };
+          updateConfig([...elements, newEl]);
+          setActiveElementId(newEl.id);
+      };
 
-  // ... (Keep renderElementToolbar, renderCanvasElement, renderDesigner, renderEventsList, etc.)
-  const renderElementToolbar = (activeId: string | null, isWizard: boolean) => {
-      // ... (Same implementation as provided previously - Omitted for brevity as it's UI logic only)
-      if (!activeId) return <div className="text-gray-400 text-sm text-center italic mt-10">Pilih elemen di kanvas untuk mengedit properti</div>;
-      const elements = getCurrentCertElements(isWizard);
-      const el = elements.find(e => e.id === activeId);
-      if (!el) return null;
-      const isImage = el.type === 'image';
+      const handleMouseDown = (e: React.MouseEvent, id: string) => {
+         setActiveElementId(id);
+         setDragStart({ x: e.clientX, y: e.clientY });
+         const el = elements.find(el => el.id === id);
+         if (el) setInitialPos({ x: el.x, y: el.y });
+      };
+
+      const handleMouseMove = (e: React.MouseEvent) => {
+          if (dragStart && activeElementId && initialPos) {
+              const dx = e.clientX - dragStart.x;
+              const dy = e.clientY - dragStart.y;
+              const updated = elements.map(el => el.id === activeElementId ? { ...el, x: initialPos.x + dx, y: initialPos.y + dy } : el);
+              updateConfig(updated);
+          }
+      };
+
+      const handleMouseUp = () => {
+          setDragStart(null);
+          setInitialPos(null);
+      };
+
+      const activeElement = elements.find(el => el.id === activeElementId);
+
       return (
-          <div className="space-y-4 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-gray-200 pb-2">
-                  <h4 className="font-bold text-[#2B427A] text-xs uppercase">Properti Elemen</h4>
-                  <button onClick={() => removeCertElement(isWizard, activeId)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 className="w-4 h-4"/></button>
+          <div className="flex flex-col h-full">
+              <div className="flex-1 bg-gray-200 overflow-auto p-8 flex justify-center items-center relative" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+                   <div className="relative bg-white shadow-xl overflow-hidden" style={{ width: 842, height: 595 }}>
+                       {bgUrl && <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />}
+                       {elements.map(el => (
+                           <div 
+                             key={el.id} 
+                             onMouseDown={(e) => handleMouseDown(e, el.id)}
+                             className={`absolute cursor-move border hover:border-blue-500 ${activeElementId === el.id ? 'border-2 border-blue-600 z-50' : 'border-transparent z-10'}`}
+                             style={{ 
+                                 left: el.x, top: el.y, 
+                                 transform: el.align === 'center' ? 'translate(-50%, -50%)' : el.align === 'right' ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
+                                 fontSize: el.fontSize, fontFamily: el.fontFamily, color: el.color, fontWeight: el.fontWeight,
+                                 width: el.width || 'auto'
+                             }}
+                           >
+                               {el.type === 'image' ? <img src={el.field} style={{width: '100%'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
+                           </div>
+                       ))}
+                   </div>
               </div>
-              {!isImage && (
-                <>
-                  <div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Teks / Field</label>{el.type === 'text' ? (<input type="text" value={el.field} onChange={e => updateCertElement(isWizard, activeId, { field: e.target.value })} className="w-full text-xs border rounded p-2" />) : (<div className="text-xs font-bold text-[#0B1CDE] bg-blue-50 p-2 rounded">{el.field}</div>)}</div>
-                  <div className="grid grid-cols-2 gap-2"><div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Ukuran Font</label><input type="number" value={el.fontSize} onChange={e => updateCertElement(isWizard, activeId, { fontSize: Number(e.target.value) })} className="w-full text-xs border rounded p-2" /></div><div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Warna</label><input type="color" value={el.color} onChange={e => updateCertElement(isWizard, activeId, { color: e.target.value })} className="w-full h-9 border rounded p-1 cursor-pointer" /></div></div>
-                  <div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Font Weight</label><select value={el.fontWeight || 'normal'} onChange={e => updateCertElement(isWizard, activeId, { fontWeight: e.target.value as any })} className="w-full text-xs border rounded p-2"><option value="normal">Normal</option><option value="bold">Bold</option></select></div>
-                   <div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Alignment</label><div className="flex border rounded overflow-hidden"><button onClick={() => updateCertElement(isWizard, activeId, { align: 'left' })} className={`flex-1 p-2 ${el.align === 'left' ? 'bg-[#2B427A] text-white' : 'hover:bg-gray-100'}`}><AlignLeft className="w-3 h-3 mx-auto"/></button><button onClick={() => updateCertElement(isWizard, activeId, { align: 'center' })} className={`flex-1 p-2 ${el.align === 'center' ? 'bg-[#2B427A] text-white' : 'hover:bg-gray-100'}`}><AlignCenter className="w-3 h-3 mx-auto"/></button><button onClick={() => updateCertElement(isWizard, activeId, { align: 'right' })} className={`flex-1 p-2 ${el.align === 'right' ? 'bg-[#2B427A] text-white' : 'hover:bg-gray-100'}`}><AlignRight className="w-3 h-3 mx-auto"/></button></div></div>
-                </>
-              )}
-              <div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Width (px)</label><input type="number" value={el.width || 200} onChange={e => updateCertElement(isWizard, activeId, { width: Number(e.target.value) })} className="w-full text-xs border rounded p-2" /></div>
-              <div className="grid grid-cols-2 gap-2"><div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">X Pos</label><input type="number" value={Math.round(el.x)} onChange={e => updateCertElement(isWizard, activeId, { x: Number(e.target.value) })} className="w-full text-xs border rounded p-2" /></div><div><label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Y Pos</label><input type="number" value={Math.round(el.y)} onChange={e => updateCertElement(isWizard, activeId, { y: Number(e.target.value) })} className="w-full text-xs border rounded p-2" /></div></div>
-          </div>
-      );
-  };
-
-  const renderCanvasElement = (el: CertificateElement, isActive: boolean, isWizard: boolean) => {
-      // ... (Same implementation)
-      const transform = el.align === 'left' ? 'translate(0, -50%)' : el.align === 'right' ? 'translate(-100%, -50%)' : 'translate(-50%, -50%)';
-      return (
-        <div key={el.id} onMouseDown={(e) => handleCanvasMouseDown(e, el.id, isWizard)} className={`absolute select-none cursor-move hover:outline hover:outline-1 hover:outline-blue-300 ${isActive ? 'outline outline-2 outline-[#0B1CDE] z-20' : 'z-10'}`} style={{ left: el.x, top: el.y, color: el.color || '#000000', fontSize: el.type === 'image' ? undefined : `${el.fontSize}px`, fontFamily: el.fontFamily || 'Helvetica', fontWeight: el.fontWeight || 'bold', textAlign: el.align || 'center', width: el.width ? `${el.width}px` : 'auto', transform: transform, whiteSpace: el.type === 'image' ? 'normal' : 'nowrap', textTransform: el.textTransform || 'none' }}>
-            {el.type === 'image' ? (<img src={el.field} alt="element" className="w-full h-full object-contain pointer-events-none" />) : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
-        </div>
-      );
-  };
-
-  const renderDesigner = (isWizard: boolean) => {
-      // ... (Same implementation)
-      const config = isWizard ? newEvent.certificateConfig : certSettings;
-      const elements = config?.elements || [];
-      const bgUrl = isWizard ? certBgPreview : certSettingsBgPreview;
-      return (
-          <div className="flex flex-col h-[600px] border-2 border-gray-200 rounded-xl overflow-hidden bg-gray-50">
-              <div className="flex flex-1 overflow-hidden">
-                  <div className="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto flex flex-col gap-6">
-                      <div><h4 className="font-black text-[#2B427A] text-xs uppercase mb-2 flex items-center gap-2"><ImageIcon className="w-3 h-3"/> Background</h4><div className="relative border-2 border-dashed border-gray-300 rounded-lg p-3 hover:bg-gray-50 cursor-pointer text-center"><input type="file" accept="image/*" onChange={(e) => handleCertBgChange(e, isWizard)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" /><div className="text-xs font-bold text-gray-500">{bgUrl ? "Ganti Background" : "Upload Gambar"}</div></div></div>
-                      <div><h4 className="font-black text-[#2B427A] text-xs uppercase mb-2 flex items-center gap-2"><PlusSquare className="w-3 h-3"/> Tambah Elemen</h4><div className="grid grid-cols-1 gap-2"><button onClick={() => addCertElement(isWizard, 'dynamic', 'userName', 'Nama Peserta')} className="text-left px-3 py-2 text-xs font-bold bg-blue-50 text-[#0B1CDE] rounded hover:bg-blue-100 flex items-center gap-2"><Type className="w-3 h-3"/> Nama Peserta</button><button onClick={() => addCertElement(isWizard, 'dynamic', 'eventTitle', 'Judul Acara')} className="text-left px-3 py-2 text-xs font-bold bg-blue-50 text-[#0B1CDE] rounded hover:bg-blue-100 flex items-center gap-2"><Tag className="w-3 h-3"/> Judul Acara</button><button onClick={() => addCertElement(isWizard, 'dynamic', 'date', 'Tanggal')} className="text-left px-3 py-2 text-xs font-bold bg-blue-50 text-[#0B1CDE] rounded hover:bg-blue-100 flex items-center gap-2"><CalendarIcon className="w-3 h-3"/> Tanggal</button><button onClick={() => addCertElement(isWizard, 'text', 'Teks Baru', 'Teks Statis')} className="text-left px-3 py-2 text-xs font-bold bg-gray-100 text-gray-600 rounded hover:bg-gray-200 flex items-center gap-2"><Type className="w-3 h-3"/> Teks Bebas</button><button onClick={() => addCertElement(isWizard, 'dynamic', 'certificateNumber', 'Nomor Sertifikat')} className="text-left px-3 py-2 text-xs font-bold bg-blue-50 text-[#0B1CDE] rounded hover:bg-blue-100 flex items-center gap-2"><Hash className="w-3 h-3"/> No. Sertifikat</button></div></div>
-                      <div className="border-t border-gray-200 pt-4">{renderElementToolbar(activeElementId, isWizard)}</div>
-                  </div>
-                  <div className="flex-1 bg-gray-200 overflow-auto flex items-center justify-center p-8 relative" onMouseMove={(e) => handleCanvasMouseMove(e, isWizard)} onMouseUp={handleCanvasMouseUp}>
-                      <div className="bg-white shadow-2xl relative overflow-hidden" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, flexShrink: 0 }} onMouseDown={() => setActiveElementId(null)}>
-                          {bgUrl ? (<img src={bgUrl} className="w-full h-full object-cover pointer-events-none absolute inset-0 z-0" alt="bg" />) : (<div className="w-full h-full flex items-center justify-center text-gray-300 font-bold uppercase text-2xl border-2 border-dashed border-gray-300">Preview Area</div>)}
-                          {elements.map(el => renderCanvasElement(el, activeElementId === el.id, isWizard))}
-                      </div>
-                  </div>
+              <div className="h-64 bg-white border-t-2 border-gray-300 p-4 flex gap-6">
+                   <div className="w-1/4 space-y-2">
+                       <h4 className="font-bold text-gray-500 uppercase text-xs">Tambah Element</h4>
+                       <button onClick={() => handleAddElement('dynamic')} className="w-full p-2 bg-blue-100 text-blue-700 rounded text-sm font-bold flex items-center gap-2"><PlusCircle className="w-4 h-4"/> Data Dinamis</button>
+                       <button onClick={() => handleAddElement('text')} className="w-full p-2 bg-gray-100 text-gray-700 rounded text-sm font-bold flex items-center gap-2"><Type className="w-4 h-4"/> Teks Statis</button>
+                       <h4 className="font-bold text-gray-500 uppercase text-xs mt-4">Background</h4>
+                       <input type="file" onChange={(e) => {
+                           const file = e.target.files?.[0];
+                           if(file) {
+                               if (isEventSpecific) {
+                                   setCertBgFile(file);
+                                   const reader = new FileReader();
+                                   reader.onload = (ev) => setCertBgPreview(ev.target?.result as string);
+                                   reader.readAsDataURL(file);
+                               } else {
+                                   setCertTemplateFile(file);
+                                   const reader = new FileReader();
+                                   reader.onload = (ev) => setCertSettingsBgPreview(ev.target?.result as string);
+                                   reader.readAsDataURL(file);
+                               }
+                           }
+                       }} className="text-xs w-full"/>
+                   </div>
+                   <div className="flex-1 bg-gray-50 rounded-lg p-4 border border-gray-200 overflow-y-auto">
+                       {activeElement ? (
+                           <div className="grid grid-cols-3 gap-4">
+                               <div>
+                                   <label className="text-xs font-bold text-gray-400 uppercase">Konten / Field</label>
+                                   {activeElement.type === 'dynamic' ? (
+                                       <select value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-1 border rounded text-sm font-bold">
+                                           <option value="userName">Nama Peserta</option>
+                                           <option value="eventTitle">Judul Acara</option>
+                                           <option value="date">Tanggal</option>
+                                           <option value="certificateNumber">Nomor Sertifikat</option>
+                                       </select>
+                                   ) : (
+                                       <input type="text" value={activeElement.field} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, field: e.target.value } : el))} className="w-full p-1 border rounded text-sm font-bold" />
+                                   )}
+                               </div>
+                               <div>
+                                   <label className="text-xs font-bold text-gray-400 uppercase">Font Size</label>
+                                   <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-1 border rounded text-sm font-bold" />
+                               </div>
+                               <div>
+                                   <label className="text-xs font-bold text-gray-400 uppercase">Warna</label>
+                                   <input type="color" value={activeElement.color || '#000000'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, color: e.target.value } : el))} className="w-full h-8 p-0 border rounded cursor-pointer" />
+                               </div>
+                               <div>
+                                   <label className="text-xs font-bold text-gray-400 uppercase">Align</label>
+                                   <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full p-1 border rounded text-sm font-bold">
+                                       <option value="left">Kiri</option>
+                                       <option value="center">Tengah</option>
+                                       <option value="right">Kanan</option>
+                                   </select>
+                               </div>
+                               <div>
+                                    <label className="text-xs font-bold text-gray-400 uppercase">Font Weight</label>
+                                    <select value={activeElement.fontWeight || 'bold'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontWeight: e.target.value as any } : el))} className="w-full p-1 border rounded text-sm font-bold">
+                                       <option value="normal">Normal</option>
+                                       <option value="bold">Bold</option>
+                                   </select>
+                               </div>
+                               <div className="flex items-end">
+                                   <button onClick={() => {
+                                       updateConfig(elements.filter(el => el.id !== activeElementId));
+                                       setActiveElementId(null);
+                                   }} className="w-full py-2 bg-red-100 text-red-600 rounded font-bold text-sm hover:bg-red-200 flex items-center justify-center gap-2"><Trash2 className="w-4 h-4"/> Hapus</button>
+                               </div>
+                           </div>
+                       ) : (
+                           <div className="h-full flex items-center justify-center text-gray-400 font-bold text-sm">Pilih elemen di canvas untuk edit.</div>
+                       )}
+                   </div>
               </div>
           </div>
       );
   };
 
   const renderEventsList = () => (
-    // ... (Same implementation)
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center"><h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Daftar Acara</h2><button onClick={() => { resetWizard(); setShowCreateModal(true); }} className="px-5 py-2.5 bg-[#0B1CDE] text-white rounded-xl font-bold flex items-center gap-2 hover:bg-[#2B427A] transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none"><PlusCircle className="w-5 h-5"/> BUAT ACARA</button></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {events.map(event => (
-          <div key={event.id} className="bg-white rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] overflow-hidden group hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#2B427A] transition-all">
-            <div className="h-40 bg-gray-200 relative"><img src={event.bannerUrl} alt={event.title} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/400x200?text=No+Image')} /><div className={`absolute top-2 right-2 px-2 py-1 rounded text-xs font-black uppercase border-2 ${event.isOpen ? 'bg-[#DFFF00] text-[#2B427A] border-[#2B427A]' : 'bg-gray-200 text-gray-500 border-gray-400'}`}>{event.isOpen ? 'PUBLIK' : 'DRAFT'}</div></div>
-            <div className="p-5">
-               <h3 className="font-black text-[#2B427A] text-lg leading-tight mb-2 line-clamp-1" title={event.title}>{event.title}</h3>
-               <div className="space-y-1 text-sm text-gray-600 font-medium mb-4"><div className="flex items-center gap-2"><CalendarIcon className="w-4 h-4"/> {new Date(event.date).toLocaleDateString()}</div><div className="flex items-center gap-2"><UsersIcon className="w-4 h-4"/> {event.currentParticipants} / {event.maxParticipants} Peserta</div></div>
-               <div className="flex gap-2 pt-4 border-t-2 border-dashed border-gray-200 flex-wrap">
-                  <button onClick={() => handleEditClick(event)} className="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg font-bold text-xs hover:bg-blue-100 flex items-center justify-center gap-1"><Edit2 className="w-3 h-3"/> EDIT</button>
-                  <button onClick={() => handleCopyScannerLink(event.id)} title="Copy Scan Link" className="p-2 bg-purple-50 text-purple-600 rounded-lg font-bold text-xs hover:bg-purple-100"><ScanLine className="w-4 h-4"/></button>
-                  <button onClick={() => handleToggleStatus(event.id, event.isOpen)} className={`flex-1 py-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1 ${event.isOpen ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-green-50 text-green-600 hover:bg-green-100'}`}><Power className="w-3 h-3"/> {event.isOpen ? 'TUTUP' : 'BUKA'}</button>
-                  <button onClick={() => handleDeleteEvent(event.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 className="w-4 h-4"/></button>
-               </div>
-            </div>
+      <div className="grid grid-cols-1 gap-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-4">
+              <h3 className="font-black text-[#2B427A] text-2xl uppercase">Daftar Acara</h3>
+              <button onClick={() => { resetWizard(); setShowCreateModal(true); }} className="px-6 py-2 bg-[#DFFF00] text-[#2B427A] rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2">
+                  <Plus className="w-5 h-5"/> BUAT ACARA BARU
+              </button>
           </div>
-        ))}
+          {events.map(event => (
+              <div key={event.id} className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                      <h4 className="font-black text-xl text-[#2B427A] uppercase">{event.title}</h4>
+                      <p className="text-sm font-bold text-gray-500">{new Date(event.date).toLocaleDateString()} | {event.location}</p>
+                      <div className="flex gap-2 mt-2">
+                          <span className={`px-2 py-1 text-xs font-black rounded uppercase ${event.isOpen ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{event.isOpen ? 'BUKA' : 'TUTUP'}</span>
+                          <span className="px-2 py-1 text-xs font-black bg-blue-100 text-blue-700 rounded uppercase">{event.category}</span>
+                      </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                      <button onClick={() => navigate(`/scanner/${event.id}`)} className="p-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200" title="Scan Tiket"><ScanLine className="w-5 h-5"/></button>
+                      <button onClick={() => {
+                          resetWizard();
+                          setEditingId(event.id);
+                          setNewEvent(event);
+                          setBannerPreview(event.bannerUrl);
+                          setThumbnailPreview(event.thumbnailUrl);
+                          setCertBgPreview(event.certificateConfig?.backgroundUrl || null);
+                          setShowCreateModal(true);
+                      }} className="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"><Pencil className="w-5 h-5"/></button>
+                      <button onClick={() => showConfirm('Hapus Acara?', 'Yakin ingin menghapus acara ini? Data pendaftar juga akan hilang.', async () => {
+                          await deleteEvent(event.id);
+                          loadData();
+                      })} className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200"><Trash2 className="w-5 h-5"/></button>
+                      <button onClick={async () => { await toggleEventStatus(event.id); loadData(); }} className="p-2 bg-yellow-100 text-yellow-600 rounded hover:bg-yellow-200"><Power className="w-5 h-5"/></button>
+                  </div>
+              </div>
+          ))}
+          {events.length === 0 && <div className="text-center py-12 text-gray-400 font-bold">Belum ada acara.</div>}
       </div>
-    </div>
   );
 
-  // MODIFIED: renderRegistrations with Improved Action Buttons & Modal Link
   const renderRegistrations = () => {
-    const filteredRegistrations = registrations.filter(r => {
-      if (selectedEventFilter === 'ALL') return true;
-      return r.eventId === selectedEventFilter;
-    }).sort((a, b) => new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime());
-
-    const canBulkSend = selectedEventFilter !== 'ALL' && filteredRegistrations.some(r => r.status === RegistrationStatus.APPROVED);
-
-    return (
-    <div className="space-y-6 animate-fade-in relative">
-        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4"><h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Data Pendaftaran</h2><div className="flex flex-col md:flex-row items-center gap-3"><div className="flex items-center gap-2"><Filter className="w-5 h-5 text-gray-400"/><select value={selectedEventFilter} onChange={e => setSelectedEventFilter(e.target.value)} className="border-2 border-gray-200 rounded-lg px-3 py-2 font-bold text-[#2B427A] outline-none focus:border-[#0B1CDE]"><option value="ALL">Semua Acara</option>{events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}</select></div><button onClick={() => setShowExportModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-black text-xs uppercase hover:bg-green-700 transition-colors shadow-sm"><Download className="w-4 h-4"/> DOWNLOAD DATA</button><button onClick={handleBulkSend} disabled={!canBulkSend || isBulkSending} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-black text-xs uppercase border-2 transition-all shadow-sm ${canBulkSend && !isBulkSending ? 'bg-[#0B1CDE] text-white border-[#0B1CDE] hover:bg-[#2B427A] cursor-pointer' : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'}`}>{isBulkSending ? <Loader className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}{isBulkSending ? 'MENGIRIM...' : 'KIRIM SEMUA SERTIFIKAT'}</button></div></div>
-        <div className="bg-white rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] overflow-hidden">
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b-2 border-gray-100"><tr><th className="p-4 font-black text-[#2B427A] text-xs uppercase">Tanggal</th><th className="p-4 font-black text-[#2B427A] text-xs uppercase">Peserta</th><th className="p-4 font-black text-[#2B427A] text-xs uppercase">Acara</th><th className="p-4 font-black text-[#2B427A] text-xs uppercase text-center">Check-In</th><th className="p-4 font-black text-[#2B427A] text-xs uppercase text-center">Status</th><th className="p-4 font-black text-[#2B427A] text-xs uppercase text-center">Aksi</th></tr></thead>
-                    <tbody className="divide-y divide-gray-100">
-                        {filteredRegistrations.map(reg => (
-                            <tr key={reg.id} className="hover:bg-blue-50/50 transition-colors">
-                                <td className="p-4 text-sm font-bold text-gray-500">{new Date(reg.registrationDate).toLocaleDateString()}</td>
-                                <td className="p-4"><div className="font-black text-[#2B427A]">{reg.userName}</div><div className="text-xs text-gray-400">{reg.userEmail}</div></td>
-                                <td className="p-4 text-sm font-bold text-gray-600 max-w-xs truncate" title={reg.eventTitle}>{reg.eventTitle}</td>
-                                <td className="p-4 text-center">{reg.checkInStatus === 'CHECKED_IN' ? (<div className="inline-flex flex-col items-center"><span className="text-[10px] font-black text-green-600 bg-green-100 px-2 py-0.5 rounded border border-green-200 uppercase">SUDAH HADIR</span>{reg.checkInTime && <span className="text-[10px] text-gray-400">{new Date(reg.checkInTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>}</div>) : (<span className="text-[10px] font-bold text-gray-400">-</span>)}</td>
-                                <td className="p-4 text-center"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase border ${reg.status === RegistrationStatus.APPROVED ? 'bg-green-100 text-green-700 border-green-200' : reg.status === RegistrationStatus.REJECTED ? 'bg-red-100 text-red-700 border-red-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200'}`}>{reg.status}</span></td>
-                                <td className="p-4">
-                                    <div className="flex justify-center gap-2">
-                                        <button 
-                                            onClick={() => { setViewingProof(reg); setAiResult(null); }} 
-                                            title="Lihat Bukti & Aksi" 
-                                            className="p-2 bg-blue-50 text-[#0B1CDE] border border-blue-200 rounded-lg hover:bg-blue-100 hover:shadow-sm transition-all"
-                                        >
-                                            <ImageIcon className="w-5 h-5"/>
-                                        </button>
-                                        
-                                        {reg.status === RegistrationStatus.APPROVED && (
-                                            <button onClick={() => handleSendCertificate(reg.id)} disabled={processingCert === reg.id} title="Kirim Sertifikat" className="p-2 bg-[#F0F9FF] text-[#0B1CDE] rounded hover:bg-blue-100 disabled:opacity-50">
-                                                {processingCert === reg.id ? <Loader className="w-5 h-5 animate-spin"/> : <Award className="w-5 h-5"/>}
-                                            </button>
-                                        )}
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-  );
+      return (
+          <div className="animate-fade-in space-y-4">
+               <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-black text-[#2B427A] text-2xl uppercase">Data Pendaftar</h3>
+                  <div className="flex gap-2">
+                      <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-green-100 text-green-700 font-bold rounded hover:bg-green-200 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> EXPORT CSV</button>
+                  </div>
+               </div>
+               <div className="bg-white rounded-xl border-2 border-[#2B427A] overflow-hidden">
+                   <div className="overflow-x-auto">
+                       <table className="w-full text-left border-collapse">
+                           <thead>
+                               <tr className="bg-[#2B427A] text-white">
+                                   <th className="p-4 font-black uppercase text-sm">Peserta</th>
+                                   <th className="p-4 font-black uppercase text-sm">Acara</th>
+                                   <th className="p-4 font-black uppercase text-sm">Status</th>
+                                   <th className="p-4 font-black uppercase text-sm text-center">Aksi</th>
+                               </tr>
+                           </thead>
+                           <tbody>
+                               {registrations.map(reg => (
+                                   <tr key={reg.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                       <td className="p-4">
+                                           <div className="font-bold text-[#2B427A]">{reg.userName}</div>
+                                           <div className="text-xs text-gray-500">{reg.userEmail}</div>
+                                       </td>
+                                       <td className="p-4 text-sm font-medium text-gray-600">{reg.eventTitle}</td>
+                                       <td className="p-4">
+                                           <span className={`px-2 py-1 rounded text-xs font-black uppercase ${
+                                               reg.status === RegistrationStatus.APPROVED ? 'bg-green-100 text-green-700' :
+                                               reg.status === RegistrationStatus.REJECTED ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                                           }`}>{reg.status}</span>
+                                       </td>
+                                       <td className="p-4 flex justify-center gap-2">
+                                           <button onClick={() => setViewingProof(reg)} className="p-2 text-blue-600 bg-blue-50 rounded hover:bg-blue-100" title="Lihat Bukti"><Eye className="w-4 h-4"/></button>
+                                           {reg.status === RegistrationStatus.APPROVED && (
+                                               <button onClick={async () => {
+                                                   if(confirm("Kirim sertifikat ke peserta ini?")) {
+                                                       await sendCertificate(reg.id);
+                                                       alert("Sertifikat dikirim");
+                                                   }
+                                               }} className="p-2 text-purple-600 bg-purple-50 rounded hover:bg-purple-100" title="Kirim Sertifikat"><Award className="w-4 h-4"/></button>
+                                           )}
+                                       </td>
+                                   </tr>
+                               ))}
+                           </tbody>
+                       </table>
+                   </div>
+                   {registrations.length === 0 && <div className="p-8 text-center text-gray-400 font-bold">Belum ada pendaftar.</div>}
+               </div>
+          </div>
+      );
   };
 
-  const addFormField = () => { setNewEvent({...newEvent, formFields: [...(newEvent.formFields || []), { id: Date.now().toString(), label: '', type: 'text', required: false }]}); };
-  const updateFormField = (index: number, field: Partial<FormField>) => { const u = [...(newEvent.formFields || [])]; u[index] = { ...u[index], ...field }; setNewEvent({...newEvent, formFields: u}); };
-  const removeFormField = (index: number) => { const u = [...(newEvent.formFields || [])]; u.splice(index, 1); setNewEvent({...newEvent, formFields: u}); };
-  
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans relative">
       <CustomAlert isOpen={alertState.isOpen} type={alertState.type} title={alertState.title} message={alertState.message} onClose={closeAlert} onConfirm={alertState.onConfirm} confirmText={alertState.confirmText}/>
@@ -624,10 +658,16 @@ const AdminDashboard: React.FC = () => {
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setViewingProof(null)}>
               <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
                   
-                  {/* Left: Image */}
-                  <div className="w-full md:w-1/2 bg-gray-900 flex items-center justify-center p-4 relative">
-                      <img src={viewingProof.proofUrl} className="max-w-full max-h-[60vh] md:max-h-full object-contain rounded" alt="Bukti Pembayaran" />
-                      <a href={viewingProof.proofUrl} target="_blank" rel="noopener noreferrer" className="absolute top-4 right-4 bg-white/20 p-2 rounded-full hover:bg-white/40 text-white"><ExternalLink className="w-5 h-5"/></a>
+                  {/* Left: Image - UPDATED FOR STABILITY */}
+                  <div className="w-full md:w-1/2 bg-gray-900 flex items-center justify-center p-4 relative bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
+                      <img 
+                        src={viewingProof.proofUrl} 
+                        className="max-w-full max-h-[60vh] md:max-h-full object-contain rounded shadow-2xl border border-gray-700" 
+                        alt="Bukti Pembayaran" 
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
+                      />
+                      <a href={viewingProof.proofUrl} target="_blank" rel="noopener noreferrer" className="absolute top-4 right-4 bg-white/20 p-2 rounded-full hover:bg-white/40 text-white backdrop-blur-sm transition-colors" title="Buka Asli"><ExternalLink className="w-5 h-5"/></a>
                   </div>
 
                   {/* Right: Actions */}
@@ -641,24 +681,21 @@ const AdminDashboard: React.FC = () => {
                       </div>
 
                       <div className="space-y-6 flex-1">
-                          {/* AI Section */}
-                          <div className="bg-gradient-to-r from-blue-50 to-[#F0F9FF] p-5 rounded-xl border border-blue-100">
-                              <div className="flex justify-between items-center mb-3">
-                                  <h4 className="font-black text-[#0B1CDE] flex items-center gap-2"><Sparkles className="w-4 h-4"/> AI Check</h4>
-                                  {!aiResult && (
-                                      <button 
-                                        onClick={handleAiAnalysis} 
-                                        disabled={isAnalyzing}
-                                        className="text-xs font-bold bg-[#0B1CDE] text-white px-3 py-1.5 rounded-lg hover:bg-[#2B427A] disabled:opacity-50 flex items-center gap-1"
-                                      >
-                                          {isAnalyzing ? <Loader className="w-3 h-3 animate-spin"/> : <Bot className="w-3 h-3"/>}
-                                          {isAnalyzing ? 'Menganalisis...' : 'Analisa Otomatis'}
-                                      </button>
+                          {/* AI Section - AUTOMATIC */}
+                          <div className="bg-gradient-to-r from-blue-50 to-[#F0F9FF] p-5 rounded-xl border border-blue-100 relative overflow-hidden">
+                              <div className="flex justify-between items-center mb-3 relative z-10">
+                                  <h4 className="font-black text-[#0B1CDE] flex items-center gap-2">
+                                      <Sparkles className="w-4 h-4"/> AI Auto Check
+                                  </h4>
+                                  {isAnalyzing && (
+                                      <span className="text-xs font-bold text-[#0B1CDE] bg-white px-2 py-1 rounded-lg animate-pulse flex items-center gap-1">
+                                          <Loader className="w-3 h-3 animate-spin"/> Menganalisis...
+                                      </span>
                                   )}
                               </div>
                               
                               {aiResult ? (
-                                  <div className="animate-fade-in">
+                                  <div className="animate-fade-in relative z-10">
                                       <div className={`p-3 rounded-lg border-l-4 mb-3 ${aiResult.isValid ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
                                           <div className="flex items-center gap-2 font-bold mb-1">
                                               {aiResult.isValid ? <CheckCircle className="w-4 h-4 text-green-600"/> : <XCircle className="w-4 h-4 text-red-600"/>}
@@ -674,7 +711,9 @@ const AdminDashboard: React.FC = () => {
                                       </div>
                                   </div>
                               ) : (
-                                  <p className="text-xs text-gray-500 italic">Klik tombol untuk membiarkan AI mengecek keaslian bukti transfer.</p>
+                                  <div className="text-xs text-gray-500 italic py-4 text-center">
+                                      {isAnalyzing ? "Sistem sedang membaca gambar bukti pembayaran..." : "Menunggu hasil analisis..."}
+                                  </div>
                               )}
                           </div>
 
@@ -717,7 +756,6 @@ const AdminDashboard: React.FC = () => {
 
       {/* EXPORT MODAL */}
       {showExportModal && (
-          // ... (Existing modal)
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowExportModal(false)}>
               <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
                   <h3 className="font-black text-[#2B427A] text-lg uppercase mb-4">Export Data Peserta</h3>
@@ -745,12 +783,11 @@ const AdminDashboard: React.FC = () => {
         </nav>
       </aside>
 
+      {/* Main Content Area */}
       <main className="flex-1 p-8 md:p-12 overflow-y-auto">
         {loading && <div className="mb-6 bg-[#DFFF00] text-[#2B427A] px-4 py-2 rounded-lg inline-flex items-center gap-2 font-black border-2 border-[#2B427A]"><Loader className="w-4 h-4 animate-spin"/> MEMUAT DATA...</div>}
-        
         {activeTab === 'settings' && (
            <div className="flex flex-col md:flex-row h-[calc(100vh-140px)] bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden">
-               {/* Settings Sidebar */}
                <div className="w-full md:w-64 bg-gray-50 border-r-2 border-gray-200 flex flex-col">
                    <div className="p-6 border-b border-gray-200"><h3 className="font-black text-[#2B427A] uppercase text-lg">Menu Pengaturan</h3></div>
                    <nav className="flex-1 p-4 space-y-2">
@@ -758,8 +795,6 @@ const AdminDashboard: React.FC = () => {
                        <button onClick={() => setSettingsTab('certificate')} className={`w-full text-left px-4 py-3 rounded-lg font-bold flex items-center gap-3 transition-colors ${settingsTab === 'certificate' ? 'bg-[#2B427A] text-white shadow-[2px_2px_0px_0px_#000]' : 'text-gray-600 hover:bg-gray-200'}`}><Award className="w-5 h-5"/> Sertifikat Default</button>
                    </nav>
                </div>
-               
-               {/* Settings Content */}
                <div className="flex-1 overflow-y-auto p-8 bg-white">
                    {settingsTab === 'certificate' && (<div className="animate-fade-in h-full flex flex-col"><div className="mb-6 flex justify-between items-center border-b pb-4"><div><h3 className="font-black text-[#2B427A] uppercase mb-1">Desain Sertifikat Default</h3><p className="text-gray-500 text-sm">Template ini akan digunakan jika acara tidak memiliki desain spesifik.</p></div><button onClick={handleSaveCertSettings} disabled={savingCertSettings} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingCertSettings ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN TEMPLATE</button></div><div className="flex-1 relative">{renderDesigner(false)}</div></div>)}
                    {settingsTab === 'payment' && (
@@ -778,11 +813,8 @@ const AdminDashboard: React.FC = () => {
                </div>
            </div>
         )}
-        
         {activeTab === 'events' && renderEventsList()}
-        
         {activeTab === 'registrations' && renderRegistrations()}
-
         {activeTab === 'overview' && (
              <div className="grid grid-cols-3 gap-6 animate-fade-in">
                  <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><h3 className="text-gray-400 font-bold text-xs uppercase">Total Acara</h3><p className="text-4xl font-black text-[#2B427A]">{events.length}</p></div>
@@ -791,11 +823,11 @@ const AdminDashboard: React.FC = () => {
         )}
       </main>
       
-      {/* WIZARD MODAL (Restored Full Logic from previous fix) */}
+      {/* WIZARD MODAL */}
       {showCreateModal && (
           <div className="fixed inset-0 bg-[#2B427A]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
               <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex overflow-hidden border-4 border-[#DFFF00] animate-scale-up">
-                  {/* ... (Sidebar Steps) */}
+                  {/* Sidebar Steps */}
                   <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
                       <div className="p-6 border-b border-gray-200"><h2 className="text-xl font-black text-[#2B427A] uppercase leading-tight">{editingId ? 'Edit Acara' : 'Buat Acara'}</h2></div>
                       <div className="flex-1 py-4 overflow-y-auto">{[{ step: 1, label: 'Info Dasar', icon: LayoutList }, { step: 2, label: 'Detail & Media', icon: FileText }, { step: 3, label: 'Formulir', icon: FormInput }, { step: 4, label: 'Harga & Kuota', icon: UsersIcon }, { step: 5, label: 'Desain Sertifikat', icon: Palette }].map((item) => (<button key={item.step} onClick={() => setWizardStep(item.step)} className={`w-full text-left px-6 py-4 flex items-center gap-3 transition-colors border-l-4 ${wizardStep === item.step ? 'bg-white border-[#0B1CDE] text-[#0B1CDE]' : wizardStep > item.step ? 'border-green-500 text-green-600' : 'border-transparent text-gray-400 hover:bg-gray-100'}`}><div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${wizardStep === item.step ? 'border-[#0B1CDE] bg-[#0B1CDE] text-white' : wizardStep > item.step ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 text-gray-400'}`}>{wizardStep > item.step ? <CheckCircle className="w-4 h-4"/> : item.step}</div><span className="font-bold text-sm">{item.label}</span></button>))}</div>
