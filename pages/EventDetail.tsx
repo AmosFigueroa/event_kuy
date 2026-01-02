@@ -20,6 +20,7 @@ const EventDetail: React.FC = () => {
 
   // UI State
   const [showQrisModal, setShowQrisModal] = useState(false);
+  const [isDownloadingQris, setIsDownloadingQris] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -71,6 +72,31 @@ const EventDetail: React.FC = () => {
         setError("Terjadi kesalahan sistem."); 
         setRegistering(false); 
     } 
+  };
+
+  const handleDownloadQris = async () => {
+    if (!paymentSettings?.qrisUrl) return;
+    setIsDownloadingQris(true);
+    try {
+        const response = await fetch(paymentSettings.qrisUrl, {
+            mode: 'cors',
+            credentials: 'omit'
+        });
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `QRIS_EventBisdig_${new Date().getTime()}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    } catch (err) {
+        // Fallback jika fetch gagal (misal CORS issue), buka di tab baru
+        window.open(paymentSettings.qrisUrl, '_blank');
+    } finally {
+        setIsDownloadingQris(false);
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin h-10 w-10 border-4 border-[#2B427A] border-t-transparent rounded-full"></div></div>;
@@ -280,15 +306,14 @@ const EventDetail: React.FC = () => {
                           <img src={paymentSettings.qrisUrl} alt="QRIS Full" className="w-full h-auto object-contain rounded-lg" />
                       </div>
 
-                      <a 
-                          href={paymentSettings.qrisUrl} 
-                          download="QRIS_EventBisdig" 
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full flex items-center justify-center gap-2 py-3 bg-[#2B427A] text-white rounded-xl font-bold hover:bg-[#0B1CDE] transition-colors"
+                      <button 
+                          onClick={handleDownloadQris}
+                          disabled={isDownloadingQris}
+                          className="w-full flex items-center justify-center gap-2 py-3 bg-[#2B427A] text-white rounded-xl font-bold hover:bg-[#0B1CDE] transition-colors disabled:opacity-50"
                       >
-                          <Download className="w-4 h-4" /> SIMPAN GAMBAR
-                      </a>
+                          {isDownloadingQris ? <Loader className="w-4 h-4 animate-spin"/> : <Download className="w-4 h-4" />} 
+                          {isDownloadingQris ? 'MENYIAPKAN...' : 'SIMPAN GAMBAR'}
+                      </button>
                   </div>
               </div>
           </div>
