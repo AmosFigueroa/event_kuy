@@ -407,9 +407,9 @@ function savePaymentSettings(data) {
     sheet.appendRow([key, val]);
   };
   
-  setSetting("BANK_NAME", data.bankName);
-  setSetting("ACCOUNT_NUM", data.accountNumber);
-  setSetting("ACCOUNT_HOLDER", data.accountHolder);
+  // Store bank accounts as JSON string under "BANK_ACCOUNTS_JSON"
+  var bankAccountsJson = JSON.stringify(data.bankAccounts || []);
+  setSetting("BANK_ACCOUNTS_JSON", bankAccountsJson);
   setSetting("QRIS_URL", qrisUrl);
   
   return { success: true, qrisUrl: qrisUrl };
@@ -417,15 +417,29 @@ function savePaymentSettings(data) {
 
 function getPaymentSettings() {
   var sheet = _getSheet("Settings");
-  if (!sheet) return { bankName: "", accountNumber: "", accountHolder: "", qrisUrl: "" };
+  if (!sheet) return { bankAccounts: [], qrisUrl: "" };
   var data = sheet.getDataRange().getValues();
   var settings = {};
   data.forEach(function(r) { settings[r[0]] = r[1]; });
   
+  // Try to parse JSON first
+  var bankAccounts = [];
+  if (settings["BANK_ACCOUNTS_JSON"]) {
+    try {
+      bankAccounts = JSON.parse(settings["BANK_ACCOUNTS_JSON"]);
+    } catch (e) { bankAccounts = []; }
+  } else if (settings["BANK_NAME"]) {
+    // Fallback for migration: use old single fields
+    bankAccounts.push({
+      id: "legacy",
+      bankName: settings["BANK_NAME"],
+      accountNumber: settings["ACCOUNT_NUM"],
+      accountHolder: settings["ACCOUNT_HOLDER"]
+    });
+  }
+
   return {
-    bankName: settings["BANK_NAME"] || "",
-    accountNumber: settings["ACCOUNT_NUM"] || "",
-    accountHolder: settings["ACCOUNT_HOLDER"] || "",
+    bankAccounts: bankAccounts,
     qrisUrl: settings["QRIS_URL"] || ""
   };
 }

@@ -1,10 +1,10 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent } from '../services/api';
 import { generateEventDescription } from '../services/geminiService';
-import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings } from '../types';
+import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount } from '../types';
 import { useNavigate } from 'react-router-dom';
 import CustomAlert from '../components/CustomAlert';
 
@@ -47,9 +47,13 @@ const AdminDashboard: React.FC = () => {
   const [selectedEventFilter, setSelectedEventFilter] = useState<string>('ALL');
   
   // Payment Settings State
-  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({ bankName: '', accountNumber: '', accountHolder: '', qrisUrl: '' });
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({ bankAccounts: [], qrisUrl: '' });
   const [qrisFile, setQrisFile] = useState<File | null>(null);
   const [savingPayment, setSavingPayment] = useState(false);
+  
+  // Bank Account Form State
+  const [tempAccount, setTempAccount] = useState<BankAccount>({ id: '', bankName: '', accountNumber: '', accountHolder: '' });
+  const [isEditingAccount, setIsEditingAccount] = useState(false);
 
   // New/Edit Event Wizard State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -96,7 +100,7 @@ const AdminDashboard: React.FC = () => {
       const [evts, regs, payment] = await Promise.all([fetchEvents(), fetchRegistrations(), fetchPaymentSettings()]);
       setEvents(evts || []);
       setRegistrations(regs || []);
-      setPaymentSettings(payment || { bankName: '', accountNumber: '', accountHolder: '', qrisUrl: '' });
+      setPaymentSettings(payment || { bankAccounts: [], qrisUrl: '' });
     } catch (error) {
       console.error("Load Data Error:", error);
     } finally {
@@ -121,7 +125,9 @@ const AdminDashboard: React.FC = () => {
         setNewEvent(prev => ({...prev, description: desc}));
         showAlert('success', 'AI Generated', "Deskripsi berhasil dibuat oleh AI!");
     } catch (err: any) {
-        showAlert('error', 'AI Error', "Gagal membuat deskripsi. Pastikan API Key valid atau coba lagi nanti.");
+        // Show specific error message from the service for better debugging
+        const msg = err.message || "Gagal membuat deskripsi. Coba lagi nanti.";
+        showAlert('error', 'AI Error', msg);
     } finally {
         setGeneratingDesc(false);
     }
@@ -275,6 +281,38 @@ const AdminDashboard: React.FC = () => {
     } catch(e) { 
         showAlert('error', 'Gagal', "Gagal mengubah status."); 
     }
+  };
+
+  // --- ACCOUNT MANAGEMENT HANDLERS ---
+  const handleAddAccount = () => {
+    if(!tempAccount.bankName || !tempAccount.accountNumber || !tempAccount.accountHolder) {
+        showAlert('error', 'Gagal', 'Mohon lengkapi data rekening.');
+        return;
+    }
+    const newAcc = { ...tempAccount, id: Date.now().toString() };
+    setPaymentSettings(prev => ({...prev, bankAccounts: [...prev.bankAccounts, newAcc]}));
+    setTempAccount({ id: '', bankName: '', accountNumber: '', accountHolder: '' });
+  };
+
+  const handleUpdateAccount = () => {
+     setPaymentSettings(prev => ({
+         ...prev,
+         bankAccounts: prev.bankAccounts.map(acc => acc.id === tempAccount.id ? tempAccount : acc)
+     }));
+     setTempAccount({ id: '', bankName: '', accountNumber: '', accountHolder: '' });
+     setIsEditingAccount(false);
+  };
+
+  const handleEditAccountClick = (acc: BankAccount) => {
+      setTempAccount(acc);
+      setIsEditingAccount(true);
+  };
+
+  const handleDeleteAccount = (id: string) => {
+      setPaymentSettings(prev => ({
+          ...prev,
+          bankAccounts: prev.bankAccounts.filter(a => a.id !== id)
+      }));
   };
 
   const handleSavePaymentSettings = async (e: React.FormEvent) => {
@@ -673,34 +711,88 @@ const AdminDashboard: React.FC = () => {
           <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Pengaturan Pembayaran</h2>
           <div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A]">
                <form onSubmit={handleSavePaymentSettings} className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                   <div className="space-y-4">
-                       <div>
-                           <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Nama Bank</label>
-                           <input type="text" value={paymentSettings.bankName} onChange={e=>setPaymentSettings({...paymentSettings, bankName: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-3 font-bold" placeholder="Contoh: BCA / MANDIRI" required />
+                   <div className="space-y-6">
+                       <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-100">
+                           <h3 className="font-black text-[#2B427A] uppercase mb-4 flex items-center gap-2">
+                               <PlusSquare className="w-5 h-5"/> {isEditingAccount ? 'Edit Rekening' : 'Tambah Rekening'}
+                           </h3>
+                           <div className="space-y-4">
+                               <div>
+                                   <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nama Bank</label>
+                                   <input type="text" value={tempAccount.bankName} onChange={e=>setTempAccount({...tempAccount, bankName: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: BCA" />
+                               </div>
+                               <div>
+                                   <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Nomor Rekening</label>
+                                   <input type="text" value={tempAccount.accountNumber} onChange={e=>setTempAccount({...tempAccount, accountNumber: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold focus:border-[#0B1CDE] outline-none" placeholder="1234xxxx" />
+                               </div>
+                               <div>
+                                   <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Atas Nama</label>
+                                   <input type="text" value={tempAccount.accountHolder} onChange={e=>setTempAccount({...tempAccount, accountHolder: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold focus:border-[#0B1CDE] outline-none" placeholder="Nama Pemilik" />
+                               </div>
+                               <button 
+                                   type="button" 
+                                   onClick={isEditingAccount ? handleUpdateAccount : handleAddAccount}
+                                   className="w-full py-2 bg-[#2B427A] text-white font-bold rounded-lg hover:bg-[#0B1CDE] transition-colors uppercase text-sm"
+                               >
+                                   {isEditingAccount ? 'Update Rekening' : 'Tambah ke Daftar'}
+                               </button>
+                               {isEditingAccount && (
+                                   <button 
+                                       type="button" 
+                                       onClick={() => { setIsEditingAccount(false); setTempAccount({ id: '', bankName: '', accountNumber: '', accountHolder: '' }); }}
+                                       className="w-full py-2 bg-gray-200 text-gray-600 font-bold rounded-lg hover:bg-gray-300 transition-colors uppercase text-sm mt-2"
+                                   >
+                                       Batal
+                                   </button>
+                               )}
+                           </div>
                        </div>
+
+                       {/* Account List */}
                        <div>
-                           <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Nomor Rekening</label>
-                           <input type="text" value={paymentSettings.accountNumber} onChange={e=>setPaymentSettings({...paymentSettings, accountNumber: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-3 font-bold" placeholder="Nomor Rekening..." required />
-                       </div>
-                       <div>
-                           <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Atas Nama</label>
-                           <input type="text" value={paymentSettings.accountHolder} onChange={e=>setPaymentSettings({...paymentSettings, accountHolder: e.target.value})} className="w-full border-2 border-gray-200 rounded-lg p-3 font-bold" placeholder="Nama Pemilik Rekening" required />
+                           <label className="block text-sm font-black text-[#2B427A] mb-3 uppercase">Daftar Rekening Tersimpan</label>
+                           <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                               {paymentSettings.bankAccounts.length === 0 && (
+                                   <p className="text-gray-400 text-sm font-medium italic text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">Belum ada rekening ditambahkan.</p>
+                               )}
+                               {paymentSettings.bankAccounts.map((acc, idx) => (
+                                   <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex justify-between items-center group hover:border-[#2B427A] transition-colors">
+                                       <div>
+                                           <div className="font-black text-[#2B427A] uppercase">{acc.bankName}</div>
+                                           <div className="text-sm font-bold text-gray-600">{acc.accountNumber}</div>
+                                           <div className="text-xs text-gray-400 uppercase">{acc.accountHolder}</div>
+                                       </div>
+                                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                           <button type="button" onClick={() => handleEditAccountClick(acc)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"><Pencil className="w-4 h-4"/></button>
+                                           <button type="button" onClick={() => handleDeleteAccount(acc.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
+                                       </div>
+                                   </div>
+                               ))}
+                           </div>
                        </div>
                    </div>
+                   
                    <div className="space-y-4">
-                       <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">QRIS (Scan Payment)</label>
-                       <div className="border-2 border-dashed border-[#2B427A]/30 rounded-xl p-6 text-center bg-gray-50 hover:bg-[#F0F9FF] cursor-pointer relative h-48 flex items-center justify-center">
-                           <input type="file" accept="image/*" onChange={e=>setQrisFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                       <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">QRIS (Scan Payment Global)</label>
+                       <div className="border-2 border-dashed border-[#2B427A]/30 rounded-xl p-6 text-center bg-gray-50 hover:bg-[#F0F9FF] cursor-pointer relative h-64 flex items-center justify-center group">
+                           <input type="file" accept="image/*" onChange={e=>setQrisFile(e.target.files?.[0]||null)} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
                            {qrisFile ? (
                                <div className="text-green-600 font-bold">{qrisFile.name}</div>
                            ) : (
-                               paymentSettings.qrisUrl ? <img src={paymentSettings.qrisUrl} alt="QRIS" className="h-full object-contain" /> : <div className="text-gray-400 font-bold"><Upload className="w-8 h-8 mx-auto mb-2"/>Upload QRIS Image</div>
+                               paymentSettings.qrisUrl ? (
+                                   <div className="relative w-full h-full">
+                                       <img src={paymentSettings.qrisUrl} alt="QRIS" className="w-full h-full object-contain" />
+                                       <div className="absolute inset-0 bg-white/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                           <span className="font-bold text-[#2B427A]">Klik untuk ganti QRIS</span>
+                                       </div>
+                                   </div>
+                               ) : <div className="text-gray-400 font-bold"><Upload className="w-8 h-8 mx-auto mb-2"/>Upload QRIS Image</div>
                            )}
                        </div>
                    </div>
-                   <div className="md:col-span-2">
-                       <button type="submit" disabled={savingPayment} className="w-full py-4 bg-[#0B1CDE] text-white font-black rounded-xl hover:bg-[#2B427A] transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_#2B427A]">
-                           {savingPayment ? <Loader className="animate-spin"/> : <CheckCircle/>} SIMPAN PENGATURAN PEMBAYARAN
+                   <div className="md:col-span-2 pt-6 border-t-2 border-gray-100">
+                       <button type="submit" disabled={savingPayment} className="w-full py-4 bg-[#0B1CDE] text-white font-black rounded-xl hover:bg-[#2B427A] transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none">
+                           {savingPayment ? <Loader className="animate-spin"/> : <Save/>} SIMPAN SEMUA PENGATURAN
                        </button>
                    </div>
                </form>

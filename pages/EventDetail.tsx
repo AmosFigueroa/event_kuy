@@ -128,18 +128,31 @@ const EventDetail: React.FC = () => {
                   {/* Payment Info Section */}
                   {event.price > 0 && paymentSettings && (
                       <div className="bg-[#F0F9FF] p-4 rounded-lg border border-blue-200 text-sm">
-                          <h4 className="font-black text-[#2B427A] mb-2 uppercase">Rekening Pembayaran</h4>
-                          <div className="space-y-1 text-[#2B427A]">
-                              <p className="font-bold">{paymentSettings.bankName}</p>
-                              <div className="flex items-center gap-2">
-                                  <span className="font-mono bg-white px-2 py-0.5 rounded border border-blue-100">{paymentSettings.accountNumber}</span>
-                                  <Copy className="w-3 h-3 cursor-pointer text-[#0B1CDE]" onClick={() => navigator.clipboard.writeText(paymentSettings.accountNumber)}/>
-                              </div>
-                              <p className="text-xs">a.n {paymentSettings.accountHolder}</p>
+                          <h4 className="font-black text-[#2B427A] mb-3 uppercase flex items-center gap-2"><DollarSign className="w-4 h-4"/> Transfer Pembayaran</h4>
+                          
+                          <div className="space-y-4">
+                              {/* Loop through bank accounts */}
+                              {paymentSettings.bankAccounts.map((acc, idx) => (
+                                  <div key={idx} className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                                      <div className="flex justify-between items-center mb-1">
+                                          <p className="font-black text-[#2B427A] uppercase">{acc.bankName}</p>
+                                          <button type="button" onClick={() => navigator.clipboard.writeText(acc.accountNumber)} title="Salin No. Rek" className="hover:scale-110 transition-transform bg-transparent border-none p-0 cursor-pointer text-[#0B1CDE]">
+                                            <Copy className="w-3 h-3" />
+                                          </button>
+                                      </div>
+                                      <div className="font-mono bg-gray-50 px-2 py-1 rounded text-[#0B1CDE] font-bold text-lg tracking-wide border border-gray-100 mb-1 select-all">
+                                          {acc.accountNumber}
+                                      </div>
+                                      <p className="text-xs text-gray-500 font-medium">a.n {acc.accountHolder}</p>
+                                  </div>
+                              ))}
+
                               {paymentSettings.qrisUrl && (
-                                  <div className="mt-3">
-                                      <p className="font-bold text-xs mb-1">SCAN QRIS:</p>
-                                      <img src={paymentSettings.qrisUrl} alt="QRIS" className="w-32 h-32 object-contain bg-white border rounded" />
+                                  <div className="mt-3 pt-3 border-t border-blue-100">
+                                      <p className="font-bold text-xs mb-2 text-[#2B427A] uppercase">SCAN QRIS:</p>
+                                      <div className="bg-white p-2 rounded border inline-block">
+                                          <img src={paymentSettings.qrisUrl} alt="QRIS" className="w-32 h-32 object-contain" />
+                                      </div>
                                   </div>
                               )}
                           </div>

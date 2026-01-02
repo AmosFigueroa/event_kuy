@@ -65,10 +65,15 @@ export interface Registration {
   customData?: string; // JSON string of custom form answers
 }
 
-export interface PaymentSettings {
+export interface BankAccount {
+  id: string;
   bankName: string;
   accountNumber: string;
   accountHolder: string;
+}
+
+export interface PaymentSettings {
+  bankAccounts: BankAccount[];
   qrisUrl?: string;
 }
 
