@@ -50,10 +50,6 @@ function handleRequest(e, method) {
     else if (action === "savePaymentSettings" && method === "POST") data = savePaymentSettings(postData);
     else if (action === "getPaymentSettings") data = getPaymentSettings();
     
-    // Certificate Settings
-    else if (action === "saveCertificateSettings" && method === "POST") data = saveCertificateSettings(postData);
-    else if (action === "getCertificateSettings") data = getCertificateSettings();
-
     // Auth
     else if (action === "signup" && method === "POST") data = signupUser(postData);
     else if (action === "login" && method === "POST") data = loginUser(postData);
@@ -135,13 +131,8 @@ function loginUser(data) {
   if (ADMIN_EMAILS.indexOf(found.email) > -1) {
     var otp = Math.floor(100000 + Math.random() * 900000).toString();
     CacheService.getScriptCache().put("OTP_" + found.email, otp, 300);
-    
-    var body = "<p>Halo Admin,</p><p>Berikut adalah kode verifikasi (OTP) untuk masuk ke dashboard admin:</p>" +
-               "<h1 style='font-size: 32px; color: #0B1CDE; letter-spacing: 5px; margin: 20px 0;'>" + otp + "</h1>" +
-               "<p>Kode ini berlaku selama 5 menit. Jangan berikan kepada siapapun.</p>";
-               
-    _sendBrandedEmail(found.email, "🔒 Login OTP - Admin Event Bisdig", "KODE AKSES ADMIN", body);
-    
+    var body = "<p>Halo Admin,</p><p>OTP:</p><h1>" + otp + "</h1>";
+    _sendBrandedEmail(found.email, "🔒 Login OTP", "KODE AKSES", body);
     return { valid: false, requireOtp: true };
   }
   return { valid: true, role: "USER", email: found.email, name: found.name };
@@ -150,12 +141,8 @@ function loginUser(data) {
 function requestOtp(data) {
   var otp = Math.floor(100000 + Math.random() * 900000).toString();
   CacheService.getScriptCache().put("OTP_" + data.email, otp, 300);
-  
-  var body = "<p>Halo,</p><p>Gunakan kode berikut untuk memverifikasi login Anda:</p>" +
-             "<h1 style='font-size: 32px; color: #0B1CDE; letter-spacing: 5px; margin: 20px 0;'>" + otp + "</h1>" +
-             "<p>Kode ini berlaku selama 5 menit.</p>";
-               
-  _sendBrandedEmail(data.email, "🔑 Kode Login Event Bisdig", "VERIFIKASI LOGIN", body);
+  var body = "<p>Halo,</p><p>OTP:</p><h1>" + otp + "</h1>";
+  _sendBrandedEmail(data.email, "🔑 Kode Login", "VERIFIKASI", body);
   return { sent: true };
 }
 
@@ -173,8 +160,8 @@ function getEvents() {
   var sheet = _getSheet("Events");
   var rows = sheet.getDataRange().getValues();
   if (rows.length <= 1) return [];
-  var headers = rows.shift(); // Remove header
-  return rows.map(function(row) {
+  var dataRows = rows.slice(1);
+  return dataRows.map(function(row) {
     var obj = {};
     obj.id = row[0]; obj.title = row[1]; obj.description = row[2];
     obj.date = row[3]; obj.time = row[4]; obj.location = row[5];
@@ -182,6 +169,7 @@ function getEvents() {
     obj.maxParticipants = row[9]; obj.currentParticipants = row[10];
     obj.isOpen = row[11]; 
     try { obj.formFields = row[12] ? JSON.parse(row[12]) : []; } catch(e) { obj.formFields = []; }
+    try { obj.certificateConfig = row[13] ? JSON.parse(row[13]) : null; } catch(e) { obj.certificateConfig = null; }
     return obj;
   });
 }
@@ -190,19 +178,35 @@ function createEvent(data) {
   var sheet = _getSheet("Events");
   var id = Utilities.getUuid();
   var bannerUrl = "";
+  
+  // Save Banner to Admin Folder
   if (data.bannerBase64) {
     try {
-      var folder = _getUploadFolder();
+      var folder = _getAdminFolder();
       var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + id);
       bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
     } catch (e) { }
   }
+  
+  // Save Certificate Background to Admin Folder
+  var certConfig = data.certificateConfig || null;
+  if (certConfig && data.certBackgroundBase64) {
+     try {
+        var folder = _getAdminFolder();
+        var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + id);
+        var file = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+     } catch(e) {}
+  }
+
   var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]";
+  var certConfigJson = certConfig ? JSON.stringify(certConfig) : "";
   
   sheet.appendRow([
     id, data.title, data.description, data.date, data.time, data.location, 
     data.price, data.category, bannerUrl, data.maxParticipants, 0, true,
-    formFieldsJson
+    formFieldsJson, certConfigJson
   ]);
   return { id: id };
 }
@@ -214,14 +218,38 @@ function updateEvent(data) {
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] == data.id) {
       var bannerUrl = rows[i][8];
+      
+      // Update Banner (Admin Folder)
       if (data.bannerBase64) {
         try {
-          var folder = _getUploadFolder();
+          var folder = _getAdminFolder();
           var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + data.id + "_" + new Date().getTime());
           bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId();
         } catch(e) {}
       }
+      
       var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]";
+      var certConfigJson = rows[i][13]; 
+      var certConfig = data.certificateConfig;
+      
+      if (certConfig) {
+          // Update Cert Background (Admin Folder)
+          if (data.certBackgroundBase64) {
+             try {
+                var folder = _getAdminFolder();
+                var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + data.id + "_" + new Date().getTime());
+                var file = folder.createFile(blob);
+                file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+                certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+             } catch(e) {}
+          } else if (!certConfig.backgroundUrl && rows[i][13]) {
+             try {
+                var oldConf = JSON.parse(rows[i][13]);
+                certConfig.backgroundUrl = oldConf.backgroundUrl;
+             } catch(e){}
+          }
+          certConfigJson = JSON.stringify(certConfig);
+      }
       
       sheet.getRange(i+1, 2).setValue(data.title);
       sheet.getRange(i+1, 3).setValue(data.description);
@@ -233,6 +261,12 @@ function updateEvent(data) {
       sheet.getRange(i+1, 9).setValue(bannerUrl);
       sheet.getRange(i+1, 10).setValue(data.maxParticipants);
       sheet.getRange(i+1, 13).setValue(formFieldsJson);
+      
+      if (sheet.getLastColumn() < 14) {
+         sheet.getRange(i+1, 14).setValue(certConfigJson);
+      } else {
+         sheet.getRange(i+1, 14).setValue(certConfigJson);
+      }
       
       return { id: data.id, updated: true };
     }
@@ -257,7 +291,7 @@ function toggleEventStatus(data) {
   var rows = sheet.getDataRange().getValues();
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] == data.id) {
-      var current = rows[i][11]; // Index 11 is isOpen
+      var current = rows[i][11];
       var newVal = !current;
       sheet.getRange(i + 1, 12).setValue(newVal);
       return { id: data.id, isOpen: newVal };
@@ -283,20 +317,20 @@ function registerEventParticipant(data) {
   }
   if (eventRowIndex == -1) throw new Error("Event not found");
   
-  // FIX: Check for duplicate registration to prevent double emails/entries
   var rSheet = _getSheet("Registrations");
   var rRows = rSheet.getDataRange().getValues();
   for(var i=1; i<rRows.length; i++) {
-      // Check if this email is already registered for this eventId
       if(rRows[i][1] == data.eventId && rRows[i][4].toString().toLowerCase() == data.email.toString().toLowerCase()) {
           throw new Error("Email ini sudah terdaftar untuk acara tersebut.");
       }
   }
 
   var proofUrl = "";
+  
+  // Save Proof to User Folder
   if (data.proofBase64) {
     try {
-      var folder = _getUploadFolder();
+      var folder = _getUserFolder();
       var blob = Utilities.newBlob(Utilities.base64Decode(data.proofBase64.split(',')[1] || data.proofBase64), "image/jpeg", "proof_" + data.email);
       proofUrl = folder.createFile(blob).getUrl();
     } catch(e) {}
@@ -312,11 +346,8 @@ function registerEventParticipant(data) {
   var current = Number(events[eventRowIndex][10]) || 0;
   eSheet.getRange(eventRowIndex + 1, 11).setValue(current + 1);
   
-  var body = "<p>Halo " + data.name + ",</p>" +
-             "<p>Terima kasih telah mendaftar untuk acara <strong>" + eventTitle + "</strong>.</p>" +
-             "<p>Pendaftaran Anda sedang kami verifikasi. Anda akan menerima email konfirmasi jika pembayaran/data telah disetujui.</p>";
-  
-  _sendBrandedEmail(data.email, "✅ Pendaftaran Diterima - " + eventTitle, "MENUNGGU VERIFIKASI", body);
+  var body = "<p>Halo " + data.name + ",</p><p>Terima kasih telah mendaftar: <strong>" + eventTitle + "</strong>.</p>";
+  _sendBrandedEmail(data.email, "✅ Pendaftaran Diterima", "MENUNGGU VERIFIKASI", body);
 
   return { status: "PENDING" };
 }
@@ -335,18 +366,37 @@ function getRegistrations() {
 }
 
 function getRegistration(data) {
-  var sheet = _getSheet("Registrations");
-  var rows = sheet.getDataRange().getValues();
-  for(var i=1; i<rows.length; i++) {
-    if(rows[i][0] == data.id) {
-       return {
-          id: rows[i][0], eventId: rows[i][1], eventTitle: rows[i][2],
-          userName: rows[i][3], userEmail: rows[i][4], status: rows[i][6],
-          registrationDate: rows[i][7]
+  var rSheet = _getSheet("Registrations");
+  var rRows = rSheet.getDataRange().getValues();
+  var reg = null;
+  
+  for(var i=1; i<rRows.length; i++) {
+    if(rRows[i][0] == data.id) {
+       reg = {
+          id: rRows[i][0], eventId: rRows[i][1], eventTitle: rRows[i][2],
+          userName: rRows[i][3], userEmail: rRows[i][4], status: rRows[i][6],
+          registrationDate: rRows[i][7], customData: rRows[i][8]
        };
+       break;
     }
   }
-  throw new Error("Pendaftaran tidak ditemukan.");
+  
+  if (!reg) throw new Error("Pendaftaran tidak ditemukan.");
+  
+  var eSheet = _getSheet("Events");
+  var eRows = eSheet.getDataRange().getValues();
+  var certConfig = null;
+  
+  for(var j=1; j<eRows.length; j++) {
+      if(eRows[j][0] == reg.eventId) {
+          try {
+             certConfig = eRows[j][13] ? JSON.parse(eRows[j][13]) : null;
+          } catch(e) {}
+          break;
+      }
+  }
+  
+  return { registration: reg, certificateConfig: certConfig };
 }
 
 function updateRegistrationStatus(data) {
@@ -360,16 +410,8 @@ function updateRegistrationStatus(data) {
       var evtTitle = rows[i][2];
       
       var statusTitle = data.status === 'APPROVED' ? 'PENDAFTARAN DISETUJUI' : 'PENDAFTARAN DITOLAK';
-      var color = data.status === 'APPROVED' ? '#0B1CDE' : '#e53e3e';
-      
-      var body = "<p>Halo " + name + ",</p>" +
-                 "<p>Status pendaftaran Anda untuk acara <strong>" + evtTitle + "</strong> telah diperbarui menjadi:</p>" +
-                 "<h2 style='color:" + color + "; margin: 20px 0;'>" + (data.status === 'APPROVED' ? '✅ DISETUJUI' : '❌ DITOLAK') + "</h2>" +
-                 (data.status === 'APPROVED' ? "<p>Silakan login ke dashboard untuk melihat tiket Anda.</p>" : "<p>Mohon hubungi admin untuk informasi lebih lanjut.</p>");
-
-      try { 
-         _sendBrandedEmail(email, "Update Status: " + evtTitle, statusTitle, body);
-      } catch(e){}
+      var body = "<p>Halo " + name + ",</p><p>Status acara <strong>" + evtTitle + "</strong>: " + (data.status === 'APPROVED' ? 'DISETUJUI' : 'DITOLAK') + "</p>";
+      try { _sendBrandedEmail(email, "Update Status", statusTitle, body); } catch(e){}
       return { status: data.status };
     }
   }
@@ -379,42 +421,32 @@ function updateRegistrationStatus(data) {
 function sendCertificate(data) {
   var sheet = _getSheet("Registrations");
   var rows = sheet.getDataRange().getValues();
-  
-  // Construct URL for certificate page
-  // data.baseUrl comes from frontend window.location.origin
   var certLink = (data.baseUrl || "https://bisdig.upy.ac.id/hmp/") + "/#/certificate/" + data.id;
 
   for(var i=1; i<rows.length; i++) {
     if(rows[i][0] == data.id) {
        var name = rows[i][3];
        var evtTitle = rows[i][2];
-       
-       var body = "<p>Halo " + name + ",</p>" +
-                  "<p>Terima kasih telah berpartisipasi dalam acara <strong>" + evtTitle + "</strong>.</p>" +
-                  "<p>Sertifikat elektronik Anda telah terbit. Silakan klik tombol di bawah ini untuk melihat dan mengunduh sertifikat Anda:</p>" +
-                  "<div style='text-align: center; margin: 30px 0;'>" +
-                    "<a href='" + certLink + "' style='background-color: #DFFF00; color: #2B427A; padding: 15px 30px; text-decoration: none; font-weight: 900; border-radius: 8px; border: 2px solid #2B427A; box-shadow: 4px 4px 0px #2B427A; display: inline-block;'>LIHAT SERTIFIKAT</a>" +
-                  "</div>";
-       
-       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat - " + evtTitle, "SERTIFIKAT KEGIATAN", body);
-       
+       var body = "<p>Halo " + name + ",</p><p>Sertifikat acara <strong>" + evtTitle + "</strong> telah terbit.</p><a href='" + certLink + "'>Download Sertifikat</a>";
+       _sendBrandedEmail(rows[i][4], "🎓 Sertifikat", "SERTIFIKAT", body);
        return { sent: true };
     }
   }
   throw new Error("Not found");
 }
 
-// --- PAYMENT SETTINGS ---
-
+// --- SETTINGS (Payment) ---
 function savePaymentSettings(data) {
   var ss = _getDb();
   var sheet = ss.getSheetByName("Settings");
   if (!sheet) { sheet = ss.insertSheet("Settings"); sheet.appendRow(["Key", "Value"]); }
   
   var qrisUrl = data.currentQrisUrl || "";
+  
+  // Save QRIS to Admin Folder
   if (data.qrisBase64) {
     try {
-      var folder = _getUploadFolder();
+      var folder = _getAdminFolder();
       var blob = Utilities.newBlob(Utilities.base64Decode(data.qrisBase64), "image/jpeg", "qris_master");
       var file = folder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -430,11 +462,9 @@ function savePaymentSettings(data) {
     sheet.appendRow([key, val]);
   };
   
-  // Store bank accounts as JSON string under "BANK_ACCOUNTS_JSON"
   var bankAccountsJson = JSON.stringify(data.bankAccounts || []);
   setSetting("BANK_ACCOUNTS_JSON", bankAccountsJson);
   setSetting("QRIS_URL", qrisUrl);
-  
   return { success: true, qrisUrl: qrisUrl };
 }
 
@@ -445,78 +475,11 @@ function getPaymentSettings() {
   var settings = {};
   data.forEach(function(r) { settings[r[0]] = r[1]; });
   
-  // Try to parse JSON first
   var bankAccounts = [];
   if (settings["BANK_ACCOUNTS_JSON"]) {
-    try {
-      bankAccounts = JSON.parse(settings["BANK_ACCOUNTS_JSON"]);
-    } catch (e) { bankAccounts = []; }
-  } else if (settings["BANK_NAME"]) {
-    // Fallback for migration: use old single fields
-    bankAccounts.push({
-      id: "legacy",
-      bankName: settings["BANK_NAME"],
-      accountNumber: settings["ACCOUNT_NUM"],
-      accountHolder: settings["ACCOUNT_HOLDER"]
-    });
-  }
-
-  return {
-    bankAccounts: bankAccounts,
-    qrisUrl: settings["QRIS_URL"] || ""
-  };
-}
-
-// --- CERTIFICATE SETTINGS ---
-function saveCertificateSettings(data) {
-  var ss = _getDb();
-  var sheet = ss.getSheetByName("Settings");
-  if (!sheet) { sheet = ss.insertSheet("Settings"); sheet.appendRow(["Key", "Value"]); }
-  
-  var setSetting = function(key, val) {
-    var rows = sheet.getDataRange().getValues();
-    for(var i=0; i<rows.length; i++) {
-      if(rows[i][0] == key) { sheet.getRange(i+1, 2).setValue(val); return; }
-    }
-    sheet.appendRow([key, val]);
-  };
-  
-  var templateUrl = data.currentTemplateUrl || "";
-  
-  // Upload Template if exists
-  if (data.templateBase64) {
-    try {
-      var folder = _getUploadFolder();
-      var blob = Utilities.newBlob(Utilities.base64Decode(data.templateBase64), "image/png", "cert_template");
-      var file = folder.createFile(blob);
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      templateUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
-    } catch(e) {}
-  }
-  
-  setSetting("CERT_TEMPLATE_URL", templateUrl);
-  setSetting("CERT_SIGNER_1_NAME", data.signer1Name || "");
-  setSetting("CERT_SIGNER_1_ROLE", data.signer1Role || "Ketua Pelaksana");
-  setSetting("CERT_SIGNER_2_NAME", data.signer2Name || "");
-  setSetting("CERT_SIGNER_2_ROLE", data.signer2Role || "Ketua HMP");
-  
-  return { success: true, templateUrl: templateUrl };
-}
-
-function getCertificateSettings() {
-  var sheet = _getSheet("Settings");
-  if (!sheet) return { };
-  var data = sheet.getDataRange().getValues();
-  var settings = {};
-  data.forEach(function(r) { settings[r[0]] = r[1]; });
-  
-  return {
-    templateUrl: settings["CERT_TEMPLATE_URL"] || "",
-    signer1Name: settings["CERT_SIGNER_1_NAME"] || "",
-    signer1Role: settings["CERT_SIGNER_1_ROLE"] || "Ketua Pelaksana",
-    signer2Name: settings["CERT_SIGNER_2_NAME"] || "",
-    signer2Role: settings["CERT_SIGNER_2_ROLE"] || "Ketua HMP"
-  };
+    try { bankAccounts = JSON.parse(settings["BANK_ACCOUNTS_JSON"]); } catch (e) { }
+  } 
+  return { bankAccounts: bankAccounts, qrisUrl: settings["QRIS_URL"] || "" };
 }
 
 // --- DB HELPERS ---
@@ -531,28 +494,63 @@ function _getDb() {
 function _getSheet(name) {
   var ss = _getDb();
   var s = ss.getSheetByName(name);
-  if(!s) {
-    _initDbIfNeeded();
-    s = ss.getSheetByName(name);
-  }
+  if(!s) { _initDbIfNeeded(); s = ss.getSheetByName(name); }
   return s;
 }
 
 function _initDbIfNeeded() {
   var ss = _getDb();
   if(!ss.getSheetByName("Events")) {
-     ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields"]);
+     ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig"]);
+  } else {
+     var eSheet = ss.getSheetByName("Events");
+     if (eSheet.getLastColumn() < 14) {
+         eSheet.getRange(1, 14).setValue("certificateConfig");
+     }
   }
   if(!ss.getSheetByName("Registrations")) ss.insertSheet("Registrations").appendRow(["id","eventId","evtTitle","name","email","proof","status","date","customData"]);
   if(!ss.getSheetByName("Users")) ss.insertSheet("Users").appendRow(["id","email","pass","name","date"]);
   if(!ss.getSheetByName("Settings")) ss.insertSheet("Settings").appendRow(["Key", "Value"]);
 }
 
-function _getUploadFolder() {
-  var id = SCRIPT_PROP.getProperty("UPLOAD_ID");
-  if(id) try { return DriveApp.getFolderById(id); } catch(e){}
-  var f = DriveApp.createFolder("EventHorizon_Uploads");
+// --- DRIVE FOLDER HELPERS (REFACTORED) ---
+
+// 1. Get or Create Master Folder
+function _getMasterFolder() {
+  var id = SCRIPT_PROP.getProperty("MASTER_FOLDER_ID");
+  if (id) {
+    try { 
+      return DriveApp.getFolderById(id); 
+    } catch(e) {
+      // If folder deleted, recover
+    }
+  }
+  var f = DriveApp.createFolder("EventHorizon_Master");
   f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  SCRIPT_PROP.setProperty("UPLOAD_ID", f.getId());
+  SCRIPT_PROP.setProperty("MASTER_FOLDER_ID", f.getId());
+  return f;
+}
+
+// 2. Get or Create Admin Folder (For Banners, Cert Templates, QRIS)
+function _getAdminFolder() {
+  var master = _getMasterFolder();
+  var folders = master.getFoldersByName("Admin_Assets");
+  if (folders.hasNext()) return folders.next();
+  
+  var f = master.createFolder("Admin_Assets");
+  // Assets must be public for frontend display
+  f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return f;
+}
+
+// 3. Get or Create User Folder (For Payment Proofs)
+function _getUserFolder() {
+  var master = _getMasterFolder();
+  var folders = master.getFoldersByName("User_Uploads");
+  if (folders.hasNext()) return folders.next();
+  
+  var f = master.createFolder("User_Uploads");
+  // Proofs need to be viewable by Admin via link
+  f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); 
   return f;
 }

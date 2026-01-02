@@ -30,6 +30,26 @@ export interface FormField {
   placeholder?: string;
 }
 
+export interface CertificateElement {
+  id: string;
+  type: 'text' | 'dynamic'; // 'text' is static label, 'dynamic' is mapped data
+  field: string; // e.g., 'userName', 'eventTitle', 'custom:Instansi', or static text content
+  label: string; // UI Label for the admin
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  fontWeight: 'normal' | 'bold';
+  align: 'left' | 'center' | 'right';
+  width?: number; // for centering
+}
+
+export interface CertificateConfig {
+  backgroundUrl: string;
+  elements: CertificateElement[];
+}
+
 export interface Event {
   id: string;
   title: string;
@@ -38,13 +58,14 @@ export interface Event {
   time: string;
   location: string;
   price: number;
-  category: string; // Changed from EventCategory to string to allow custom input
+  category: string; 
   bannerUrl: string;
   maxParticipants: number;
   currentParticipants: number;
   paymentInstructions?: string;
   isOpen: boolean;
-  formFields?: FormField[]; // Custom form fields structure
+  formFields?: FormField[];
+  certificateConfig?: CertificateConfig; // NEW: Event-specific cert config
 }
 
 export enum RegistrationStatus {
@@ -77,11 +98,12 @@ export interface PaymentSettings {
   qrisUrl?: string;
 }
 
+// Deprecated global settings, but kept for compatibility types if needed temporarily
 export interface CertificateSettings {
   templateUrl?: string;
-  signer1Name: string; // e.g. Ketua Pelaksana
+  signer1Name: string;
   signer1Role: string;
-  signer2Name: string; // e.g. Ketua Himpunan
+  signer2Name: string;
   signer2Role: string;
 }
 

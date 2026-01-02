@@ -1,5 +1,5 @@
 
-import { ApiResponse, Event, Registration, UserSession, UserRole, PaymentSettings, CertificateSettings } from '../types';
+import { ApiResponse, Event, Registration, UserSession, UserRole, PaymentSettings, CertificateConfig } from '../types';
 import { DEFAULT_SCRIPT_URL } from '../constants';
 
 // Utility to read the stored API URL or use default
@@ -70,8 +70,12 @@ export const fetchEvents = async (): Promise<Event[]> => {
   } catch (e) { return []; }
 };
 
-export const createEvent = (eventData: Partial<Event>, bannerBase64: string) => callScript('createEvent', { ...eventData, bannerBase64 }, 'POST');
-export const updateEvent = (eventData: Partial<Event>, bannerBase64?: string) => callScript('updateEvent', { ...eventData, bannerBase64 }, 'POST');
+// Updated: Supports certBackgroundBase64 now
+export const createEvent = (eventData: Partial<Event>, bannerBase64: string, certBackgroundBase64?: string) => 
+    callScript('createEvent', { ...eventData, bannerBase64, certBackgroundBase64 }, 'POST');
+
+export const updateEvent = (eventData: Partial<Event>, bannerBase64?: string, certBackgroundBase64?: string) => 
+    callScript('updateEvent', { ...eventData, bannerBase64, certBackgroundBase64 }, 'POST');
 
 export const deleteEvent = (id: string) => callScript('deleteEvent', { id }, 'POST');
 
@@ -89,7 +93,9 @@ export const fetchUserRegistrations = async (email: string) => {
   const all = await fetchRegistrations();
   return all.filter(r => r.userEmail && r.userEmail.toLowerCase() === email.toLowerCase());
 };
-export const fetchRegistrationById = async (id: string): Promise<Registration> => {
+
+// Updated: Returns registration + certConfig
+export const fetchRegistrationById = async (id: string): Promise<{registration: Registration, certificateConfig: CertificateConfig | null}> => {
     return await callScript('getRegistration', { id }, 'POST');
 };
 export const updateRegistrationStatus = (id: string, status: string) => callScript('updateRegistrationStatus', { id, status }, 'POST');
@@ -103,6 +109,6 @@ export const sendCertificate = (id: string) => {
 export const savePaymentSettings = (settings: PaymentSettings, qrisBase64?: string) => callScript('savePaymentSettings', { ...settings, qrisBase64 }, 'POST');
 export const fetchPaymentSettings = async (): Promise<PaymentSettings> => callScript('getPaymentSettings');
 
-// --- Certificate Settings ---
-export const saveCertificateSettings = (settings: CertificateSettings, templateBase64?: string) => callScript('saveCertificateSettings', { ...settings, templateBase64 }, 'POST');
-export const fetchCertificateSettings = async (): Promise<CertificateSettings> => callScript('getCertificateSettings');
+// --- Legacy Certificate Settings (Deprecated but kept for type safety if needed) ---
+export const saveCertificateSettings = (settings: any, templateBase64?: string) => callScript('saveCertificateSettings', { ...settings, templateBase64 }, 'POST');
+export const fetchCertificateSettings = async (): Promise<any> => callScript('getCertificateSettings');

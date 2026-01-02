@@ -1,10 +1,10 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare } from 'lucide-react';
-import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings } from '../services/api';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type } from 'lucide-react';
+import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent } from '../services/api';
 import { generateEventDescription } from '../services/geminiService';
-import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateSettings } from '../types';
+import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
 import { useNavigate } from 'react-router-dom';
 import CustomAlert from '../components/CustomAlert';
 
@@ -13,7 +13,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 
 const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'registrations' | 'settings' | 'certificates'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'events' | 'registrations' | 'settings'>('overview');
   const [events, setEvents] = useState<Event[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,15 +50,6 @@ const AdminDashboard: React.FC = () => {
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({ bankAccounts: [], qrisUrl: '' });
   const [qrisFile, setQrisFile] = useState<File | null>(null);
   const [savingPayment, setSavingPayment] = useState(false);
-
-  // Certificate Settings State
-  const [certSettings, setCertSettings] = useState<CertificateSettings>({
-      signer1Name: '', signer1Role: 'Ketua Pelaksana',
-      signer2Name: '', signer2Role: 'Ketua HMP'
-  });
-  const [certTemplateFile, setCertTemplateFile] = useState<File | null>(null);
-  const [certTemplatePreview, setCertTemplatePreview] = useState<string | null>(null);
-  const [savingCert, setSavingCert] = useState(false);
   
   // Bank Account Form State
   const [tempAccount, setTempAccount] = useState<BankAccount>({ id: '', bankName: '', accountNumber: '', accountHolder: '' });
@@ -73,22 +64,27 @@ const AdminDashboard: React.FC = () => {
     price: 0,
     maxParticipants: 100,
     formFields: [],
-    time: '09:00' // Default time
+    time: '09:00', // Default time
+    certificateConfig: { backgroundUrl: '', elements: [] }
   });
-  const [customCategory, setCustomCategory] = useState(''); // For "Other" input
+  const [customCategory, setCustomCategory] = useState(''); 
   const [isCustomCat, setIsCustomCat] = useState(false);
   
   // Banner State
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+
+  // CERTIFICATE DESIGNER STATE
+  const [certBgFile, setCertBgFile] = useState<File | null>(null);
+  const [certBgPreview, setCertBgPreview] = useState<string | null>(null);
+  const [activeElementId, setActiveElementId] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
+  const [initialPos, setInitialPos] = useState<{x: number, y: number} | null>(null);
   
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [isSubmittingEvent, setIsSubmittingEvent] = useState(false);
   
-  // Settings
-  const [scriptUrl, setScriptUrl] = useState(getApiUrl());
-  const [testingConnection, setTestingConnection] = useState(false);
-
   // Refs for auto-scrolling time picker
   const hourRef = useRef<HTMLDivElement>(null);
   const minuteRef = useRef<HTMLDivElement>(null);
@@ -106,22 +102,103 @@ const AdminDashboard: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [evts, regs, payment, cert] = await Promise.all([
+      const [evts, regs, payment] = await Promise.all([
           fetchEvents(), 
           fetchRegistrations(), 
-          fetchPaymentSettings(),
-          fetchCertificateSettings()
+          fetchPaymentSettings()
       ]);
       setEvents(evts || []);
       setRegistrations(regs || []);
       setPaymentSettings(payment || { bankAccounts: [], qrisUrl: '' });
-      setCertSettings(cert || { signer1Name: '', signer1Role: 'Ketua Pelaksana', signer2Name: '', signer2Role: 'Ketua HMP' });
-      if(cert?.templateUrl) setCertTemplatePreview(cert.templateUrl);
     } catch (error) {
       console.error("Load Data Error:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // --- CERTIFICATE DESIGNER LOGIC ---
+  const addCertElement = (type: 'text' | 'dynamic', field: string, label: string) => {
+      const newEl: CertificateElement = {
+          id: Date.now().toString(),
+          type,
+          field,
+          label: label || 'Text Baru',
+          x: 500, // Center approx
+          y: 400,
+          fontSize: 24,
+          fontFamily: 'Helvetica',
+          color: '#000000',
+          fontWeight: 'bold',
+          align: 'center',
+          width: 300
+      };
+      const currentConfig = newEvent.certificateConfig || { backgroundUrl: '', elements: [] };
+      setNewEvent({
+          ...newEvent,
+          certificateConfig: {
+              ...currentConfig,
+              elements: [...currentConfig.elements, newEl]
+          }
+      });
+      setActiveElementId(newEl.id);
+  };
+
+  const updateCertElement = (id: string, props: Partial<CertificateElement>) => {
+      if (!newEvent.certificateConfig) return;
+      const updatedElements = newEvent.certificateConfig.elements.map(el => 
+          el.id === id ? { ...el, ...props } : el
+      );
+      setNewEvent({
+          ...newEvent,
+          certificateConfig: { ...newEvent.certificateConfig, elements: updatedElements }
+      });
+  };
+
+  const removeCertElement = (id: string) => {
+      if (!newEvent.certificateConfig) return;
+      setNewEvent({
+          ...newEvent,
+          certificateConfig: { 
+              ...newEvent.certificateConfig, 
+              elements: newEvent.certificateConfig.elements.filter(e => e.id !== id) 
+          }
+      });
+      setActiveElementId(null);
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent, elId: string) => {
+      e.stopPropagation();
+      setActiveElementId(elId);
+      const el = newEvent.certificateConfig?.elements.find(e => e.id === elId);
+      if(el) {
+          setDragStart({ x: e.clientX, y: e.clientY });
+          setInitialPos({ x: el.x, y: el.y });
+      }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+      if (dragStart && initialPos && activeElementId) {
+          const dx = e.clientX - dragStart.x;
+          const dy = e.clientY - dragStart.y;
+          // Scale logic could be added here if canvas isn't 1:1, currently strictly pixels
+          updateCertElement(activeElementId, { x: initialPos.x + dx, y: initialPos.y + dy });
+      }
+  };
+
+  const handleCanvasMouseUp = () => {
+      setDragStart(null);
+      setInitialPos(null);
+  };
+
+  const handleCertBgChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          setCertBgFile(file);
+          const r = new FileReader();
+          r.onload = () => setCertBgPreview(r.result as string);
+          r.readAsDataURL(file);
+      }
   };
 
   // --- IMPROVED AI DESCRIPTION HANDLER ---
@@ -195,15 +272,15 @@ const AdminDashboard: React.FC = () => {
 
     setIsSubmittingEvent(true);
     
-    const submit = async (base64?: string) => {
+    const submit = async (bannerBase64?: string, certBgBase64?: string) => {
         try {
             if (editingId) {
                 // UPDATE MODE
-                await updateEvent({ ...finalEventData, id: editingId }, base64);
+                await updateEvent({ ...finalEventData, id: editingId }, bannerBase64, certBgBase64);
             } else {
                 // CREATE MODE
-                if (!base64) throw new Error("Missing banner for create");
-                await createEvent(finalEventData as any, base64);
+                if (!bannerBase64) throw new Error("Missing banner for create");
+                await createEvent(finalEventData as any, bannerBase64, certBgBase64);
             }
             
             // Add slight delay for animation effect
@@ -221,30 +298,33 @@ const AdminDashboard: React.FC = () => {
         }
     };
 
-    if (bannerFile) {
-        // Read new file
-        const reader = new FileReader();
-        reader.readAsDataURL(bannerFile);
-        reader.onload = () => {
-            const result = reader.result as string;
-            const base64 = result.includes(',') ? result.split(',')[1] : result;
-            submit(base64);
-        };
-        reader.onerror = () => {
-            setIsSubmittingEvent(false);
-            showAlert('error', 'File Error', "Gagal membaca file banner.");
-        };
-    } else {
-        // No new file (only valid for update)
-        submit(undefined);
+    // Helper to read file to base64
+    const readFile = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = error => reject(error);
+        });
+    };
+
+    try {
+        const bannerB64 = bannerFile ? await readFile(bannerFile) : undefined;
+        const certBgB64 = certBgFile ? await readFile(certBgFile) : undefined;
+        await submit(bannerB64, certBgB64);
+    } catch (e) {
+        setIsSubmittingEvent(false);
+        showAlert('error', 'File Error', "Gagal membaca file.");
     }
   };
 
   const resetWizard = () => {
       setWizardStep(1);
-      setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [], time: '09:00' });
+      setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [], time: '09:00', certificateConfig: { backgroundUrl: '', elements: [] } });
       setBannerFile(null);
       setBannerPreview(null);
+      setCertBgFile(null);
+      setCertBgPreview(null);
       setCustomCategory('');
       setIsCustomCat(false);
       setEditingId(null);
@@ -261,9 +341,11 @@ const AdminDashboard: React.FC = () => {
           description: event.description,
           price: event.price,
           maxParticipants: event.maxParticipants,
-          formFields: event.formFields || []
+          formFields: event.formFields || [],
+          certificateConfig: event.certificateConfig || { backgroundUrl: '', elements: [] }
       });
       setBannerPreview(event.bannerUrl);
+      if(event.certificateConfig?.backgroundUrl) setCertBgPreview(event.certificateConfig.backgroundUrl);
       
       // Check if custom category
       const isStd = Object.values(EventCategory).includes(event.category as EventCategory);
@@ -359,35 +441,6 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
-  // --- CERTIFICATE SETTINGS HANDLER ---
-  const handleSaveCertSettings = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setSavingCert(true);
-      let templateBase64 = undefined;
-      
-      const submit = async () => {
-          try {
-              const res = await saveCertificateSettings(certSettings, templateBase64);
-              if(res) {
-                 setCertSettings(prev => ({...prev, templateUrl: (res as any).templateUrl}));
-                 showAlert('success', 'Tersimpan', "Pengaturan sertifikat berhasil diperbarui!");
-              }
-          } catch(e) { showAlert('error', 'Gagal', "Gagal menyimpan sertifikat."); }
-          finally { setSavingCert(false); }
-      };
-
-      if (certTemplateFile) {
-          const reader = new FileReader();
-          reader.readAsDataURL(certTemplateFile);
-          reader.onload = () => {
-              templateBase64 = (reader.result as string).split(',')[1];
-              submit();
-          };
-      } else {
-          submit();
-      }
-  };
-
   const handleStatusUpdate = async (id: string, status: RegistrationStatus) => {
     try {
         await updateRegistrationStatus(id, status);
@@ -446,19 +499,24 @@ const AdminDashboard: React.FC = () => {
 
   // Render Time Picker Helper
   const [currentHour, currentMinute] = (newEvent.time || '09:00').split(':');
+  
+  // Available data fields for certificate
+  const certDataFields = [
+      { id: 'userName', label: 'Nama Peserta' },
+      { id: 'eventTitle', label: 'Judul Acara' },
+      { id: 'date', label: 'Tanggal Acara' },
+      { id: 'id', label: 'ID Sertifikat' },
+      ...(newEvent.formFields || []).map(f => ({ id: `custom:${f.label}`, label: `Data: ${f.label}` }))
+  ];
 
   const renderCreateEventWizard = () => (
       <div className="fixed inset-0 bg-[#2B427A]/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border-4 border-[#DFFF00] animate-scale-up">
-              {/* Wizard Header, Content and Footer (Same as previous implementation) */}
-              {/* ... keeping the modal implementation identical for brevity as requested ... */}
-              {/* (Assuming existing wizard code is here) */}
-              {/* Re-implementing just the wizard call structure for context */}
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden border-4 border-[#DFFF00] animate-scale-up">
               <div className="bg-gray-50 px-8 py-6 border-b-2 border-gray-100 flex justify-between items-center">
                   <div>
                       <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tight">{editingId ? 'Edit Acara' : 'Buat Acara Baru'}</h2>
                       <div className="flex gap-2 mt-2">
-                          {[1,2,3,4].map(step => (
+                          {[1,2,3,4,5].map(step => (
                               <div key={step} className={`h-2 w-12 rounded-full transition-all duration-300 ${step <= wizardStep ? 'bg-[#0B1CDE]' : 'bg-gray-200'}`} />
                           ))}
                       </div>
@@ -470,12 +528,12 @@ const AdminDashboard: React.FC = () => {
               <div className="p-8 overflow-y-auto flex-1 bg-white relative">
                   {/* Loading Overlay */}
                   {isSubmittingEvent && (
-                      <div className="absolute inset-0 bg-white/80 z-10 flex flex-col items-center justify-center backdrop-blur-sm animate-fade-in">
+                      <div className="absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm animate-fade-in">
                           <Loader className="w-16 h-16 text-[#2B427A] animate-spin mb-4" />
                           <p className="text-xl font-black text-[#2B427A] uppercase tracking-widest animate-pulse">Menyimpan Acara...</p>
                       </div>
                   )}
-                  {/* ... Steps 1, 2, 3, 4 Logic from previous response ... */}
+
                   {wizardStep === 1 && (
                       <div className="space-y-6 animate-fade-in">
                           <h3 className="text-lg font-black text-gray-400 uppercase">Tahap 1: Informasi Dasar</h3>
@@ -520,29 +578,9 @@ const AdminDashboard: React.FC = () => {
                                   <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label>
                                   <input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" />
                               </div>
-                              {/* Time Picker */}
                               <div>
-                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu (Jam : Menit)</label>
-                                  <div className="flex h-48 border-2 border-gray-200 rounded-xl overflow-hidden bg-white shadow-inner relative">
-                                      <div className="flex-1 flex flex-col items-center overflow-y-auto scroll-smooth snap-y snap-mandatory no-scrollbar" ref={hourRef} style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-                                          <div className="sticky top-0 w-full text-center bg-gray-50 border-b border-gray-100 text-[10px] font-black py-1 text-gray-400 z-10">JAM</div>
-                                          <div className="py-2 w-full">
-                                              {HOURS.map(h => (
-                                                  <div key={h} onClick={() => handleTimeChange('hour', h)} className={`h-10 flex items-center justify-center cursor-pointer snap-center transition-all ${currentHour === h ? 'bg-[#2B427A] text-white font-black text-xl scale-110 shadow-lg my-1 rounded-lg mx-2' : 'text-gray-400 font-bold hover:text-[#2B427A] hover:bg-gray-50'}`}>{h}</div>
-                                              ))}
-                                          </div>
-                                      </div>
-                                      <div className="w-8 flex items-center justify-center bg-gray-50 border-x border-gray-100 z-20 shadow-md"><span className="text-2xl font-black text-[#2B427A] animate-pulse">:</span></div>
-                                      <div className="flex-1 flex flex-col items-center overflow-y-auto scroll-smooth snap-y snap-mandatory no-scrollbar" ref={minuteRef} style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
-                                          <div className="sticky top-0 w-full text-center bg-gray-50 border-b border-gray-100 text-[10px] font-black py-1 text-gray-400 z-10">MENIT</div>
-                                          <div className="py-2 w-full">
-                                              {MINUTES.map(m => (
-                                                  <div key={m} onClick={() => handleTimeChange('minute', m)} className={`h-10 flex items-center justify-center cursor-pointer snap-center transition-all ${currentMinute === m ? 'bg-[#DFFF00] text-[#2B427A] font-black text-xl scale-110 shadow-lg my-1 rounded-lg mx-2' : 'text-gray-400 font-bold hover:text-[#2B427A] hover:bg-gray-50'}`}>{m}</div>
-                                              ))}
-                                          </div>
-                                      </div>
-                                  </div>
-                                  <div className="text-center mt-2 font-bold text-[#0B1CDE] bg-blue-50 py-1 rounded-lg border border-blue-100">Terpilih: {currentHour}:{currentMinute}</div>
+                                  <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label>
+                                  <input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-bold" />
                               </div>
                           </div>
                       </div>
@@ -598,111 +636,132 @@ const AdminDashboard: React.FC = () => {
                               <div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kuota Peserta</label><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-[#0B1CDE] outline-none font-black text-lg" /></div>
                           </div>
                           
-                          <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 mt-4"><h4 className="font-black text-[#2B427A] mb-2 uppercase">Ringkasan Acara {editingId && <span className="text-[#0B1CDE]">(EDIT MODE)</span>}</h4>
+                          <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 mt-4"><h4 className="font-black text-[#2B427A] mb-2 uppercase">Ringkasan Acara</h4>
                               <div className="grid grid-cols-2 gap-4 mt-2">
                                   <div><p className="text-xs text-gray-500 font-bold uppercase">Judul</p><p className="text-sm font-black text-[#0B1CDE]">{newEvent.title}</p></div>
                                   <div><p className="text-xs text-gray-500 font-bold uppercase">Kategori</p><p className="text-sm font-bold text-gray-700">{isCustomCat ? customCategory : newEvent.category}</p></div>
                                   <div><p className="text-xs text-gray-500 font-bold uppercase">Jadwal</p><p className="text-sm font-bold text-gray-700">{newEvent.date} @ {newEvent.time}</p></div>
                                   <div><p className="text-xs text-gray-500 font-bold uppercase">Lokasi</p><p className="text-sm font-bold text-gray-700">{newEvent.location}</p></div>
                               </div>
-                              {bannerPreview && <div className="mt-4"><p className="text-xs text-gray-500 font-bold uppercase mb-1">Banner Preview</p><img src={bannerPreview} alt="Banner" className="h-24 w-auto rounded border border-gray-300" /></div>}
                           </div>
                       </div>
                   )}
-              </div>
-              <div className="p-6 bg-gray-50 border-t-2 border-gray-100 flex justify-between">
-                  {wizardStep > 1 ? <button onClick={()=>setWizardStep(prev=>prev-1)} className="px-6 py-3 rounded-xl font-bold text-gray-600 hover:bg-gray-200 flex items-center gap-2 transition-colors"><ChevronLeft className="w-5 h-5"/> KEMBALI</button> : <div/>}
-                  {wizardStep < 4 ? <button onClick={()=>setWizardStep(prev=>prev+1)} className="px-6 py-3 rounded-xl font-black bg-[#2B427A] text-white hover:bg-[#0B1CDE] flex items-center gap-2 transition-all shadow-lg hover:translate-y-[-2px]">SELANJUTNYA <ChevronRight className="w-5 h-5"/></button> : <button onClick={handleCreateOrUpdateEvent} disabled={isSubmittingEvent} className="px-8 py-3 rounded-xl font-black bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:bg-white flex items-center gap-2 transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:shadow-[2px_2px_0px_0px_#2B427A] disabled:opacity-50 disabled:cursor-not-allowed">{isSubmittingEvent ? <Loader className="w-5 h-5 animate-spin"/> : <CheckCircle className="w-5 h-5"/>} {editingId ? 'SIMPAN PERUBAHAN' : 'PUBLIKASIKAN ACARA'}</button>}
-              </div>
-          </div>
-      </div>
-  );
 
-  const renderCertificateSettings = () => (
-      <div className="space-y-6 animate-fade-in">
-          <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Pengaturan Sertifikat</h2>
-          <div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A]">
-              <form onSubmit={handleSaveCertSettings} className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                      <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-100">
-                           <h3 className="font-black text-[#2B427A] uppercase mb-4 flex items-center gap-2">
-                               <Award className="w-5 h-5"/> Template Sertifikat
-                           </h3>
-                           <div className="space-y-4">
-                               <div className="border-2 border-dashed border-[#2B427A]/30 rounded-xl p-6 text-center bg-gray-50 hover:bg-[#F0F9FF] cursor-pointer relative h-64 flex items-center justify-center group">
-                                   <input type="file" accept="image/*" onChange={e=>{
-                                       const f = e.target.files?.[0];
-                                       if(f) {
-                                           setCertTemplateFile(f);
-                                           const r = new FileReader();
-                                           r.onload = () => setCertTemplatePreview(r.result as string);
-                                           r.readAsDataURL(f);
-                                       }
-                                   }} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
-                                   
-                                   {certTemplatePreview ? (
-                                       <div className="relative w-full h-full">
-                                           <img src={certTemplatePreview} alt="Template" className="w-full h-full object-contain" />
-                                           <div className="absolute inset-0 bg-white/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                               <span className="font-bold text-[#2B427A]">Ganti Background Template</span>
-                                           </div>
-                                       </div>
-                                   ) : (
-                                       <div className="flex flex-col items-center text-gray-400">
-                                            <Upload className="w-8 h-8 mb-2"/>
-                                            <span className="font-bold">Upload Template Background (A4 Landscape)</span>
-                                            <span className="text-xs mt-1">Format: PNG/JPG</span>
-                                       </div>
-                                   )}
-                               </div>
-                               <p className="text-xs text-gray-500 italic">
-                                   * Upload gambar background sertifikat (kosongan). Sistem akan menimpa teks Nama Peserta dan Judul Acara di tengah.
-                               </p>
-                           </div>
-                      </div>
-                  </div>
-                  
-                  <div className="space-y-6">
-                      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                          <h3 className="font-black text-[#2B427A] uppercase mb-4">Penandatangan</h3>
-                          <div className="space-y-4">
-                              <h4 className="font-bold text-gray-500 text-xs uppercase border-b pb-1">Pihak 1 (Kiri)</h4>
-                              <div className="grid grid-cols-2 gap-4">
+                  {/* STEP 5: CERTIFICATE DESIGNER */}
+                  {wizardStep === 5 && (
+                      <div className="h-full flex flex-col animate-fade-in overflow-hidden">
+                          <h3 className="text-lg font-black text-gray-400 uppercase mb-4">Tahap 5: Desain Sertifikat</h3>
+                          
+                          <div className="flex gap-4 h-full overflow-hidden">
+                              {/* Left Panel: Tools */}
+                              <div className="w-64 bg-gray-50 border-2 border-gray-200 rounded-xl p-4 flex flex-col gap-4 overflow-y-auto">
                                   <div>
-                                      <label className="block text-xs font-bold text-gray-500 mb-1">Nama</label>
-                                      <input type="text" value={certSettings.signer1Name} onChange={e=>setCertSettings({...certSettings, signer1Name: e.target.value})} className="w-full border rounded p-2 text-sm font-bold" placeholder="Nama Lengkap" />
+                                      <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Upload Template</label>
+                                      <div className="relative border-2 border-dashed border-[#2B427A] rounded-lg p-4 text-center cursor-pointer hover:bg-blue-50 transition-colors">
+                                          <input type="file" accept="image/*" onChange={handleCertBgChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                                          <span className="text-xs font-bold text-[#2B427A] block">Pilih Gambar</span>
+                                          <span className="text-[10px] text-gray-500">A4 Landscape</span>
+                                      </div>
                                   </div>
-                                  <div>
-                                      <label className="block text-xs font-bold text-gray-500 mb-1">Jabatan</label>
-                                      <input type="text" value={certSettings.signer1Role} onChange={e=>setCertSettings({...certSettings, signer1Role: e.target.value})} className="w-full border rounded p-2 text-sm font-bold" placeholder="Ketua Pelaksana" />
+
+                                  <div className="border-t pt-4">
+                                      <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Tambah Elemen</label>
+                                      <div className="grid grid-cols-1 gap-2">
+                                          <button onClick={() => addCertElement('text', 'text', 'Label Statis')} className="flex items-center gap-2 px-3 py-2 bg-white border rounded hover:border-[#0B1CDE] text-sm font-bold text-gray-700"><Type className="w-4 h-4"/> Teks Statis</button>
+                                          {certDataFields.map(f => (
+                                              <button key={f.id} onClick={() => addCertElement('dynamic', f.id, f.label)} className="flex items-center gap-2 px-3 py-2 bg-[#F0F9FF] border border-blue-200 rounded hover:border-[#0B1CDE] text-sm font-bold text-[#2B427A] text-left truncate">
+                                                  <PlusSquare className="w-4 h-4 flex-shrink-0"/> {f.label}
+                                              </button>
+                                          ))}
+                                      </div>
                                   </div>
+
+                                  {activeElementId && (
+                                      <div className="border-t pt-4 space-y-3 animate-fade-in">
+                                          <label className="text-xs font-bold text-[#0B1CDE] uppercase block">Edit Elemen</label>
+                                          {(() => {
+                                              const el = newEvent.certificateConfig?.elements.find(e => e.id === activeElementId);
+                                              if (!el) return null;
+                                              return (
+                                                  <>
+                                                      {el.type === 'text' && (
+                                                          <div>
+                                                              <label className="text-[10px] font-bold text-gray-400">Teks</label>
+                                                              <input type="text" value={el.field} onChange={e => updateCertElement(el.id, { field: e.target.value })} className="w-full border rounded p-1 text-sm" />
+                                                          </div>
+                                                      )}
+                                                      <div><label className="text-[10px] font-bold text-gray-400">Ukuran Font</label><input type="number" value={el.fontSize} onChange={e => updateCertElement(el.id, { fontSize: Number(e.target.value) })} className="w-full border rounded p-1 text-sm" /></div>
+                                                      <div><label className="text-[10px] font-bold text-gray-400">Warna</label><input type="color" value={el.color} onChange={e => updateCertElement(el.id, { color: e.target.value })} className="w-full h-8 cursor-pointer" /></div>
+                                                      <div>
+                                                          <label className="text-[10px] font-bold text-gray-400">Align</label>
+                                                          <select value={el.align} onChange={e => updateCertElement(el.id, { align: e.target.value as any })} className="w-full border rounded p-1 text-sm">
+                                                              <option value="left">Kiri</option><option value="center">Tengah</option><option value="right">Kanan</option>
+                                                          </select>
+                                                      </div>
+                                                      <button onClick={() => removeCertElement(el.id)} className="w-full py-2 bg-red-100 text-red-600 rounded text-xs font-bold hover:bg-red-200 mt-2">Hapus</button>
+                                                  </>
+                                              );
+                                          })()}
+                                      </div>
+                                  )}
                               </div>
-                              
-                              <h4 className="font-bold text-gray-500 text-xs uppercase border-b pb-1 mt-4">Pihak 2 (Kanan)</h4>
-                              <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                      <label className="block text-xs font-bold text-gray-500 mb-1">Nama</label>
-                                      <input type="text" value={certSettings.signer2Name} onChange={e=>setCertSettings({...certSettings, signer2Name: e.target.value})} className="w-full border rounded p-2 text-sm font-bold" placeholder="Nama Lengkap" />
-                                  </div>
-                                  <div>
-                                      <label className="block text-xs font-bold text-gray-500 mb-1">Jabatan</label>
-                                      <input type="text" value={certSettings.signer2Role} onChange={e=>setCertSettings({...certSettings, signer2Role: e.target.value})} className="w-full border rounded p-2 text-sm font-bold" placeholder="Ketua Himpunan" />
+
+                              {/* Canvas Area */}
+                              <div className="flex-1 bg-gray-200 rounded-xl overflow-auto flex items-center justify-center p-8 relative">
+                                  <div 
+                                      ref={canvasRef}
+                                      className="bg-white shadow-2xl relative overflow-hidden flex-shrink-0 select-none"
+                                      style={{ width: '842px', height: '595px' }} // Scale A4 Landscape
+                                      onMouseMove={handleCanvasMouseMove}
+                                      onMouseUp={handleCanvasMouseUp}
+                                      onMouseLeave={handleCanvasMouseUp}
+                                  >
+                                      {/* Background */}
+                                      {certBgPreview ? (
+                                          <img src={certBgPreview} className="w-full h-full object-cover pointer-events-none" />
+                                      ) : (
+                                          <div className="w-full h-full flex items-center justify-center text-gray-300 font-bold text-4xl border-4 border-dashed border-gray-300">TEMPLATE BACKGROUND</div>
+                                      )}
+
+                                      {/* Elements */}
+                                      {newEvent.certificateConfig?.elements.map(el => (
+                                          <div
+                                              key={el.id}
+                                              className={`absolute cursor-move hover:outline hover:outline-2 hover:outline-blue-400 ${activeElementId === el.id ? 'outline outline-2 outline-[#0B1CDE]' : ''}`}
+                                              style={{
+                                                  left: el.x,
+                                                  top: el.y,
+                                                  color: el.color,
+                                                  fontSize: `${el.fontSize}px`,
+                                                  fontFamily: el.fontFamily,
+                                                  fontWeight: el.fontWeight,
+                                                  textAlign: el.align,
+                                                  width: el.width ? `${el.width}px` : 'auto',
+                                                  transform: 'translate(-50%, -50%)', // Center pivot
+                                                  whiteSpace: 'nowrap'
+                                              }}
+                                              onMouseDown={(e) => handleCanvasMouseDown(e, el.id)}
+                                          >
+                                              {el.type === 'dynamic' ? `{${el.label}}` : el.field}
+                                          </div>
+                                      ))}
                                   </div>
                               </div>
                           </div>
                       </div>
-                      
-                      <button type="submit" disabled={savingCert} className="w-full py-4 bg-[#0B1CDE] text-white font-black rounded-xl hover:bg-[#2B427A] transition-all flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none">
-                           {savingCert ? <Loader className="animate-spin"/> : <Save/>} SIMPAN PENGATURAN SERTIFIKAT
-                      </button>
-                  </div>
-              </form>
+                  )}
+
+              </div>
+              <div className="p-6 bg-gray-50 border-t-2 border-gray-100 flex justify-between">
+                  {wizardStep > 1 ? <button onClick={()=>setWizardStep(prev=>prev-1)} className="px-6 py-3 rounded-xl font-bold text-gray-600 hover:bg-gray-200 flex items-center gap-2 transition-colors"><ChevronLeft className="w-5 h-5"/> KEMBALI</button> : <div/>}
+                  {wizardStep < 5 ? <button onClick={()=>setWizardStep(prev=>prev+1)} className="px-6 py-3 rounded-xl font-black bg-[#2B427A] text-white hover:bg-[#0B1CDE] flex items-center gap-2 transition-all shadow-lg hover:translate-y-[-2px]">SELANJUTNYA <ChevronRight className="w-5 h-5"/></button> : <button onClick={handleCreateOrUpdateEvent} disabled={isSubmittingEvent} className="px-8 py-3 rounded-xl font-black bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:bg-white flex items-center gap-2 transition-all shadow-[4px_4px_0px_0px_#2B427A] hover:shadow-[2px_2px_0px_0px_#2B427A] disabled:opacity-50 disabled:cursor-not-allowed">{isSubmittingEvent ? <Loader className="w-5 h-5 animate-spin"/> : <CheckCircle className="w-5 h-5"/>} {editingId ? 'SIMPAN PERUBAHAN' : 'PUBLIKASIKAN ACARA'}</button>}
+              </div>
           </div>
       </div>
   );
 
   const renderPaymentSettings = () => (
-      // ... (No changes here, kept existing implementation implicitly via re-render)
+      // ... (Same as before)
       <div className="space-y-6 animate-fade-in">
           <h2 className="text-2xl font-black text-[#2B427A] uppercase tracking-tighter">Pengaturan Pembayaran</h2>
           <div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A]">
@@ -979,7 +1038,6 @@ const AdminDashboard: React.FC = () => {
                 {id: 'events', label: 'Acara', icon: CalendarIcon},
                 {id: 'registrations', label: 'Pendaftaran', icon: UsersIcon},
                 {id: 'settings', label: 'Pembayaran', icon: CreditCard},
-                {id: 'certificates', label: 'Sertifikat', icon: Award},
             ].map(item => (
                 <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`w-full text-left px-5 py-4 rounded-lg flex items-center gap-3 transition-all duration-200 font-black border-2 uppercase tracking-wide ${activeTab === item.id ? 'bg-[#DFFF00] text-[#2B427A] border-[#2B427A] shadow-[4px_4px_0px_0px_#000] transform -translate-y-1' : 'text-white border-transparent hover:bg-white/10'}`}>
                     <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-[#2B427A]' : 'text-[#DFFF00]'}`} />
@@ -994,7 +1052,6 @@ const AdminDashboard: React.FC = () => {
         
         {activeTab === 'events' && renderEventsList()}
         {activeTab === 'settings' && renderPaymentSettings()}
-        {activeTab === 'certificates' && renderCertificateSettings()}
         {activeTab === 'registrations' && renderRegistrations()}
         {activeTab === 'overview' && (
              <div className="grid grid-cols-3 gap-6 animate-fade-in">
