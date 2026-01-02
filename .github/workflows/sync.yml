@@ -1,25 +1,33 @@
-name: Sync ke Repo Lain
+name: Sync Manual (Public)
 
 on:
   push:
-    branches: [ main ] # Pastikan ini sesuai branch utama Anda (bisa 'main' atau 'master')
+    branches: [ main ]
 
 jobs:
-  build:
+  force-sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
 
-      - name: Push ke Repository Tujuan
-        uses: cpina/github-action-push-to-another-repository@main
+      - name: Eksekusi Push Manual
         env:
-          # Ini mengambil kunci yang sudah Anda simpan di Bagian 2A tadi
-          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
-        with:
-          source-directory: '.'
-          destination-github-username: 'Hunion-dev'      # Username Akun KEDUA
-          destination-repository-name: 'event_kuyu'       # Nama Repo di Akun KEDUA (JANGAN pakai tanda / )
-          user-email: 'eventhmpbisdigupy@gmail.com'      # Email yang akan tampil di history commit
-          target-branch: main                            # Branch di repo Akun KEDUA
+          # Pastikan SECRET ini sudah ada di Settings > Secrets > Actions
+          TOKEN_SAYA: ${{ secrets.API_TOKEN_GITHUB }} 
+        run: |
+          # 1. Setting Identitas
+          git config --global user.email "eventhmpbisdigupy@gmail.com"
+          git config --global user.name "Auto Sync Bot"
+          
+          # 2. Masukkan Remote URL dengan TOKEN di dalamnya
+          # Ini kuncinya: Token diselipkan di depan @github.com
+          git remote add repo_sebelah https://Hunion-dev:$TOKEN_SAYA@github.com/Hunion-dev/event_kuyu.git
+          
+          # 3. Download dulu data dari sana (Fetch)
+          git fetch repo_sebelah
+          
+          # 4. Timpa (Force Push) data di sana dengan data dari sini
+          git push -f repo_sebelah main
