@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, Menu, Percent } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, Menu, Percent, ToggleLeft, ToggleRight, List, AtSign, FileUp } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -542,7 +542,124 @@ const AdminDashboard: React.FC = () => {
                             </div>
                             <select value={isCustomCat?'OTHER':newEvent.category} onChange={(e)=>{if(e.target.value==='OTHER'){setIsCustomCat(true);setNewEvent({...newEvent,category:''})}else{setIsCustomCat(false);setNewEvent({...newEvent,category:e.target.value})}}} className="w-full p-2 border-2 rounded-lg font-bold text-sm bg-white">{Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={e=>setCustomCategory(e.target.value)} className="w-full p-2 border-2 border-[#DFFF00] rounded-lg font-bold text-sm" placeholder="Kategori..."/>}</div></div>)}
                             {wizardStep === 2 && (<div className="space-y-4"><h3 className="font-black text-[#2B427A]">DETAIL & MEDIA</h3><textarea rows={4} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-2 border-2 rounded-lg font-medium text-sm" placeholder="Deskripsi (Bisa generate AI)" /><div className="flex gap-2"><button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs bg-blue-50 text-[#0B1CDE] px-3 py-1 rounded font-bold">{generatingDesc ? 'Generating...' : '✨ Generate AI'}</button></div><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-2 border-2 rounded-lg font-bold text-sm" placeholder="Lokasi" /><div className="bg-gray-50 p-3 rounded border"><label className="text-xs font-bold block mb-2">Banner</label><input type="file" onChange={handleBannerChange} className="text-xs"/></div><div className="bg-gray-50 p-3 rounded border"><label className="text-xs font-bold block mb-2">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="text-xs"/></div></div>)}
-                            {wizardStep === 3 && (<div className="space-y-4"><h3 className="font-black text-[#2B427A]">FORMULIR</h3>{newEvent.formFields?.map((f,i)=>(<div key={i} className="flex gap-2 bg-gray-50 p-2 rounded text-sm items-center"><span className="font-bold flex-1">{f.label} ({f.type})</span><button onClick={()=>removeFormField(i)} className="text-red-500"><Trash2 className="w-4 h-4"/></button></div>))}<button onClick={addFormField} className="w-full py-2 border-2 border-dashed text-[#2B427A] font-bold rounded-lg text-xs">+ TAMBAH FIELD</button></div>)}
+                            
+                            {/* STEP 3: FORM BUILDER (UPDATED) */}
+                            {wizardStep === 3 && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="font-black text-[#2B427A] text-lg uppercase">Desain Formulir</h3>
+                                        <button onClick={addFormField} className="px-4 py-2 bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] rounded-lg font-black text-xs shadow-[2px_2px_0px_0px_#2B427A] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-2">
+                                            <PlusSquare className="w-4 h-4"/> TAMBAH FIELD
+                                        </button>
+                                    </div>
+
+                                    {newEvent.formFields?.length === 0 && (
+                                        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+                                            <FormInput className="w-10 h-10 text-gray-300 mx-auto mb-2"/>
+                                            <p className="text-gray-400 font-bold text-sm">Belum ada kolom formulir.</p>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-4">
+                                        {newEvent.formFields?.map((f, i) => (
+                                            <div key={f.id} className="bg-white border-2 border-[#2B427A]/10 p-5 rounded-xl relative group hover:border-[#2B427A] transition-colors shadow-sm">
+                                                
+                                                {/* Header Field */}
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-8 h-8 bg-[#2B427A] rounded-lg text-white flex items-center justify-center font-black text-xs">
+                                                        {i + 1}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <input 
+                                                            value={f.label} 
+                                                            onChange={(e) => updateFormField(i, { label: e.target.value })}
+                                                            placeholder="Label Pertanyaan (Contoh: No. WhatsApp)"
+                                                            className="w-full font-black text-[#2B427A] text-sm border-b-2 border-transparent hover:border-gray-200 focus:border-[#0B1CDE] outline-none transition-colors py-1 bg-transparent placeholder:font-medium placeholder:text-gray-400"
+                                                        />
+                                                    </div>
+                                                    <button onClick={() => removeFormField(i)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                                                        <Trash2 className="w-4 h-4"/>
+                                                    </button>
+                                                </div>
+
+                                                {/* Grid Settings */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                                    
+                                                    {/* Tipe Input */}
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 flex items-center gap-1">
+                                                            <TypeIcon className="w-3 h-3"/> Tipe Input
+                                                        </label>
+                                                        <div className="relative">
+                                                            <select 
+                                                                value={f.type} 
+                                                                onChange={(e) => updateFormField(i, { type: e.target.value as FormFieldType })}
+                                                                className="w-full appearance-none bg-white border border-gray-200 text-[#2B427A] text-xs font-bold rounded p-2 pr-8 outline-none focus:border-[#0B1CDE]"
+                                                            >
+                                                                <option value="text">Teks Singkat (Short Text)</option>
+                                                                <option value="textarea">Paragraf (Long Text)</option>
+                                                                <option value="number">Angka (Number)</option>
+                                                                <option value="email">Email Address</option>
+                                                                <option value="select">Pilihan Ganda (Dropdown)</option>
+                                                                <option value="file">Upload File</option>
+                                                            </select>
+                                                            <div className="absolute right-2 top-2.5 pointer-events-none text-gray-400">
+                                                                <ChevronDown className="w-3 h-3"/>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Placeholder */}
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 flex items-center gap-1">
+                                                            <Bot className="w-3 h-3"/> Placeholder (Bayangan)
+                                                        </label>
+                                                        <input 
+                                                            value={f.placeholder || ''} 
+                                                            onChange={(e) => updateFormField(i, { placeholder: e.target.value })}
+                                                            placeholder="Contoh isi..."
+                                                            className="w-full bg-white border border-gray-200 text-[#2B427A] text-xs font-medium rounded p-2 outline-none focus:border-[#0B1CDE]"
+                                                        />
+                                                    </div>
+
+                                                    {/* Options for Select */}
+                                                    {f.type === 'select' && (
+                                                        <div className="md:col-span-2 bg-blue-50 p-3 rounded border border-blue-100">
+                                                            <label className="text-[10px] font-black uppercase text-[#0B1CDE] mb-1.5 flex items-center gap-1">
+                                                                <List className="w-3 h-3"/> Opsi Pilihan (Pisahkan dengan koma)
+                                                            </label>
+                                                            <input 
+                                                                value={f.options?.join(', ') || ''} 
+                                                                onChange={(e) => updateFormField(i, { options: e.target.value.split(',').map(s => s.trim()) })}
+                                                                placeholder="Contoh: Merah, Hijau, Biru"
+                                                                className="w-full bg-white border border-blue-200 text-[#2B427A] text-xs font-bold rounded p-2 outline-none focus:border-[#0B1CDE]"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Footer Toggle */}
+                                                <div className="flex items-center justify-between mt-3 px-1">
+                                                    <label className="flex items-center gap-2 cursor-pointer group/toggle select-none">
+                                                        <div className={`w-8 h-4 rounded-full relative transition-colors ${f.required ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}>
+                                                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${f.required ? 'left-4.5 translate-x-4' : 'left-0.5 translate-x-0'}`}></div>
+                                                        </div>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={f.required} 
+                                                            onChange={(e) => updateFormField(i, { required: e.target.checked })}
+                                                            className="hidden"
+                                                        />
+                                                        <span className={`text-xs font-bold ${f.required ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>Wajib Diisi (Required)</span>
+                                                    </label>
+                                                    <span className="text-[10px] font-mono text-gray-300">ID: {f.id.substring(0,6)}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {wizardStep === 4 && (<div className="space-y-4"><h3 className="font-black text-[#2B427A]">HARGA</h3><div className="grid md:grid-cols-2 gap-4"><div className="border p-3 rounded"><label className="text-xs font-bold text-gray-500">Harga (Rp)</label><input type="number" value={newEvent.price} onChange={e=>setNewEvent({...newEvent, price:Number(e.target.value)})} className="w-full text-xl font-black text-[#0B1CDE] outline-none" /></div><div className="border p-3 rounded"><label className="text-xs font-bold text-gray-500">Kuota</label><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants:Number(e.target.value)})} className="w-full text-xl font-black text-[#0B1CDE] outline-none" /></div></div></div>)}
                             {wizardStep === 5 && (<div className="h-full flex flex-col"><h3 className="font-black text-[#2B427A] mb-2">SERTIFIKAT</h3><div className="flex-1 border rounded overflow-hidden relative text-xs text-gray-400 flex items-center justify-center bg-gray-50">Editor Sertifikat (Desktop Only Recommended)</div></div>)}
                         </div>
