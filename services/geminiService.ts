@@ -6,8 +6,9 @@ const getApiKey = (): string => {
   // 1. Try standard Vite env var
   try {
     // Safe check for import.meta.env to prevent "Cannot read properties of undefined (reading 'VITE_API_KEY')"
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
-      return import.meta.env.VITE_API_KEY;
+    // Cast import.meta to any to avoid TS error about 'env' property missing on ImportMeta
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_API_KEY) {
+      return (import.meta as any).env.VITE_API_KEY;
     }
   } catch (e) {
     // Ignore errors if import.meta is not supported or defined
