@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -12,7 +13,7 @@ import {
   fetchEvents, createEvent, updateEvent, deleteEvent, 
   fetchRegistrations, updateRegistrationStatus, sendCertificate,
   fetchPaymentSettings, savePaymentSettings,
-  getUserSession, logout, createSlug, toggleEventStatus, sendBulkCertificates
+  getUserSession, logout, createSlug, toggleEventStatus, sendBulkCertificates, deleteRegistration
 } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { 
@@ -225,6 +226,23 @@ const AdminDashboard: React.FC = () => {
   };
 
   // --- Registration Handlers ---
+
+  const handleDeleteRegistration = (id: string) => {
+      showAlert('info', 'Hapus Peserta', 'Yakin ingin menghapus data peserta ini? Data tidak bisa dikembalikan.', async () => {
+          try {
+              await deleteRegistration(id);
+              setRegistrations(prev => prev.filter(r => r.id !== id));
+              showAlert('success', 'Terhapus', 'Data peserta berhasil dihapus.');
+              // Manually update local event count if possible, otherwise rely on reload next time
+              const reg = registrations.find(r => r.id === id);
+              if(reg) {
+                  setEvents(prev => prev.map(e => e.id === reg.eventId ? {...e, currentParticipants: Math.max(0, e.currentParticipants - 1)} : e));
+              }
+          } catch (e: any) {
+              showAlert('error', 'Gagal', e.message);
+          }
+      });
+  };
 
   const handleAnalyzePayment = async () => {
       if (!selectedReg || !selectedReg.proofUrl) return;
@@ -740,9 +758,12 @@ const AdminDashboard: React.FC = () => {
                                               {reg.status}
                                           </span>
                                       </td>
-                                      <td className="p-4 text-right">
+                                      <td className="p-4 text-right flex items-center justify-end gap-2">
                                           <button onClick={() => setSelectedReg(reg)} className="text-[#0B1CDE] hover:bg-blue-50 p-2 rounded-lg font-bold text-xs border border-[#0B1CDE]">
-                                              Detail & Aksi
+                                              Detail
+                                          </button>
+                                          <button onClick={() => handleDeleteRegistration(reg.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg border border-red-200">
+                                              <Trash2 className="w-4 h-4"/>
                                           </button>
                                       </td>
                                   </tr>
@@ -953,3 +974,4 @@ const AdminDashboard: React.FC = () => {
 };
 
 export default AdminDashboard;
+    

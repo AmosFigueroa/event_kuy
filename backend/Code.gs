@@ -44,6 +44,7 @@ function handleRequest(e, method) {
     else if (action === "getRegistrations") data = getRegistrations();
     else if (action === "getRegistration" && method === "POST") data = getRegistration(postData); 
     else if (action === "updateRegistrationStatus" && method === "POST") data = updateRegistrationStatus(postData);
+    else if (action === "deleteRegistration" && method === "POST") data = deleteRegistration(postData);
     else if (action === "sendCertificate" && method === "POST") data = sendCertificate(postData);
     else if (action === "sendBulkCertificates" && method === "POST") data = sendBulkCertificates(postData);
     
@@ -243,6 +244,30 @@ function getRegistration(data) { /*...*/ var rSheet = _getSheet("Registrations")
 function validateTicket(data) { /*...*/ var ticketId = data.ticketId; var eventId = data.eventId; if (!ticketId || !eventId) throw new Error("Data scan tidak lengkap."); var eSheet = _getSheet("Events"); var eRows = eSheet.getDataRange().getValues(); var eventActive = false; var eventName = ""; for(var i=1; i<eRows.length; i++) { if(eRows[i][0] == eventId) { var isOpen = (eRows[i][11] === true || String(eRows[i][11]).toUpperCase() === "TRUE"); if (isOpen) { eventActive = true; eventName = eRows[i][1]; } break; } } if (!eventActive) throw new Error("Link scan tidak valid atau Event sudah ditutup/selesai."); var rSheet = _getSheet("Registrations"); var rRows = rSheet.getDataRange().getValues(); var foundIndex = -1; for(var i=1; i<rRows.length; i++) { if (rRows[i][0] == ticketId) { foundIndex = i; break; } } if (foundIndex === -1) throw new Error("Tiket tidak ditemukan dalam database."); var row = rRows[foundIndex]; if (row[1] != eventId) throw new Error("Tiket ini bukan untuk acara ini (" + eventName + ")."); if (row[6] !== "APPROVED") throw new Error("Status tiket belum disetujui (Status: " + row[6] + ")."); if (row[9] === "CHECKED_IN") throw new Error("Tiket SUDAH DIPAKAI pada " + new Date(row[10]).toLocaleString()); var now = new Date().toISOString(); rSheet.getRange(foundIndex + 1, 10).setValue("CHECKED_IN"); rSheet.getRange(foundIndex + 1, 11).setValue(now); return { success: true, participantName: row[3], eventName: row[2], checkInTime: now }; }
 function exportParticipants(data) { /*...*/ var eventId = data.eventId; var rSheet = _getSheet("Registrations"); var rRows = rSheet.getDataRange().getValues(); var headers = ["No", "ID Pendaftaran", "Nama Peserta", "Email", "Acara", "Tanggal Beli", "Status", "Check-In", "Waktu Check-In"]; var customKeys = new Set(); var filteredRows = []; for(var i=1; i<rRows.length; i++) { if (eventId === 'ALL' || rRows[i][1] == eventId) { filteredRows.push(rRows[i]); try { var cData = JSON.parse(rRows[i][8] || "{}"); Object.keys(cData).forEach(function(k) { customKeys.add(k); }); } catch(e) {} } } var customKeysArray = Array.from(customKeys); headers = headers.concat(customKeysArray); var csvContent = headers.join(",") + "\n"; filteredRows.forEach(function(row, index) { var line = [ index + 1, row[0], '"' + row[3].replace(/"/g, '""') + '"', row[4], '"' + row[2].replace(/"/g, '""') + '"', new Date(row[7]).toLocaleDateString(), row[6], row[9] || "NOT_USED", row[10] ? new Date(row[10]).toLocaleTimeString() : "-" ]; var cData = {}; try { cData = JSON.parse(row[8] || "{}"); } catch(e) {} customKeysArray.forEach(function(key) { var val = cData[key] || "-"; line.push('"' + String(val).replace(/"/g, '""') + '"'); }); csvContent += line.join(",") + "\n"; }); return { csv: Utilities.base64Encode(csvContent), filename: "Export_Peserta_" + new Date().getTime() + ".csv" }; }
 
+function deleteRegistration(data) {
+  var sheet = _getSheet("Registrations");
+  var rows = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0] == data.id) {
+      var eventId = rows[i][1];
+      sheet.deleteRow(i + 1);
+      
+      // Decrease participant count in Events sheet
+      var eSheet = _getSheet("Events");
+      var eRows = eSheet.getDataRange().getValues();
+      for (var j = 1; j < eRows.length; j++) {
+        if (eRows[j][0] == eventId) {
+          var current = Number(eRows[j][10]) || 0;
+          if (current > 0) eSheet.getRange(j + 1, 11).setValue(current - 1);
+          break;
+        }
+      }
+      return { deleted: true };
+    }
+  }
+  throw new Error("Registration not found");
+}
+
 function updateRegistrationStatus(data) {
   var sheet = _getSheet("Registrations");
   var rows = sheet.getDataRange().getValues();
@@ -363,3 +388,4 @@ function _initDbIfNeeded() { var ss = _getDb(); if(!ss.getSheetByName("Events"))
 function _getMasterFolder() { var id = SCRIPT_PROP.getProperty("MASTER_FOLDER_ID"); if (id) { try { return DriveApp.getFolderById(id); } catch(e) {} } var f = DriveApp.createFolder("EventHorizon_Master"); f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); SCRIPT_PROP.setProperty("MASTER_FOLDER_ID", f.getId()); return f; }
 function _getAdminFolder() { var master = _getMasterFolder(); var folders = master.getFoldersByName("Admin_Assets"); if (folders.hasNext()) return folders.next(); var f = master.createFolder("Admin_Assets"); f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); return f; }
 function _getUserFolder() { var master = _getMasterFolder(); var folders = master.getFoldersByName("User_Uploads"); if (folders.hasNext()) return folders.next(); var f = master.createFolder("User_Uploads"); f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); return f; }
+    
