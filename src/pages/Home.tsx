@@ -192,10 +192,16 @@ const Home: React.FC = () => {
                         className="flex-shrink-0"
                         style={{ width: itemsPerSlide === 1 ? '100%' : (itemsPerSlide === 2 ? 'calc(50% - 12px)' : 'calc(25% - 18px)') }}
                     >
-                        <div 
-                            onClick={() => navigate(`/event/${createSlug(event.title) || event.id}`)}
-                            className="block group relative w-full aspect-[4/5] bg-gray-200 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-2 transition-all duration-300 overflow-hidden cursor-pointer"
-                        >
+                        {/* Event Card Container */}
+                        <div className="block group relative w-full aspect-[4/5] bg-gray-200 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-2 transition-all duration-300 overflow-hidden">
+                            
+                            {/* 1. Main Card Link (Background Layer) - Navigasi ke Detail Event */}
+                            <Link 
+                                to={`/event/${createSlug(event.title) || event.id}`}
+                                className="absolute inset-0 z-10 cursor-pointer"
+                                aria-label={`Lihat detail ${event.title}`}
+                            />
+
                             {/* Full Image */}
                             <img 
                                 src={event.thumbnailUrl || event.bannerUrl || `https://picsum.photos/400/500?random=${event.id}`} 
@@ -204,13 +210,13 @@ const Home: React.FC = () => {
                             />
                             
                             {/* Category Badge */}
-                            <div className="absolute top-4 left-4 bg-[#DFFF00] border-2 border-[#2B427A] px-3 py-1 text-xs font-black text-[#2B427A] uppercase tracking-wider z-10 shadow-[2px_2px_0px_0px_#000]">
+                            <div className="absolute top-4 left-4 bg-[#DFFF00] border-2 border-[#2B427A] px-3 py-1 text-xs font-black text-[#2B427A] uppercase tracking-wider z-10 shadow-[2px_2px_0px_0px_#000] pointer-events-none">
                                 {event.category}
                             </div>
                             
                             {/* Overlay Gradient & Content */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#2B427A] via-[#2B427A]/50 to-transparent opacity-90 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-5">
-                                <div className="transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#2B427A] via-[#2B427A]/50 to-transparent opacity-90 group-hover:opacity-100 transition-all duration-300 flex flex-col justify-end p-5 pointer-events-none">
+                                <div className="transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300 pointer-events-auto">
                                     <div className="flex items-center gap-2 text-xs font-bold text-[#DFFF00] mb-2 uppercase">
                                         <Calendar className="w-3 h-3" /> {new Date(event.date).toLocaleDateString()}
                                     </div>
@@ -218,18 +224,20 @@ const Home: React.FC = () => {
                                         {event.title}
                                     </h3>
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/20">
-                                        <div className="flex items-center gap-2 text-xs text-blue-100 font-bold">
-                                            <MapPin className="w-3 h-3" /> 
-                                            <a 
-                                                href={event.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="hover:text-[#DFFF00] hover:underline transition-colors z-20 relative truncate max-w-[150px]"
-                                            >
-                                                {event.location}
-                                            </a>
-                                        </div>
+                                        
+                                        {/* 2. Location Link (Foreground Layer with higher Z-Index) - Link ke Google Maps */}
+                                        <a 
+                                            href={event.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 text-xs text-blue-100 font-bold hover:text-[#DFFF00] hover:underline transition-colors z-20 relative max-w-[180px] cursor-pointer"
+                                            title="Lihat Peta Lokasi"
+                                            onClick={(e) => e.stopPropagation()} // Mencegah trigger link detail event
+                                        >
+                                            <MapPin className="w-3 h-3 flex-shrink-0" /> 
+                                            <span className="truncate">{event.location}</span>
+                                        </a>
+
                                         <ArrowRight className="w-4 h-4 text-[#DFFF00]" />
                                     </div>
                                 </div>

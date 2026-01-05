@@ -204,14 +204,14 @@ const EventDetail: React.FC = () => {
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 md:gap-4 mb-6 md:mb-8 pb-6 md:pb-8 border-b-2 border-dashed border-[#2B427A]/20">
                     <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><Calendar className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{new Date(event.date).toLocaleDateString()} | {formatTime(event.time)}</span></div>
                     <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm">
-                        <MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" />
                         <a 
                             href={mapLink}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hover:text-[#0B1CDE] hover:underline transition-colors"
+                            className="hover:text-[#0B1CDE] hover:underline transition-colors flex items-center gap-2"
                         >
-                            {event.location}
+                            <MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE] flex-shrink-0" />
+                            <span>{event.location}</span>
                         </a>
                     </div>
                     <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><Users className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{event.currentParticipants}/{event.maxParticipants}</span></div>

@@ -46,18 +46,22 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
             <Calendar className="w-5 h-5 text-[#0B1CDE]" />
             <span>{new Date(event.date).toLocaleDateString()} | {formatTime(event.time)}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <MapPin className="w-5 h-5 text-[#0B1CDE]" />
+          
+          {/* LOCATION LINK */}
+          <div className="flex items-center gap-3 relative z-20">
             <a 
                 href={mapLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="truncate hover:text-[#0B1CDE] hover:underline transition-colors"
+                className="flex items-center gap-3 hover:text-[#0B1CDE] hover:underline transition-colors w-full group/loc cursor-pointer"
                 title="Lihat di Google Maps"
+                onClick={(e) => e.stopPropagation()}
             >
-                {event.location}
+                <MapPin className="w-5 h-5 text-[#0B1CDE] flex-shrink-0 group-hover/loc:scale-110 transition-transform" />
+                <span className="truncate font-bold">{event.location}</span>
             </a>
           </div>
+
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5 text-[#0B1CDE]" />
             <span>{event.currentParticipants} / {event.maxParticipants} Peserta</span>
