@@ -14,6 +14,8 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
   // Use thumbnail if available for portrait aspect ratio, otherwise fallback to banner
   const displayImage = event.thumbnailUrl || event.bannerUrl || `https://picsum.photos/400/500?random=${event.id}`;
 
+  const mapLink = event.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`;
+
   return (
     <div className="group bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full relative">
       <div className="relative h-64 bg-gray-200 overflow-hidden border-b-2 border-[#2B427A]">
@@ -46,7 +48,15 @@ const EventCard: React.FC<EventCardProps> = ({ event }) => {
           </div>
           <div className="flex items-center gap-3">
             <MapPin className="w-5 h-5 text-[#0B1CDE]" />
-            <span className="truncate">{event.location}</span>
+            <a 
+                href={mapLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="truncate hover:text-[#0B1CDE] hover:underline transition-colors"
+                title="Lihat di Google Maps"
+            >
+                {event.location}
+            </a>
           </div>
           <div className="flex items-center gap-3">
             <Users className="w-5 h-5 text-[#0B1CDE]" />

@@ -310,7 +310,17 @@ const UserDashboard: React.FC = () => {
                          {ticket.eventDetails && (
                            <>
                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#0B1CDE]" /> {new Date(ticket.eventDetails.date).toDateString()} | {formatTime(ticket.eventDetails.time)}</div>
-                             <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#0B1CDE]" /> {ticket.eventDetails.location}</div>
+                             <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-[#0B1CDE]" /> 
+                                <a 
+                                    href={ticket.eventDetails.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.eventDetails.location)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-[#0B1CDE] hover:underline transition-colors"
+                                >
+                                    {ticket.eventDetails.location}
+                                </a>
+                             </div>
                            </>
                          )}
                          <div className="pt-2 text-xs text-gray-400 font-mono uppercase tracking-widest">ID: {ticket.id.substring(0,8)}...</div>

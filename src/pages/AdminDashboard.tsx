@@ -98,7 +98,8 @@ const AdminDashboard: React.FC = () => {
     formFields: [],
     time: '09:00',
     certificateConfig: { backgroundUrl: '', elements: [] },
-    enableTicketScanner: false
+    enableTicketScanner: false,
+    mapUrl: ''
   });
   const [customCategory, setCustomCategory] = useState(''); 
   const [isCustomCat, setIsCustomCat] = useState(false);
@@ -393,7 +394,8 @@ const AdminDashboard: React.FC = () => {
       formFields: [],
       time: '09:00',
       certificateConfig: { backgroundUrl: '', elements: [] },
-      enableTicketScanner: false
+      enableTicketScanner: false,
+      mapUrl: ''
     });
     setBannerFile(null);
     setBannerPreview(null);
@@ -789,7 +791,6 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
-  // ... (renderScanHistory unchanged) ...
   const renderScanHistory = () => {
       // 1. Filter registrations that are CHECKED_IN
       let checkedInRegs = registrations.filter(r => r.checkInStatus === 'CHECKED_IN');
@@ -894,7 +895,6 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
-  // ... (renderEventsList and renderRegistrations unchanged) ...
   const renderEventsList = () => (
       <div className="space-y-6 animate-fade-in">
           <div className="flex justify-between items-center mb-4">
@@ -1009,7 +1009,7 @@ const AdminDashboard: React.FC = () => {
                       <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-green-100 text-green-700 font-bold rounded hover:bg-green-200 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> EXPORT CSV</button>
                   </div>
                </div>
-               {/* ... (rest of registrations render) ... */}
+               
                {/* Event Filter Dropdown */}
                <div className="bg-white p-4 rounded-xl border-2 border-[#2B427A] mb-4">
                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Filter Acara:</label>
@@ -1079,10 +1079,10 @@ const AdminDashboard: React.FC = () => {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans relative">
       <CustomAlert isOpen={alertState.isOpen} type={alertState.type} title={alertState.title} message={alertState.message} onClose={closeAlert} onConfirm={alertState.onConfirm} confirmText={alertState.confirmText}/>
       
-      {/* ... (Modals and Toasts unchanged) ... */}
+      {/* PROOF MODAL WITH AI */}
       {viewingProof && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setViewingProof(null)}>
-              {/* ... proof modal code ... */}
+              {/* ... (Existing Proof Modal Code) ... */}
               <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
                   <div className="w-full md:w-1/2 bg-gray-900 flex items-center justify-center p-4 relative bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
                       <img 
@@ -1213,7 +1213,57 @@ const AdminDashboard: React.FC = () => {
                         {/* STEP 1 */}
                         {wizardStep === 1 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Informasi Dasar</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Seminar Nasional Bisnis" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label><input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label><select value={isCustomCat ? 'OTHER' : newEvent.category} onChange={(e) => { if (e.target.value === 'OTHER') { setIsCustomCat(true); setNewEvent({...newEvent, category: ''}); } else { setIsCustomCat(false); setNewEvent({...newEvent, category: e.target.value}); } }} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-[#0B1CDE] outline-none">{Object.values(EventCategory).map((c: any)=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full mt-2 p-3 border-2 border-[#DFFF00] rounded-xl font-bold" placeholder="Ketik Kategori..." />}</div></div></div>)}
                         {/* STEP 2 */}
-                        {wizardStep === 2 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi</label><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Link Zoom / Alamat Lengkap" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">Deskripsi<button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button></label><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/></div><div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 flex items-center justify-between"><div><h4 className="font-black text-[#2B427A] uppercase flex items-center gap-2"><QrCode className="w-5 h-5"/> Sistem Tiket QR Code</h4><p className="text-xs text-gray-500 font-bold mt-1">Aktifkan agar peserta mendapatkan QR Code unik untuk Check-In saat acara.</p></div><div className="flex items-center gap-3"><span className={`text-xs font-bold ${newEvent.enableTicketScanner ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>{newEvent.enableTicketScanner ? 'AKTIF' : 'NONAKTIF'}</span><button onClick={() => setNewEvent({...newEvent, enableTicketScanner: !newEvent.enableTicketScanner})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${newEvent.enableTicketScanner ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all duration-300 ${newEvent.enableTicketScanner ? 'left-7' : 'left-1'}`} /></button></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label><input type="file" onChange={handleBannerChange} className="w-full text-xs" />{bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}</div><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />{thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}</div></div></div>)}
+                        {wizardStep === 2 && (
+                            <div className="space-y-6 animate-fade-in">
+                                <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3>
+                                <div>
+                                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi (Nama Tempat/Platform)</label>
+                                    <input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Auditorium Kampus / Zoom Meeting" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2">
+                                        <MapPin className="w-4 h-4"/> Link Google Maps (Opsional)
+                                    </label>
+                                    <input 
+                                        type="url" 
+                                        value={newEvent.mapUrl||''} 
+                                        onChange={e=>setNewEvent({...newEvent, mapUrl:e.target.value})} 
+                                        className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none text-blue-600" 
+                                        placeholder="https://maps.app.goo.gl/..." 
+                                    />
+                                    <p className="text-xs text-gray-400 mt-1">Jika diisi, klik pada lokasi di halaman depan akan langsung membuka link ini.</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">
+                                        Deskripsi
+                                        <button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button>
+                                    </label>
+                                    <textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/>
+                                </div>
+                                <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 flex items-center justify-between">
+                                    <div>
+                                        <h4 className="font-black text-[#2B427A] uppercase flex items-center gap-2"><QrCode className="w-5 h-5"/> Sistem Tiket QR Code</h4>
+                                        <p className="text-xs text-gray-500 font-bold mt-1">Aktifkan agar peserta mendapatkan QR Code unik untuk Check-In saat acara.</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className={`text-xs font-bold ${newEvent.enableTicketScanner ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>{newEvent.enableTicketScanner ? 'AKTIF' : 'NONAKTIF'}</span>
+                                        <button onClick={() => setNewEvent({...newEvent, enableTicketScanner: !newEvent.enableTicketScanner})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${newEvent.enableTicketScanner ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all duration-300 ${newEvent.enableTicketScanner ? 'left-7' : 'left-1'}`} /></button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center">
+                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label>
+                                        <input type="file" onChange={handleBannerChange} className="w-full text-xs" />
+                                        {bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}
+                                    </div>
+                                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center">
+                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label>
+                                        <input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />
+                                        {thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {/* STEP 3 - FORM BUILDER UPDATED */}
                         {wizardStep === 3 && (
                             <div className="space-y-6 animate-fade-in">
@@ -1263,3 +1313,66 @@ const AdminDashboard: React.FC = () => {
         )}
 
         {/* SETTINGS VIEW */}
+        {activeTab === 'settings' && (
+           <div className="flex flex-col md:flex-row h-[calc(100vh-140px)] bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden">
+               <div className="w-full md:w-64 bg-gray-50 border-r-2 border-gray-200 flex flex-col">
+                   <div className="p-6 border-b border-gray-200"><h3 className="font-black text-[#2B427A] uppercase text-lg">Menu Pengaturan</h3></div>
+                   <nav className="flex-1 p-4 space-y-2">
+                       <button onClick={() => setSettingsTab('payment')} className={`w-full text-left px-4 py-3 rounded-lg font-bold flex items-center gap-3 transition-colors ${settingsTab === 'payment' ? 'bg-[#2B427A] text-white shadow-[2px_2px_0px_0px_#000]' : 'text-gray-600 hover:bg-gray-200'}`}><CreditCard className="w-5 h-5"/> Pembayaran & QRIS</button>
+                       <button onClick={() => setSettingsTab('certificate')} className={`w-full text-left px-4 py-3 rounded-lg font-bold flex items-center gap-3 transition-colors ${settingsTab === 'certificate' ? 'bg-[#2B427A] text-white shadow-[2px_2px_0px_0px_#000]' : 'text-gray-600 hover:bg-gray-200'}`}><Award className="w-5 h-5"/> Sertifikat Default</button>
+                   </nav>
+               </div>
+               <div className="flex-1 overflow-y-auto p-8 bg-white">
+                   {settingsTab === 'certificate' && (<div className="animate-fade-in h-full flex flex-col"><div className="mb-6 flex justify-between items-center border-b pb-4"><div><h3 className="font-black text-[#2B427A] uppercase mb-1">Desain Sertifikat Default</h3><p className="text-gray-500 text-sm">Template ini akan digunakan jika acara tidak memiliki desain spesifik.</p></div><button onClick={handleSaveCertSettings} disabled={savingCertSettings} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingCertSettings ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN TEMPLATE</button></div><div className="flex-1 relative border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(false)}</div></div>)}
+                   {settingsTab === 'payment' && (
+                      <div className="animate-fade-in max-w-4xl mx-auto">
+                         <div className="flex justify-between items-center mb-8 border-b pb-4"><h3 className="font-black text-[#2B427A] uppercase">Pengaturan Rekening & QRIS</h3><button onClick={handleSavePaymentSettings} disabled={savingPayment} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingPayment ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN PENGATURAN</button></div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div>
+                                 <h4 className="font-bold text-[#2B427A] mb-4 uppercase text-sm border-b pb-2">Daftar Rekening Bank</h4>
+                                 <div className="space-y-4 mb-6">{paymentSettings.bankAccounts.map((acc, idx) => (<div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex justify-between items-center group hover:bg-white hover:shadow-md transition-all"><div><div className="font-black text-[#2B427A]">{acc.bankName}</div><div className="text-sm font-mono text-gray-600">{acc.accountNumber}</div><div className="text-xs text-gray-400 uppercase">{acc.accountHolder}</div></div><button onClick={() => { const updated = paymentSettings.bankAccounts.filter((_, i) => i !== idx); setPaymentSettings({...paymentSettings, bankAccounts: updated}); }} className="text-red-500 bg-white p-2 rounded border border-gray-200 hover:bg-red-50"><Trash2 className="w-4 h-4"/></button></div>))}{paymentSettings.bankAccounts.length === 0 && <p className="text-sm text-gray-400 italic">Belum ada rekening.</p>}</div>
+                                 <div className="bg-blue-50 p-5 rounded-xl border border-blue-100"><h5 className="font-bold text-[#0B1CDE] text-xs uppercase mb-3 flex items-center gap-2"><PlusCircle className="w-4 h-4"/> Tambah Rekening Baru</h5><div className="space-y-3"><input type="text" placeholder="Nama Bank (mis: BCA)" value={tempAccount.bankName} onChange={e=>setTempAccount({...tempAccount, bankName: e.target.value})} className="w-full p-2 text-sm border rounded font-bold" /><input type="text" placeholder="Nomor Rekening" value={tempAccount.accountNumber} onChange={e=>setTempAccount({...tempAccount, accountNumber: e.target.value})} className="w-full p-2 text-sm border rounded font-bold" /><input type="text" placeholder="Atas Nama" value={tempAccount.accountHolder} onChange={e=>setTempAccount({...tempAccount, accountHolder: e.target.value})} className="w-full p-2 text-sm border rounded font-bold" /><button onClick={() => { if(tempAccount.bankName && tempAccount.accountNumber) { setPaymentSettings({...paymentSettings, bankAccounts: [...paymentSettings.bankAccounts, { ...tempAccount, id: Date.now().toString() }]}); setTempAccount({ id: '', bankName: '', accountNumber: '', accountHolder: '' }); } }} className="w-full py-2 bg-[#2B427A] text-white font-bold rounded text-sm hover:bg-[#0B1CDE]">TAMBAH KE DAFTAR</button></div></div>
+                            </div>
+                            <div><h4 className="font-bold text-[#2B427A] mb-4 uppercase text-sm border-b pb-2">Upload QRIS</h4><div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 cursor-pointer relative transition-colors"><input type="file" accept="image/*" onChange={(e) => setQrisFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>{qrisFile ? (<div className="flex flex-col items-center"><div className="bg-green-100 text-green-700 p-2 rounded mb-2"><CheckCircle className="w-6 h-6"/></div><div className="text-sm font-bold text-gray-800">{qrisFile.name}</div><div className="text-xs text-gray-500 mt-1">Klik untuk ganti</div></div>) : paymentSettings.qrisUrl ? (<div className="flex flex-col items-center"><img src={paymentSettings.qrisUrl} className="h-48 object-contain mb-4 rounded border shadow-sm" alt="QRIS" /><span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded">Klik untuk ganti gambar</span></div>) : (<div className="py-8"><Upload className="w-10 h-10 text-gray-300 mx-auto mb-2"/><div className="text-gray-500 font-bold text-sm">Upload Gambar QRIS (JPG/PNG)</div></div>)}</div></div>
+                         </div>
+                      </div>
+                   )}
+               </div>
+           </div>
+        )}
+        {activeTab === 'events' && renderEventsList()}
+        {activeTab === 'registrations' && renderRegistrations()}
+        {activeTab === 'scan-history' && renderScanHistory()}
+        {activeTab === 'overview' && (
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total Acara</h3>
+                        <p className="text-4xl font-black text-[#2B427A]">{events.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><CalendarIcon className="w-8 h-8"/></div>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Pendaftar</h3>
+                        <p className="text-4xl font-black text-[#0B1CDE]">{registrations.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#0B1CDE]"><UsersIcon className="w-8 h-8"/></div>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total User</h3>
+                        <p className="text-4xl font-black text-[#DFFF00] drop-shadow-sm text-outline">{uniqueUserCount}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><UserCheck className="w-8 h-8"/></div>
+                 </div>
+             </div>
+        )}
+      </main>
+      
+      <style>{`@keyframes slide-up {0% { transform: translate(-50%, 100%); opacity: 0; }100% { transform: translate(-50%, 0); opacity: 1; }}.animate-slide-up {animation: slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;} .text-outline { -webkit-text-stroke: 1px #2B427A; text-shadow: 2px 2px 0px #2B427A; }`}</style>
+    </div>
+  );
+};
+
+export default AdminDashboard;

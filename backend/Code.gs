@@ -204,12 +204,136 @@ function getEvents() {
     try { obj.certificateConfig = row[13] ? JSON.parse(row[13]) : null; } catch(e) { obj.certificateConfig = null; }
     obj.thumbnailUrl = row[14] || "";
     obj.enableTicketScanner = row[15] === true || row[15] === "TRUE";
+    obj.mapUrl = row[16] || ""; // NEW MAP URL
     return obj;
   });
 }
 
-function createEvent(data) { /*...*/ var sheet = _getSheet("Events"); var id = Utilities.getUuid(); var bannerUrl = ""; var thumbnailUrl = ""; var folder = _getAdminFolder(); if (data.bannerBase64) { try { var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + id); bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); } catch (e) { } } if (data.thumbnailBase64) { try { var blob = Utilities.newBlob(Utilities.base64Decode(data.thumbnailBase64), "image/jpeg", "thumb_" + id); thumbnailUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); } catch (e) { } } var certConfig = data.certificateConfig || null; if (certConfig && data.certBackgroundBase64) { try { var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + id); var file = folder.createFile(blob); file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); } catch(e) {} } var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]"; var certConfigJson = certConfig ? JSON.stringify(certConfig) : ""; sheet.appendRow([ id, data.title, data.description, data.date, data.time, data.location, data.price, data.category, bannerUrl, data.maxParticipants, 0, true, formFieldsJson, certConfigJson, thumbnailUrl, data.enableTicketScanner ]); return { id: id }; }
-function updateEvent(data) { /*...*/ var sheet = _getSheet("Events"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { var bannerUrl = rows[i][8]; var thumbnailUrl = rows[i][14] || ""; var folder = _getAdminFolder(); if (data.bannerBase64) { try { var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + data.id + "_" + new Date().getTime()); bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); } catch(e) {} } if (data.thumbnailBase64) { try { var blob = Utilities.newBlob(Utilities.base64Decode(data.thumbnailBase64), "image/jpeg", "thumb_" + data.id + "_" + new Date().getTime()); thumbnailUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); } catch(e) {} } var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]"; var certConfigJson = rows[i][13]; var certConfig = data.certificateConfig; if (certConfig) { if (data.certBackgroundBase64) { try { var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + data.id + "_" + new Date().getTime()); var file = folder.createFile(blob); file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); } catch(e) {} } else if (!certConfig.backgroundUrl && rows[i][13]) { try { var oldConf = JSON.parse(rows[i][13]); certConfig.backgroundUrl = oldConf.backgroundUrl; } catch(e){} } certConfigJson = JSON.stringify(certConfig); } sheet.getRange(i+1, 2).setValue(data.title); sheet.getRange(i+1, 3).setValue(data.description); sheet.getRange(i+1, 4).setValue(data.date); sheet.getRange(i+1, 5).setValue(data.time); sheet.getRange(i+1, 6).setValue(data.location); sheet.getRange(i+1, 7).setValue(data.price); sheet.getRange(i+1, 8).setValue(data.category); sheet.getRange(i+1, 9).setValue(bannerUrl); sheet.getRange(i+1, 10).setValue(data.maxParticipants); sheet.getRange(i+1, 13).setValue(formFieldsJson); if (sheet.getLastColumn() < 14) { sheet.getRange(i+1, 14).setValue(certConfigJson); sheet.getRange(i+1, 15).setValue(thumbnailUrl); sheet.getRange(i+1, 16).setValue(data.enableTicketScanner); } else { sheet.getRange(i+1, 14).setValue(certConfigJson); sheet.getRange(i+1, 15).setValue(thumbnailUrl); if (sheet.getLastColumn() >= 16) sheet.getRange(i+1, 16).setValue(data.enableTicketScanner); else sheet.getRange(i+1, 16).setValue(data.enableTicketScanner); } return { id: data.id, updated: true }; } } throw new Error("Event not found for update"); }
+function createEvent(data) { 
+  var sheet = _getSheet("Events"); 
+  var id = Utilities.getUuid(); 
+  var bannerUrl = ""; 
+  var thumbnailUrl = ""; 
+  var folder = _getAdminFolder(); 
+  
+  if (data.bannerBase64) { 
+    try { 
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + id); 
+      bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); 
+    } catch (e) { } 
+  } 
+  if (data.thumbnailBase64) { 
+    try { 
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.thumbnailBase64), "image/jpeg", "thumb_" + id); 
+      thumbnailUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); 
+    } catch (e) { } 
+  } 
+  
+  var certConfig = data.certificateConfig || null; 
+  if (certConfig && data.certBackgroundBase64) { 
+    try { 
+      var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + id); 
+      var file = folder.createFile(blob); 
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); 
+      certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); 
+    } catch(e) {} 
+  } 
+  
+  var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]"; 
+  var certConfigJson = certConfig ? JSON.stringify(certConfig) : ""; 
+  
+  sheet.appendRow([ 
+    id, 
+    data.title, 
+    data.description, 
+    data.date, 
+    data.time, 
+    data.location, 
+    data.price, 
+    data.category, 
+    bannerUrl, 
+    data.maxParticipants, 
+    0, 
+    true, 
+    formFieldsJson, 
+    certConfigJson, 
+    thumbnailUrl, 
+    data.enableTicketScanner,
+    data.mapUrl || "" // NEW
+  ]); 
+  return { id: id }; 
+}
+
+function updateEvent(data) { 
+  var sheet = _getSheet("Events"); 
+  var rows = sheet.getDataRange().getValues(); 
+  for (var i = 1; i < rows.length; i++) { 
+    if (rows[i][0] == data.id) { 
+      var bannerUrl = rows[i][8]; 
+      var thumbnailUrl = rows[i][14] || ""; 
+      var folder = _getAdminFolder(); 
+      if (data.bannerBase64) { 
+        try { 
+          var blob = Utilities.newBlob(Utilities.base64Decode(data.bannerBase64), "image/jpeg", "banner_" + data.id + "_" + new Date().getTime()); 
+          bannerUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); 
+        } catch(e) {} 
+      } 
+      if (data.thumbnailBase64) { 
+        try { 
+          var blob = Utilities.newBlob(Utilities.base64Decode(data.thumbnailBase64), "image/jpeg", "thumb_" + data.id + "_" + new Date().getTime()); 
+          thumbnailUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); 
+        } catch(e) {} 
+      } 
+      var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]"; 
+      var certConfigJson = rows[i][13]; 
+      var certConfig = data.certificateConfig; 
+      if (certConfig) { 
+        if (data.certBackgroundBase64) { 
+          try { 
+            var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + data.id + "_" + new Date().getTime()); 
+            var file = folder.createFile(blob); 
+            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); 
+            certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); 
+          } catch(e) {} 
+        } else if (!certConfig.backgroundUrl && rows[i][13]) { 
+          try { var oldConf = JSON.parse(rows[i][13]); certConfig.backgroundUrl = oldConf.backgroundUrl; } catch(e){} 
+        } 
+        certConfigJson = JSON.stringify(certConfig); 
+      } 
+      sheet.getRange(i+1, 2).setValue(data.title); 
+      sheet.getRange(i+1, 3).setValue(data.description); 
+      sheet.getRange(i+1, 4).setValue(data.date); 
+      sheet.getRange(i+1, 5).setValue(data.time); 
+      sheet.getRange(i+1, 6).setValue(data.location); 
+      sheet.getRange(i+1, 7).setValue(data.price); 
+      sheet.getRange(i+1, 8).setValue(data.category); 
+      sheet.getRange(i+1, 9).setValue(bannerUrl); 
+      sheet.getRange(i+1, 10).setValue(data.maxParticipants); 
+      sheet.getRange(i+1, 13).setValue(formFieldsJson); 
+      
+      // Update extended columns
+      if (sheet.getLastColumn() < 14) { 
+        sheet.getRange(i+1, 14).setValue(certConfigJson); 
+        sheet.getRange(i+1, 15).setValue(thumbnailUrl); 
+        sheet.getRange(i+1, 16).setValue(data.enableTicketScanner); 
+        sheet.getRange(i+1, 17).setValue(data.mapUrl || ""); 
+      } else { 
+        sheet.getRange(i+1, 14).setValue(certConfigJson); 
+        sheet.getRange(i+1, 15).setValue(thumbnailUrl); 
+        // Ensure col 16 exist
+        if (sheet.getLastColumn() >= 16) sheet.getRange(i+1, 16).setValue(data.enableTicketScanner); 
+        else sheet.getRange(i+1, 16).setValue(data.enableTicketScanner);
+        
+        // Ensure col 17 exist (mapUrl)
+        if (sheet.getLastColumn() >= 17) sheet.getRange(i+1, 17).setValue(data.mapUrl || "");
+        else sheet.getRange(i+1, 17).setValue(data.mapUrl || "");
+      } 
+      return { id: data.id, updated: true }; 
+    } 
+  } 
+  throw new Error("Event not found for update"); 
+}
+
 function deleteEvent(data) { /*...*/ var sheet = _getSheet("Events"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { sheet.deleteRow(i + 1); return { deleted: true }; } } throw new Error("Event not found"); }
 function toggleEventStatus(data) { /*...*/ var sheet = _getSheet("Events"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { var current = rows[i][11]; var isTrue = (current === true || String(current).toUpperCase() === "TRUE"); var newVal = !isTrue; sheet.getRange(i + 1, 12).setValue(newVal); return { id: data.id, isOpen: newVal }; } } throw new Error("Event not found"); }
 
@@ -504,10 +628,11 @@ function _initDbIfNeeded() {
   var ss = _getDb();
   
   if(!ss.getSheetByName("Events")) {
-    ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig","thumbnail","enableTicketScanner"]);
+    ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig","thumbnail","enableTicketScanner","mapUrl"]);
   } else {
     var eSheet = ss.getSheetByName("Events");
     if (eSheet.getLastColumn() < 16) eSheet.getRange(1, 16).setValue("enableTicketScanner");
+    if (eSheet.getLastColumn() < 17) eSheet.getRange(1, 17).setValue("mapUrl");
   }
   
   if(!ss.getSheetByName("Registrations")) {

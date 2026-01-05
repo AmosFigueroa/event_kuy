@@ -157,7 +157,14 @@ const PublicTicketPage: React.FC = () => {
                             </div>
                             <div className="flex items-center gap-3">
                                 <MapPin className="w-4 h-4 text-[#0B1CDE]"/>
-                                <span className="text-xs font-bold text-gray-700 truncate">{event?.location}</span>
+                                <a 
+                                    href={event?.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event?.location || '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-bold text-gray-700 truncate hover:text-[#0B1CDE] hover:underline transition-colors"
+                                >
+                                    {event?.location}
+                                </a>
                             </div>
                         </div>
 

@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ArrowRight, Info, CheckCircle, HelpCircle, ChevronRight, Mic, Users, TrendingUp, Calendar, ChevronLeft, MapPin } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FAQ_DATA, APP_NAME } from '../constants';
 import { fetchEvents, createSlug } from '../services/api';
 import { Event } from '../types';
@@ -10,6 +10,7 @@ const Home: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const navigate = useNavigate();
   
   // Stats State
   const [stats, setStats] = useState({ participants: 0, prokers: 0 });
@@ -126,10 +127,10 @@ const Home: React.FC = () => {
       {/* Statistics Strip */}
       <div className="bg-[#DFFF00] border-y-4 border-[#2B427A]">
         <div className="max-w-7xl mx-auto px-4 py-10">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#2B427A]/20">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-8 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#2B427A]/20">
                 {/* Stat 1 */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-5 p-4">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 mb-2 md:mb-0">
+                <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0">
                         <Users className="w-8 h-8"/>
                     </div>
                     <div className="text-center md:text-left">
@@ -138,8 +139,8 @@ const Home: React.FC = () => {
                     </div>
                 </div>
                 {/* Stat 2 */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-5 p-4">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 mb-2 md:mb-0">
+                <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0">
                         <Calendar className="w-8 h-8"/>
                     </div>
                     <div className="text-center md:text-left">
@@ -148,8 +149,8 @@ const Home: React.FC = () => {
                     </div>
                 </div>
                 {/* Stat 3 */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-5 p-4">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 mb-2 md:mb-0">
+                <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0">
                         <TrendingUp className="w-8 h-8"/>
                     </div>
                     <div className="text-center md:text-left">
@@ -191,7 +192,10 @@ const Home: React.FC = () => {
                         className="flex-shrink-0"
                         style={{ width: itemsPerSlide === 1 ? '100%' : (itemsPerSlide === 2 ? 'calc(50% - 12px)' : 'calc(25% - 18px)') }}
                     >
-                        <Link to={`/event/${createSlug(event.title) || event.id}`} className="block group relative w-full aspect-[4/5] bg-gray-200 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-2 transition-all duration-300 overflow-hidden">
+                        <div 
+                            onClick={() => navigate(`/event/${createSlug(event.title) || event.id}`)}
+                            className="block group relative w-full aspect-[4/5] bg-gray-200 rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] hover:shadow-[8px_8px_0px_0px_#0B1CDE] hover:-translate-y-2 transition-all duration-300 overflow-hidden cursor-pointer"
+                        >
                             {/* Full Image */}
                             <img 
                                 src={event.thumbnailUrl || event.bannerUrl || `https://picsum.photos/400/500?random=${event.id}`} 
@@ -215,13 +219,22 @@ const Home: React.FC = () => {
                                     </h3>
                                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/20">
                                         <div className="flex items-center gap-2 text-xs text-blue-100 font-bold">
-                                            <MapPin className="w-3 h-3" /> {event.location}
+                                            <MapPin className="w-3 h-3" /> 
+                                            <a 
+                                                href={event.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="hover:text-[#DFFF00] hover:underline transition-colors z-20 relative truncate max-w-[150px]"
+                                            >
+                                                {event.location}
+                                            </a>
                                         </div>
                                         <ArrowRight className="w-4 h-4 text-[#DFFF00]" />
                                     </div>
                                 </div>
                             </div>
-                        </Link>
+                        </div>
                     </div>
                 ))}
             </div>

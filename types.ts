@@ -62,6 +62,7 @@ export interface Event {
   date: string;
   time: string;
   location: string;
+  mapUrl?: string; // NEW: Specific Google Maps Link
   price: number;
   category: string; 
   bannerUrl: string;

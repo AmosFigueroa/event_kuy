@@ -165,6 +165,8 @@ const EventDetail: React.FC = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin h-10 w-10 border-4 border-[#2B427A] border-t-transparent rounded-full"></div></div>;
   if (!event) return <div className="min-h-screen flex items-center justify-center font-black text-[#2B427A]">ACARA TIDAK DITEMUKAN</div>;
 
+  const mapLink = event.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 relative">
       <CustomAlert 
@@ -201,7 +203,17 @@ const EventDetail: React.FC = () => {
              <div className="bg-white rounded-xl p-6 md:p-8 border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] md:shadow-[8px_8px_0px_0px_#2B427A]">
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 md:gap-4 mb-6 md:mb-8 pb-6 md:pb-8 border-b-2 border-dashed border-[#2B427A]/20">
                     <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><Calendar className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{new Date(event.date).toLocaleDateString()} | {formatTime(event.time)}</span></div>
-                    <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{event.location}</span></div>
+                    <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm">
+                        <MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" />
+                        <a 
+                            href={mapLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-[#0B1CDE] hover:underline transition-colors"
+                        >
+                            {event.location}
+                        </a>
+                    </div>
                     <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><Users className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{event.currentParticipants}/{event.maxParticipants}</span></div>
                 </div>
                 <h2 className="text-xl md:text-2xl font-black text-[#2B427A] mb-3 md:mb-4 uppercase">Deskripsi</h2>
