@@ -111,8 +111,6 @@ export const updateRegistrationStatus = (id: string, status: string) => {
     const baseUrl = window.location.origin + window.location.pathname;
     return callScript('updateRegistrationStatus', { id, status, baseUrl }, 'POST');
 };
-export const deleteRegistration = (id: string) => callScript('deleteRegistration', { id }, 'POST');
-
 export const sendCertificate = (id: string) => {
     // Pass current window origin to backend so email links are correct
     const baseUrl = window.location.origin + window.location.pathname;
