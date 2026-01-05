@@ -125,59 +125,33 @@ const Home: React.FC = () => {
 
       {/* Statistics Strip */}
       <div className="bg-[#DFFF00] border-y-4 border-[#2B427A]">
-        <div className="max-w-7xl mx-auto px-4 py-12">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                
+        <div className="max-w-7xl mx-auto px-4 py-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#2B427A]/20 text-center md:text-left">
                 {/* Stat 1 */}
-                <div className="flex justify-center">
-                    <div className="flex items-center gap-5 w-[290px]">
-                        <div className="flex-shrink-0 p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]">
-                            <Users className="w-8 h-8"/>
-                        </div>
-                        <div className="flex-1 text-left">
-                            {/* Display Exact Count without + */}
-                            <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.participants}</div>
-                            <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PARTISIPAN</div>
-                        </div>
+                <div className="flex items-center justify-center md:justify-center gap-5 px-4">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><Users className="w-8 h-8"/></div>
+                    <div className="text-left">
+                        {/* Display Exact Count without + */}
+                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.participants}</div>
+                        <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PARTISIPAN</div>
                     </div>
                 </div>
-
                 {/* Stat 2 */}
-                <div className="flex justify-center relative">
-                    {/* Divider Desktop */}
-                    <div className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 h-16 w-0.5 bg-[#2B427A]/20"></div>
-                    {/* Divider Mobile */}
-                    <div className="md:hidden absolute top-[-16px] left-1/2 -translate-x-1/2 w-48 h-0.5 bg-[#2B427A]/20"></div>
-
-                    <div className="flex items-center gap-5 w-[290px]">
-                        <div className="flex-shrink-0 p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]">
-                            <Calendar className="w-8 h-8"/>
-                        </div>
-                        <div className="flex-1 text-left">
-                            <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.prokers}</div>
-                            <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PROGRAM KERJA</div>
-                        </div>
+                <div className="flex items-center justify-center md:justify-center gap-5 px-4 pt-4 md:pt-0">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><Calendar className="w-8 h-8"/></div>
+                    <div className="text-left">
+                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.prokers}</div>
+                        <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PROGRAM KERJA</div>
                     </div>
                 </div>
-
                 {/* Stat 3 */}
-                <div className="flex justify-center relative">
-                    {/* Divider Desktop */}
-                    <div className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 h-16 w-0.5 bg-[#2B427A]/20"></div>
-                    {/* Divider Mobile */}
-                    <div className="md:hidden absolute top-[-16px] left-1/2 -translate-x-1/2 w-48 h-0.5 bg-[#2B427A]/20"></div>
-
-                    <div className="flex items-center gap-5 w-[290px]">
-                        <div className="flex-shrink-0 p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]">
-                            <TrendingUp className="w-8 h-8"/>
-                        </div>
-                        <div className="flex-1 text-left">
-                            <div className="text-4xl font-black text-[#2B427A] leading-none">100%</div>
-                            <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PENGEMBANGAN DIRI</div>
-                        </div>
+                <div className="flex items-center justify-center md:justify-center gap-5 px-4 pt-4 md:pt-0">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><TrendingUp className="w-8 h-8"/></div>
+                    <div className="text-left">
+                        <div className="text-4xl font-black text-[#2B427A] leading-none">100%</div>
+                        <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PENGEMBANGAN DIRI</div>
                     </div>
                 </div>
-
             </div>
         </div>
       </div>
