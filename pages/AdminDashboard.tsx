@@ -58,6 +58,9 @@ const AdminDashboard: React.FC = () => {
   // Scan History Specific State
   const [scanHistoryEventId, setScanHistoryEventId] = useState<string>('');
 
+  // Ref for Properties Panel
+  const propertiesRef = useRef<HTMLDivElement>(null);
+
   const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
     setAlertState({ isOpen: true, type, title, message });
   };
@@ -187,6 +190,15 @@ const AdminDashboard: React.FC = () => {
       }
   }, [certBgUrl, certElements]);
 
+  // Auto-scroll to properties panel when element is selected
+  useEffect(() => {
+      if (activeElementId && propertiesRef.current) {
+          setTimeout(() => {
+              propertiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }, 100);
+      }
+  }, [activeElementId]);
+
   // Global Mouse Handlers for Drag/Resize
   useEffect(() => {
       const handleWindowMouseMove = (e: MouseEvent) => {
@@ -295,7 +307,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const onElementMouseDown = (e: React.MouseEvent, el: CertificateElement) => {
-      e.stopPropagation(); // Prevent canvas click
+      e.stopPropagation(); // Prevent canvas click from triggering immediately
       setActiveElementId(el.id);
       setIsDragging(true);
       setDragStartPos({ x: e.clientX, y: e.clientY });
@@ -429,9 +441,9 @@ const AdminDashboard: React.FC = () => {
                           <p className="text-[9px] text-gray-400 mt-2 font-bold">*Format: JPG/PNG. Resolusi disarankan 1920x1080px.</p>
                       </div>
 
-                      <div className="p-6 flex-1 bg-gray-50 border-t border-gray-200">
+                      <div ref={propertiesRef} className={`p-6 flex-1 bg-gray-50 border-t border-gray-200 transition-colors ${activeEl ? 'bg-blue-50/50' : ''}`}>
                           <h4 className="text-xs font-black text-gray-400 uppercase mb-4 tracking-wide flex items-center gap-2">
-                              <SettingsIcon className="w-3 h-3"/> PROPERTI ITEM
+                              <SettingsIcon className="w-3 h-3"/> PROPERTI ITEM {activeEl ? `(${activeEl.type.toUpperCase()})` : ''}
                           </h4>
                           
                           {activeEl ? (
@@ -585,6 +597,7 @@ const AdminDashboard: React.FC = () => {
                               <div
                                   key={el.id}
                                   onMouseDown={(e) => onElementMouseDown(e, el)}
+                                  onClick={(e) => e.stopPropagation()}
                                   className={`absolute group cursor-move hover:outline hover:outline-1 hover:outline-[#0B1CDE] ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
                                   style={{
                                       left: el.x,
@@ -609,6 +622,7 @@ const AdminDashboard: React.FC = () => {
                                           {/* Resize Handle */}
                                           <div 
                                               onMouseDown={(e) => onResizeMouseDown(e, el)}
+                                              onClick={(e) => e.stopPropagation()}
                                               className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-[#0B1CDE] rounded-full cursor-nwse-resize hover:bg-[#0B1CDE] transition-colors shadow-sm z-50 flex items-center justify-center"
                                           >
                                               <div className="w-1.5 h-1.5 bg-[#0B1CDE] rounded-full"></div>
