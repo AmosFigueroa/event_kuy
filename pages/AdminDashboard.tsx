@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, Menu, Percent, ToggleLeft, ToggleRight, List, AtSign, FileUp, CalendarDays, CheckSquare2, CircleDot, AlertCircle, Smartphone, Monitor } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, Menu, Percent, ToggleLeft, ToggleRight, List, AtSign, FileUp, CalendarDays, CheckSquare2, CircleDot, AlertCircle, Smartphone, Monitor, Printer } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -55,6 +55,9 @@ const AdminDashboard: React.FC = () => {
   // Calculated Stats
   const [uniqueUserCount, setUniqueUserCount] = useState(0);
 
+  // Scan History Specific State
+  const [scanHistoryEventId, setScanHistoryEventId] = useState<string>('');
+
   const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string) => {
     setAlertState({ isOpen: true, type, title, message });
   };
@@ -77,6 +80,7 @@ const AdminDashboard: React.FC = () => {
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({ bankAccounts: [], qrisUrl: '' });
   const [qrisFile, setQrisFile] = useState<File | null>(null);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [qrisPreview, setQrisPreview] = useState<string | null>(null);
   
   // Certificate Default Settings State
   const [certSettings, setCertSettings] = useState<CertificateConfig>({ backgroundUrl: '', elements: [] });
@@ -142,7 +146,13 @@ const AdminDashboard: React.FC = () => {
       setIsMobileSidebarOpen(false);
   }, [activeTab]);
 
-  // ... (Helper functions match existing) ...
+  // Set default event for scan history if events loaded
+  useEffect(() => {
+      if (events.length > 0 && !scanHistoryEventId) {
+          setScanHistoryEventId(events[0].id);
+      }
+  }, [events]);
+
   const formatDriveUrl = (url: string) => {
       if (!url) return '';
       if (url.includes('lh3.googleusercontent.com') || !url.includes('google.com')) return url;
@@ -167,11 +177,9 @@ const AdminDashboard: React.FC = () => {
 
   const formatTimeDisplay = (time: string | undefined) => {
       if (!time) return '-';
-      // If it looks like 1899-12-30T... just take the time part
       if (time.includes('T')) {
           try {
               const dateObj = new Date(time);
-              // If invalid date, fallback
               if (isNaN(dateObj.getTime())) return time;
               return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
           } catch(e) {
@@ -193,6 +201,7 @@ const AdminDashboard: React.FC = () => {
       setEvents(evts || []);
       setRegistrations(regs || []);
       setPaymentSettings(payment || { bankAccounts: [], qrisUrl: '' });
+      if (payment && payment.qrisUrl) setQrisPreview(payment.qrisUrl);
       const uniqueEmails = new Set(regs?.map(r => r.userEmail.toLowerCase()) || []);
       setUniqueUserCount(uniqueEmails.size);
       const loadedCert = certs || { backgroundUrl: '', elements: [] };
@@ -206,6 +215,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleAiAnalysis = async () => {
+      // ... (Implementation preserved)
       if (!viewingProof || !viewingProof.proofUrl) return;
       const event = events.find(e => e.id === viewingProof.eventId);
       const expectedAmount = event ? event.price : 0;
@@ -235,10 +245,9 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleStatusUpdate = async (id: string, status: RegistrationStatus) => {
+      // ... (Implementation preserved)
       try {
           await updateRegistrationStatus(id, status);
-          
-          // Check Auto-Send Logic
           if (status === RegistrationStatus.APPROVED) {
               const reg = registrations.find(r => r.id === id);
               if (reg) {
@@ -254,21 +263,39 @@ const AdminDashboard: React.FC = () => {
           } else {
               setToast({ show: true, msg: `Status diperbarui menjadi ${status}` });
           }
-
           setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
           if (viewingProof?.id === id) setViewingProof(null);
-          
           setTimeout(() => setToast({show: false, msg: ''}), 3000);
       } catch (error: any) {
           showAlert('error', 'Gagal', error.message);
       }
   };
 
-  // ... (Other handlers unchanged) ...
   const handleExportData = async () => { setExportLoading(true); try { const csvString = await fetchParticipantsCsv(selectedEventFilter); const blob = new Blob([csvString], { type: 'text/csv' }); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `participants_export_${new Date().toISOString()}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url); setShowExportModal(false); } catch (e: any) { showAlert('error', 'Gagal', 'Gagal mengunduh CSV.'); } finally { setExportLoading(false); } };
   const handleBulkSendCertificates = () => { if (selectedEventFilter === 'ALL') { showAlert('error', 'Pilih Acara', 'Silakan pilih spesifik acara terlebih dahulu di menu filter.'); return; } const eligibleRegistrations = registrations.filter(r => r.eventId === selectedEventFilter && r.status === RegistrationStatus.APPROVED); if (eligibleRegistrations.length === 0) { showAlert('info', 'Tidak Ada Peserta', 'Tidak ada peserta dengan status APPROVED untuk acara ini.'); return; } showConfirm( 'Kirim Semua Sertifikat?', `Akan mengirim ${eligibleRegistrations.length} email sertifikat. Lanjutkan?`, async () => { setIsBulkSending(true); try { const ids = eligibleRegistrations.map(r => r.id); const result = await sendBulkCertificates(ids); showAlert('success', 'Selesai', `Berhasil terkirim: ${result.sent}. Gagal: ${result.failed}`); } catch (e: any) { showAlert('error', 'Gagal', e.message || 'Terjadi kesalahan.'); } finally { setIsBulkSending(false); } }, 'KIRIM SEKARANG' ); };
   const handleSaveCertSettings = async () => { setSavingCertSettings(true); try { let bgBase64 = undefined; if (certTemplateFile) { bgBase64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]); reader.readAsDataURL(certTemplateFile); }); } await saveCertificateSettings(certSettings, bgBase64); showAlert('success', 'Tersimpan', 'Template sertifikat default disimpan.'); } catch (e: any) { showAlert('error', 'Gagal', e.message); } finally { setSavingCertSettings(false); } };
-  const handleSavePaymentSettings = async () => { setSavingPayment(true); try { let qrisBase64 = undefined; if (qrisFile) { qrisBase64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]); reader.readAsDataURL(qrisFile); }); } await savePaymentSettings(paymentSettings, qrisBase64); showAlert('success', 'Tersimpan', 'Pengaturan pembayaran berhasil disimpan.'); } catch (e: any) { showAlert('error', 'Gagal', e.message); } finally { setSavingPayment(false); } };
+  
+  const handleSavePaymentSettings = async () => { 
+      setSavingPayment(true); 
+      try { 
+          let qrisBase64 = undefined; 
+          if (qrisFile) { 
+              qrisBase64 = await new Promise<string>((resolve) => { 
+                  const reader = new FileReader(); 
+                  reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]); 
+                  reader.readAsDataURL(qrisFile); 
+              }); 
+          } 
+          const res = await savePaymentSettings(paymentSettings, qrisBase64); 
+          if (res && res.qrisUrl) setQrisPreview(res.qrisUrl);
+          showAlert('success', 'Tersimpan', 'Pengaturan pembayaran berhasil disimpan.'); 
+      } catch (e: any) { 
+          showAlert('error', 'Gagal', e.message); 
+      } finally { 
+          setSavingPayment(false); 
+      } 
+  };
+
   const resetWizard = () => { setNewEvent({ category: EventCategory.SEMINAR, price: 0, maxParticipants: 100, formFields: [], time: '09:00', certificateConfig: { backgroundUrl: '', elements: [] }, enableTicketScanner: false, autoSendCertificate: false }); setBannerFile(null); setBannerPreview(null); setThumbnailFile(null); setThumbnailPreview(null); setCertBgFile(null); setCertBgPreview(null); setIsCustomCat(false); setCustomCategory(''); setWizardStep(1); setEditingId(null); };
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setBannerFile(file); const reader = new FileReader(); reader.onload = (ev) => setBannerPreview(ev.target?.result as string); reader.readAsDataURL(file); } };
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setThumbnailFile(file); const reader = new FileReader(); reader.onload = (ev) => setThumbnailPreview(ev.target?.result as string); reader.readAsDataURL(file); } };
@@ -278,9 +305,9 @@ const AdminDashboard: React.FC = () => {
   const removeFormField = (index: number) => { const fields = [...(newEvent.formFields || [])]; fields.splice(index, 1); setNewEvent(prev => ({ ...prev, formFields: fields })); };
   const handleCreateOrUpdateEvent = async () => { setIsSubmittingEvent(true); try { let bannerBase64 = undefined; if (bannerFile) { bannerBase64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]); reader.readAsDataURL(bannerFile); }); } let thumbnailBase64 = undefined; if (thumbnailFile) { thumbnailBase64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]); reader.readAsDataURL(thumbnailFile); }); } let certBgBase64 = undefined; if (certBgFile) { certBgBase64 = await new Promise<string>((resolve) => { const reader = new FileReader(); reader.onload = (e) => resolve((e.target?.result as string).split(',')[1]); reader.readAsDataURL(certBgFile); }); } const eventPayload = { ...newEvent, category: isCustomCat ? customCategory : newEvent.category }; if (editingId) { await updateEvent({ ...eventPayload, id: editingId }, bannerBase64, certBgBase64, thumbnailBase64); showAlert('success', 'Berhasil', 'Acara berhasil diperbarui.'); } else { await createEvent(eventPayload, bannerBase64 || '', certBgBase64, thumbnailBase64); showAlert('success', 'Berhasil', 'Acara berhasil dibuat.'); } setActiveTab('events'); loadData(); } catch (e: any) { showAlert('error', 'Gagal', e.message); } finally { setIsSubmittingEvent(false); } };
 
-  // New Render Designer Logic (Mobile vs Desktop)
+  // ... (Designer Logic Same) ...
   const renderDesigner = () => {
-      // MOBILE LOCKED VIEW
+      // ... (Same implementation)
       if (isMobile) {
           return (
               <div className="flex flex-col items-center justify-center h-full p-8 text-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl relative overflow-hidden">
@@ -296,15 +323,12 @@ const AdminDashboard: React.FC = () => {
                           <Smartphone className="w-4 h-4"/> Mode Tampilan HP
                       </div>
                   </div>
-                  {/* Mock Background behind blur */}
                   <div className="opacity-20 w-full h-full flex items-center justify-center">
                       <div className="w-64 h-48 border-4 border-gray-300"></div>
                   </div>
               </div>
           );
       }
-
-      // DESKTOP DESIGNER (Placeholder for full implementation in future update, focusing on layout now)
       return (
           <div className="h-full flex flex-col bg-gray-100 border rounded-lg overflow-hidden relative">
               <div className="p-2 bg-white border-b flex justify-between items-center">
@@ -322,7 +346,6 @@ const AdminDashboard: React.FC = () => {
                               Upload Background
                           </div>
                       )}
-                      {/* Elements rendering logic would go here */}
                       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 border-2 border-blue-400 p-2 text-blue-600 bg-white/80 font-bold cursor-move">
                           [NAMA PESERTA]
                       </div>
@@ -355,7 +378,7 @@ const AdminDashboard: React.FC = () => {
 
   const renderEventsList = () => (
       <div className="space-y-6 animate-fade-in">
-          {/* ... existing code ... */}
+          {/* ... (Same implementation) */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
               <h3 className="font-black text-[#2B427A] text-xl md:text-2xl uppercase">Daftar Acara</h3>
               <button onClick={() => { resetWizard(); setActiveTab('event-editor'); }} className="w-full md:w-auto px-6 py-2 bg-[#DFFF00] text-[#2B427A] rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] active:shadow-none active:translate-y-[4px] transition-all flex items-center justify-center gap-2">
@@ -391,6 +414,7 @@ const AdminDashboard: React.FC = () => {
   );
 
   const renderRegistrations = () => {
+      // ... (Same implementation)
       const filtered = registrations.filter(r => selectedEventFilter === 'ALL' || r.eventId === selectedEventFilter);
       return (
           <div className="animate-fade-in space-y-4">
@@ -466,38 +490,119 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
-  const renderScanHistory = () => (
-      <div className="animate-fade-in space-y-6">
-          <div className="flex justify-between items-center mb-4">
-              <h3 className="font-black text-[#2B427A] text-xl md:text-2xl uppercase">Pemindai Tiket</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {events.filter(e => e.isOpen).length === 0 ? (
-                 <div className="col-span-full text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-                     <QrCode className="w-12 h-12 text-gray-300 mx-auto mb-2"/>
-                     <p className="text-gray-400 font-bold">Tidak ada acara aktif untuk discan.</p>
-                 </div>
-              ) : (
-                  events.filter(e => e.isOpen).map(event => (
-                      <div key={event.id} className="bg-white rounded-xl border-2 border-[#2B427A] p-5 shadow-[4px_4px_0px_0px_#2B427A] hover:shadow-[6px_6px_0px_0px_#0B1CDE] transition-all">
-                          <h4 className="font-black text-[#2B427A] uppercase mb-1 line-clamp-1">{event.title}</h4>
-                          <p className="text-xs font-bold text-gray-500 mb-4">{new Date(event.date).toLocaleDateString()}</p>
-                          <button onClick={() => navigate(`/scanner/${event.id}`)} className="w-full bg-[#2B427A] text-white py-2 rounded-lg font-black text-xs border-2 border-[#2B427A] hover:bg-[#DFFF00] hover:text-[#2B427A] transition-colors flex items-center justify-center gap-2">
-                              <ScanLine className="w-4 h-4" /> MULAI SCAN
-                          </button>
+  // REFACTORED SCAN HISTORY to match screenshot
+  const renderScanHistory = () => {
+      // Logic for Stats
+      const currentEvent = events.find(e => e.id === scanHistoryEventId);
+      const eventRegistrations = registrations.filter(r => r.eventId === scanHistoryEventId);
+      
+      const totalParticipants = eventRegistrations.filter(r => r.status === RegistrationStatus.APPROVED).length;
+      const presentParticipants = eventRegistrations.filter(r => r.checkInStatus === 'CHECKED_IN').length;
+      const presencePercentage = totalParticipants > 0 ? Math.round((presentParticipants / totalParticipants) * 100) : 0;
+
+      // Get Logs (Checked in users) sorted by time desc
+      const scanLogs = eventRegistrations
+          .filter(r => r.checkInStatus === 'CHECKED_IN')
+          .sort((a, b) => new Date(b.checkInTime || '').getTime() - new Date(a.checkInTime || '').getTime());
+
+      return (
+          <div className="animate-fade-in space-y-6">
+              <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-black text-[#2B427A] text-xl md:text-2xl uppercase">RIWAYAT SCAN</h3>
+                  <button 
+                    onClick={handleExportAttendance} // Using existing export handler but contextual
+                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-bold text-xs flex items-center gap-2 border border-green-200 hover:bg-green-200 transition-colors"
+                  >
+                      <FileSpreadsheet className="w-4 h-4"/> LAPORAN
+                  </button>
+              </div>
+
+              {/* Event Selector */}
+              <div className="bg-white p-4 rounded-xl border-2 border-[#2B427A] shadow-sm">
+                  <select 
+                      value={scanHistoryEventId} 
+                      onChange={(e) => setScanHistoryEventId(e.target.value)}
+                      className="w-full text-lg font-bold text-[#2B427A] outline-none bg-transparent cursor-pointer"
+                  >
+                      {events.length === 0 && <option value="">Belum ada acara</option>}
+                      {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
+                  </select>
+              </div>
+
+              {/* Stats Cards */}
+              <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">HADIR</p>
+                      <p className="text-3xl font-black text-[#0B1CDE]">{presentParticipants}</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">TOTAL</p>
+                      <p className="text-3xl font-black text-[#2B427A]">{totalParticipants}</p>
+                  </div>
+                  <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]">
+                      <p className="text-xs font-bold text-gray-400 uppercase mb-1">PERSENTASE</p>
+                      <div className="flex items-end gap-1">
+                          <p className="text-3xl font-black text-[#DFFF00] text-outline">{presencePercentage}</p>
+                          <span className="text-lg font-bold text-[#2B427A] mb-1">%</span>
                       </div>
-                  ))
-              )}
-          </div>
-          <div className="mt-8 bg-blue-50 p-4 rounded-xl border border-blue-100 flex gap-4 items-start">
-              <Info className="w-6 h-6 text-[#0B1CDE] flex-shrink-0" />
-              <div>
-                  <h4 className="font-black text-[#2B427A] text-sm uppercase mb-1">Info Scanner</h4>
-                  <p className="text-xs text-gray-600 leading-relaxed">Gunakan fitur ini pada perangkat dengan kamera untuk memindai QR Code tiket peserta. Riwayat scan tersimpan di perangkat lokal.</p>
+                  </div>
+              </div>
+
+              {/* Logs Table */}
+              <div className="bg-[#2B427A] text-white rounded-t-xl p-4 flex justify-between font-bold text-xs uppercase tracking-wider">
+                  <div className="w-1/4">WAKTU</div>
+                  <div className="w-1/2">PESERTA</div>
+                  <div className="w-1/4 text-right">ACARA</div>
+              </div>
+              <div className="bg-white border-2 border-[#2B427A] border-t-0 rounded-b-xl overflow-hidden shadow-sm">
+                  {scanLogs.length === 0 ? (
+                      <div className="p-8 text-center text-gray-400 font-bold italic text-sm">Belum ada data scan masuk.</div>
+                  ) : (
+                      <div className="max-h-96 overflow-y-auto divide-y divide-gray-100">
+                          {scanLogs.map((log) => (
+                              <div key={log.id} className="p-4 flex justify-between items-center text-sm hover:bg-gray-50 transition-colors">
+                                  <div className="w-1/4 font-mono text-gray-500 font-bold">
+                                      {log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'}) : '-'}
+                                  </div>
+                                  <div className="w-1/2 font-bold text-[#2B427A] truncate pr-4">
+                                      {log.userName}
+                                  </div>
+                                  <div className="w-1/4 text-right text-xs font-bold text-[#0B1CDE] truncate">
+                                      {currentEvent?.title || '-'}
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  )}
               </div>
           </div>
-      </div>
-  );
+      );
+  };
+
+  // Helper for Export inside Scan History (reused logic)
+  const handleExportAttendance = () => {
+      if (!scanHistoryEventId) return;
+      const checkedInUsers = registrations.filter(r => r.eventId === scanHistoryEventId && r.checkInStatus === 'CHECKED_IN');
+      if (checkedInUsers.length === 0) {
+          showAlert('info', 'Data Kosong', 'Belum ada peserta yang check-in untuk acara ini.');
+          return;
+      }
+      const eventTitle = events.find(e => e.id === scanHistoryEventId)?.title || "Event";
+      let csvContent = "No,Nama Peserta,Email,Waktu Check-In,Ticket ID\n";
+      checkedInUsers.forEach((r, index) => {
+          const time = r.checkInTime ? new Date(r.checkInTime).toLocaleString() : '-';
+          csvContent += `${index + 1},"${r.userName}","${r.userEmail}","${time}","${r.id}"\n`;
+      });
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Kehadiran_${eventTitle.replace(/[^a-z0-9]/gi, '_')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans relative overflow-x-hidden">
@@ -832,10 +937,112 @@ const AdminDashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* ... Other Tabs (Registrations, Scan, etc) ... */}
+            {/* SETTINGS VIEW (UPDATED LAYOUT) */}
+            {activeTab === 'settings' && (
+               <div className="flex flex-col md:flex-row h-auto md:h-[calc(100vh-140px)] bg-white rounded-xl border-2 border-[#2B427A] shadow-md overflow-hidden">
+                   <div className="w-full md:w-64 bg-white border-r-2 border-gray-200 flex flex-col pt-4">
+                       <div className="px-6 pb-4 border-b border-gray-200"><h3 className="font-black text-[#2B427A] uppercase text-lg">Menu</h3></div>
+                       <nav className="flex-row md:flex-col flex overflow-x-auto md:overflow-visible p-2 md:p-4 gap-2">
+                           <button onClick={() => setSettingsTab('payment')} className={`w-full text-left px-4 py-3 rounded-lg font-black text-xs uppercase transition-all ${settingsTab === 'payment' ? 'bg-[#2B427A] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>Pembayaran</button>
+                           <button onClick={() => setSettingsTab('certificate')} className={`w-full text-left px-4 py-3 rounded-lg font-black text-xs uppercase transition-all ${settingsTab === 'certificate' ? 'bg-[#2B427A] text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>Sertifikat</button>
+                       </nav>
+                   </div>
+                   <div className="flex-1 overflow-y-auto p-8 bg-white">
+                       {settingsTab === 'payment' && (
+                          <div className="space-y-8 animate-fade-in">
+                             <div className="flex justify-between items-center border-b pb-4">
+                                 <h3 className="font-black text-[#2B427A] text-xl uppercase">REKENING & QRIS</h3>
+                                 <button onClick={handleSavePaymentSettings} disabled={savingPayment} className="px-6 py-2 bg-[#0B1CDE] text-white rounded-lg font-black text-xs border border-blue-700 shadow-sm hover:bg-blue-800 transition-colors uppercase">
+                                     {savingPayment ? 'Menyimpan...' : 'SIMPAN'}
+                                 </button>
+                             </div>
+                             <div className="grid md:grid-cols-2 gap-12">
+                                {/* Left Column: Bank Accounts */}
+                                <div>
+                                    <h4 className="text-xs font-black text-gray-500 mb-4 uppercase tracking-wide">DAFTAR BANK</h4>
+                                    
+                                    {/* Existing Accounts */}
+                                    <div className="space-y-3 mb-6">
+                                        {paymentSettings.bankAccounts.map((acc, idx) => (
+                                            <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex justify-between items-center group">
+                                                <div>
+                                                    <div className="font-black text-[#2B427A] text-sm uppercase">{acc.bankName}</div>
+                                                    <div className="text-xs font-mono text-gray-600 my-1">{acc.accountNumber}</div>
+                                                    <div className="text-[10px] text-gray-400 font-bold uppercase">{acc.accountHolder}</div>
+                                                </div>
+                                                <button onClick={()=>{const u=paymentSettings.bankAccounts.filter((_,i)=>i!==idx);setPaymentSettings({...paymentSettings,bankAccounts:u})}} className="text-red-400 hover:text-red-600 bg-white p-2 rounded border border-gray-200 hover:border-red-200 transition-all opacity-0 group-hover:opacity-100">
+                                                    <Trash2 className="w-4 h-4"/>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {paymentSettings.bankAccounts.length === 0 && <p className="text-gray-400 text-xs italic">Belum ada rekening bank.</p>}
+                                    </div>
+
+                                    {/* Add New Form */}
+                                    <div className="bg-[#F0F9FF] p-5 rounded-xl border border-blue-200">
+                                        <div className="space-y-3">
+                                            <input placeholder="Bank (Contoh: BCA)" value={tempAccount.bankName} onChange={e=>setTempAccount({...tempAccount,bankName:e.target.value})} className="w-full p-2 text-xs border border-gray-300 rounded font-bold outline-none focus:border-[#0B1CDE]" />
+                                            <input placeholder="No. Rekening" value={tempAccount.accountNumber} onChange={e=>setTempAccount({...tempAccount,accountNumber:e.target.value})} className="w-full p-2 text-xs border border-gray-300 rounded font-bold outline-none focus:border-[#0B1CDE]" />
+                                            <input placeholder="Atas Nama" value={tempAccount.accountHolder} onChange={e=>setTempAccount({...tempAccount,accountHolder:e.target.value})} className="w-full p-2 text-xs border border-gray-300 rounded font-bold outline-none focus:border-[#0B1CDE]" />
+                                            <button onClick={()=>{if(tempAccount.bankName){setPaymentSettings({...paymentSettings,bankAccounts:[...paymentSettings.bankAccounts,{...tempAccount,id:Date.now().toString()}]});setTempAccount({id:'',bankName:'',accountNumber:'',accountHolder:''})}}} className="w-full bg-[#2B427A] text-white py-2 rounded-lg text-xs font-black uppercase hover:bg-[#1a2c55] transition-colors">
+                                                TAMBAH
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: QRIS */}
+                                <div>
+                                    <h4 className="text-xs font-black text-gray-500 mb-4 uppercase tracking-wide">UPLOAD QRIS</h4>
+                                    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors relative">
+                                        <input type="file" onChange={e => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                setQrisFile(file);
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => setQrisPreview(ev.target?.result as string);
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                                        
+                                        {qrisPreview ? (
+                                            <div className="flex flex-col items-center">
+                                                <img src={qrisPreview} className="h-48 object-contain mb-4 rounded border shadow-sm"/>
+                                                <span className="text-xs font-bold text-[#0B1CDE] bg-blue-50 px-3 py-1 rounded-full">Ganti Gambar</span>
+                                            </div>
+                                        ) : (
+                                            <div className="py-10 flex flex-col items-center justify-center text-gray-400">
+                                                <QrCode className="w-12 h-12 mb-2 opacity-50"/>
+                                                <span className="text-xs font-bold">Klik untuk upload QRIS</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 mt-2 font-bold">*Format: JPG/PNG. Max 2MB.</p>
+                                </div>
+                             </div>
+                          </div>
+                       )}
+                       {settingsTab === 'certificate' && (
+                           <div className="text-center py-20 animate-fade-in">
+                               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                   <Award className="w-10 h-10 text-gray-400" />
+                               </div>
+                               <h3 className="text-lg font-black text-[#2B427A] uppercase mb-2">Template Global</h3>
+                               <p className="text-gray-500 text-sm max-w-md mx-auto mb-6">Gunakan editor sertifikat di menu "Buat Acara" untuk pengaturan sertifikat per event yang lebih spesifik.</p>
+                               <button onClick={() => { setActiveTab('event-editor'); resetWizard(); setWizardStep(5); }} className="px-6 py-2 bg-[#2B427A] text-white rounded-lg font-black text-xs uppercase shadow hover:bg-[#1a2c55]">
+                                   Buka Editor Sertifikat
+                               </button>
+                           </div>
+                       )}
+                   </div>
+               </div>
+            )}
+
+            {/* UPDATED SCAN HISTORY VIEW */}
+            {activeTab === 'scan-history' && renderScanHistory()}
+
             {activeTab === 'events' && renderEventsList()}
             {activeTab === 'registrations' && renderRegistrations()}
-            {activeTab === 'scan-history' && renderScanHistory()}
             {activeTab === 'overview' && (
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in">
                      <div className="bg-white p-5 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between"><div><h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Acara</h3><p className="text-3xl font-black text-[#2B427A]">{events.length}</p></div><div className="p-2 bg-blue-50 rounded-lg text-[#2B427A]"><CalendarIcon className="w-6 h-6"/></div></div>
