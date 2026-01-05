@@ -1080,16 +1080,15 @@ const AdminDashboard: React.FC = () => {
 
   const renderOverview = () => {
       // 1. Data Preparation for Chart (Trend Pendaftaran)
-      const registrationTrend = registrations.reduce((acc, curr) => {
-          const date = new Date(curr.registrationDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-          acc[date] = (acc[date] || 0) + 1;
-          return acc;
-      }, {} as Record<string, number>);
-
-      const chartData = Object.keys(registrationTrend).map(key => ({
-          name: key,
-          count: registrationTrend[key]
-      })).sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime()).slice(-7); // Last 7 days/entries
+      // Sort registrations by date first
+      const sortedRegs = [...registrations].sort((a, b) => new Date(a.registrationDate).getTime() - new Date(b.registrationDate).getTime());
+      
+      const trendMap = new Map<string, number>();
+      sortedRegs.forEach(r => {
+          const d = new Date(r.registrationDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+          trendMap.set(d, (trendMap.get(d) || 0) + 1);
+      });
+      const chartData = Array.from(trendMap).map(([name, count]) => ({ name, count })).slice(-7); // Last 7 days
 
       // 2. Data Preparation for Pie Chart (Status)
       const statusCounts = registrations.reduce((acc, curr) => {
@@ -1162,7 +1161,7 @@ const AdminDashboard: React.FC = () => {
                  {/* Activity Trend */}
                  <div className="lg:col-span-2 bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-sm">
                      <h3 className="font-black text-[#2B427A] uppercase mb-6 flex items-center gap-2">
-                         <TrendingUp className="w-5 h-5 text-[#0B1CDE]"/> Tren Pendaftaran (7 Hari)
+                         <TrendingUp className="w-5 h-5 text-[#0B1CDE]"/> Tren Pendaftaran (7 Hari Terakhir)
                      </h3>
                      <div className="h-64 w-full">
                          <ResponsiveContainer width="100%" height="100%">
@@ -1175,7 +1174,7 @@ const AdminDashboard: React.FC = () => {
                                  </defs>
                                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
-                                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10}} allowDecimals={false} />
                                  <Tooltip contentStyle={{borderRadius: '8px', border: '2px solid #2B427A', fontWeight: 'bold'}} />
                                  <Area type="monotone" dataKey="count" stroke="#0B1CDE" fillOpacity={1} fill="url(#colorCount)" strokeWidth={3} />
                              </AreaChart>
