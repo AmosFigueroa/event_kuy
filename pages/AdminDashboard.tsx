@@ -165,6 +165,22 @@ const AdminDashboard: React.FC = () => {
       return url;
   };
 
+  const formatTimeDisplay = (time: string | undefined) => {
+      if (!time) return '-';
+      // If it looks like 1899-12-30T... just take the time part
+      if (time.includes('T')) {
+          try {
+              const dateObj = new Date(time);
+              // If invalid date, fallback
+              if (isNaN(dateObj.getTime())) return time;
+              return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+          } catch(e) {
+              return time.split('T')[1]?.substring(0,5) || time;
+          }
+      }
+      return time;
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -357,8 +373,7 @@ const AdminDashboard: React.FC = () => {
                         <h4 className="text-lg font-black text-[#2B427A] uppercase mb-2 leading-tight line-clamp-2">{event.title}</h4>
                         <div className="flex flex-col gap-1 text-xs text-gray-500 font-bold mb-2">
                             <div className="flex items-center gap-2"><CalendarIcon className="w-3 h-3 text-[#0B1CDE]" /><span>{new Date(event.date).toLocaleDateString()}</span></div>
-                            {/* FIX TIME DISPLAY if backend returns raw date string, we need to handle or it might be correct now */}
-                            <div className="flex items-center gap-2"><Clock className="w-3 h-3 text-[#0B1CDE]" /><span>{event.time} WIB</span></div>
+                            <div className="flex items-center gap-2"><Clock className="w-3 h-3 text-[#0B1CDE]" /><span>{formatTimeDisplay(event.time)} WIB</span></div>
                             <div className="flex items-center gap-2"><UsersIcon className="w-3 h-3 text-[#0B1CDE]" /><span>{event.currentParticipants}/{event.maxParticipants}</span></div>
                         </div>
                     </div>
@@ -572,20 +587,208 @@ const AdminDashboard: React.FC = () => {
 
                     <div className="flex-1 flex flex-col bg-white overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-6 relative">
-                            {/* Wizard Steps 1, 2, 3, 4 */}
+                            {/* Wizard Steps 1, 2 */}
                             {wizardStep === 1 && (<div className="space-y-4"><h3 className="font-black text-[#2B427A]">INFO DASAR</h3><div className="grid md:grid-cols-2 gap-4"><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full p-2 border-2 rounded-lg font-bold text-sm" placeholder="Judul Acara" /><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full p-2 border-2 rounded-lg font-bold text-sm" />
                             <div className="w-full"><label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Waktu Mulai (WIB)</label><div className="flex gap-2 items-center"><div className="relative flex-1"><select value={(newEvent.time || '09:00').split(':')[0]} onChange={(e) => { const m = (newEvent.time || '09:00').split(':')[1] || '00'; setNewEvent({ ...newEvent, time: `${e.target.value}:${m}` }); }} className="w-full appearance-none p-2 border-2 border-gray-200 rounded-lg font-bold text-sm bg-white focus:border-[#0B1CDE] outline-none text-center">{Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')).map(h => (<option key={h} value={h}>{h}</option>))}</select></div><span className="font-black text-[#2B427A]">:</span><div className="relative flex-1"><select value={(newEvent.time || '09:00').split(':')[1]} onChange={(e) => { const h = (newEvent.time || '09:00').split(':')[0] || '09'; setNewEvent({ ...newEvent, time: `${h}:${e.target.value}` }); }} className="w-full appearance-none p-2 border-2 border-gray-200 rounded-lg font-bold text-sm bg-white focus:border-[#0B1CDE] outline-none text-center">{['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (<option key={m} value={m}>{m}</option>))}</select></div></div></div><select value={isCustomCat?'OTHER':newEvent.category} onChange={(e)=>{if(e.target.value==='OTHER'){setIsCustomCat(true);setNewEvent({...newEvent,category:''})}else{setIsCustomCat(false);setNewEvent({...newEvent,category:e.target.value})}}} className="w-full p-2 border-2 rounded-lg font-bold text-sm bg-white">{Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={e=>setCustomCategory(e.target.value)} className="w-full p-2 border-2 border-[#DFFF00] rounded-lg font-bold text-sm" placeholder="Kategori..."/>}</div></div>)}
                             {wizardStep === 2 && (<div className="space-y-4"><h3 className="font-black text-[#2B427A]">DETAIL & MEDIA</h3><textarea rows={4} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-2 border-2 rounded-lg font-medium text-sm" placeholder="Deskripsi (Bisa generate AI)" /><div className="flex gap-2"><button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs bg-blue-50 text-[#0B1CDE] px-3 py-1 rounded font-bold">{generatingDesc ? 'Generating...' : '✨ Generate AI'}</button></div><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-2 border-2 rounded-lg font-bold text-sm" placeholder="Lokasi" /><div className="bg-gray-50 p-3 rounded border"><label className="text-xs font-bold block mb-2">Banner</label><input type="file" onChange={handleBannerChange} className="text-xs"/></div><div className="bg-gray-50 p-3 rounded border"><label className="text-xs font-bold block mb-2">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="text-xs"/></div></div>)}
                             
-                            {/* STEP 3 & 4 (Shortened for brevity as they are same as before) */}
+                            {/* STEP 3: FORM BUILDER (RESTORED DETAILED VERSION) */}
                             {wizardStep === 3 && (
                                 <div className="space-y-6">
-                                    <div className="flex justify-between items-center"><h3 className="font-black text-[#2B427A] text-lg uppercase">Desain Formulir</h3><button onClick={addFormField} className="px-4 py-2 bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] rounded-lg font-black text-xs shadow-[2px_2px_0px_0px_#2B427A] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-2"><PlusSquare className="w-4 h-4"/> TAMBAH FIELD</button></div>
-                                    <div className="space-y-4">{newEvent.formFields?.map((f, i) => (<div key={f.id} className="bg-white border-2 border-[#2B427A]/10 p-5 rounded-xl"><div className="flex items-center gap-3 mb-4"><div className="w-8 h-8 bg-[#2B427A] rounded-lg text-white flex items-center justify-center font-black text-xs">{i + 1}</div><div className="flex-1"><input value={f.label} onChange={(e) => updateFormField(i, { label: e.target.value })} placeholder="Label" className="w-full font-black text-[#2B427A] text-sm border-b-2 border-transparent focus:border-[#0B1CDE] outline-none" /></div><button onClick={() => removeFormField(i)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4"/></button></div><div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded"><select value={f.type} onChange={(e) => updateFormField(i, { type: e.target.value as FormFieldType })} className="w-full bg-white border p-2 rounded text-xs"><optgroup label="Teks"><option value="text">Teks Singkat</option><option value="textarea">Paragraf</option><option value="email">Email</option><option value="number">Angka</option></optgroup><optgroup label="Pilihan"><option value="select">Dropdown</option><option value="radio">Radio</option><option value="checkbox">Checkbox</option></optgroup><optgroup label="Lainnya"><option value="date">Tanggal</option><option value="time">Waktu</option><option value="file">Upload File</option></optgroup></select><input value={f.placeholder || ''} onChange={(e) => updateFormField(i, { placeholder: e.target.value })} placeholder="Placeholder" className="w-full bg-white border p-2 rounded text-xs" /></div></div>))}</div>
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <h3 className="font-black text-[#2B427A] text-lg uppercase">Desain Formulir</h3>
+                                            <p className="text-xs text-gray-500 font-bold">Sesuaikan data yang ingin dikumpulkan.</p>
+                                        </div>
+                                        <button onClick={addFormField} className="px-4 py-2 bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] rounded-lg font-black text-xs shadow-[2px_2px_0px_0px_#2B427A] active:translate-y-[1px] active:shadow-none transition-all flex items-center gap-2">
+                                            <PlusSquare className="w-4 h-4"/> TAMBAH FIELD
+                                        </button>
+                                    </div>
+
+                                    {newEvent.formFields?.length === 0 && (
+                                        <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
+                                            <FormInput className="w-10 h-10 text-gray-300 mx-auto mb-2"/>
+                                            <p className="text-gray-400 font-bold text-sm">Belum ada kolom formulir.</p>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-4">
+                                        {newEvent.formFields?.map((f, i) => (
+                                            <div key={f.id} className="bg-white border-2 border-[#2B427A]/10 p-5 rounded-xl relative group hover:border-[#2B427A] transition-colors shadow-sm">
+                                                
+                                                {/* Header Field */}
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <div className="w-8 h-8 bg-[#2B427A] rounded-lg text-white flex items-center justify-center font-black text-xs">
+                                                        {i + 1}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <input 
+                                                            value={f.label} 
+                                                            onChange={(e) => updateFormField(i, { label: e.target.value })}
+                                                            placeholder="Label Pertanyaan (Contoh: No. WhatsApp)"
+                                                            className="w-full font-black text-[#2B427A] text-sm border-b-2 border-transparent hover:border-gray-200 focus:border-[#0B1CDE] outline-none transition-colors py-1 bg-transparent placeholder:font-medium placeholder:text-gray-400"
+                                                        />
+                                                    </div>
+                                                    <button onClick={() => removeFormField(i)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                                                        <Trash2 className="w-4 h-4"/>
+                                                    </button>
+                                                </div>
+
+                                                {/* Grid Settings */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                                    
+                                                    {/* Tipe Input */}
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 flex items-center gap-1">
+                                                            <TypeIcon className="w-3 h-3"/> Tipe Input
+                                                        </label>
+                                                        <div className="relative">
+                                                            <select 
+                                                                value={f.type} 
+                                                                onChange={(e) => updateFormField(i, { type: e.target.value as FormFieldType })}
+                                                                className="w-full appearance-none bg-white border border-gray-200 text-[#2B427A] text-xs font-bold rounded p-2 pr-8 outline-none focus:border-[#0B1CDE]"
+                                                            >
+                                                                <optgroup label="Teks">
+                                                                    <option value="text">Teks Singkat (Short Text)</option>
+                                                                    <option value="textarea">Paragraf (Long Text)</option>
+                                                                    <option value="email">Email Address</option>
+                                                                    <option value="number">Angka / Nomor (Number)</option>
+                                                                </optgroup>
+                                                                <optgroup label="Pilihan">
+                                                                    <option value="select">Dropdown (Pilihan Ganda)</option>
+                                                                    <option value="radio">Radio Button (Satu Pilihan)</option>
+                                                                    <option value="checkbox">Checkbox (Banyak Pilihan)</option>
+                                                                </optgroup>
+                                                                <optgroup label="Lainnya">
+                                                                    <option value="date">Tanggal (Date)</option>
+                                                                    <option value="time">Waktu (Time)</option>
+                                                                    <option value="file">Upload File</option>
+                                                                </optgroup>
+                                                            </select>
+                                                            <div className="absolute right-2 top-2.5 pointer-events-none text-gray-400">
+                                                                <ChevronDown className="w-3 h-3"/>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Placeholder */}
+                                                    <div>
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 mb-1.5 flex items-center gap-1">
+                                                            <Bot className="w-3 h-3"/> Placeholder / Info
+                                                        </label>
+                                                        <input 
+                                                            value={f.placeholder || ''} 
+                                                            onChange={(e) => updateFormField(i, { placeholder: e.target.value })}
+                                                            placeholder="Contoh isi..."
+                                                            className="w-full bg-white border border-gray-200 text-[#2B427A] text-xs font-medium rounded p-2 outline-none focus:border-[#0B1CDE]"
+                                                        />
+                                                    </div>
+
+                                                    {/* Options for Select / Radio / Checkbox */}
+                                                    {(f.type === 'select' || f.type === 'radio' || f.type === 'checkbox') && (
+                                                        <div className="md:col-span-2 bg-blue-50 p-3 rounded border border-blue-100">
+                                                            <label className="text-[10px] font-black uppercase text-[#0B1CDE] mb-1.5 flex items-center gap-1">
+                                                                <List className="w-3 h-3"/> Opsi Pilihan (Pisahkan dengan koma)
+                                                            </label>
+                                                            <input 
+                                                                value={f.options?.join(', ') || ''} 
+                                                                onChange={(e) => updateFormField(i, { options: e.target.value.split(',').map(s => s.trim()) })}
+                                                                placeholder="Contoh: Merah, Hijau, Biru"
+                                                                className="w-full bg-white border border-blue-200 text-[#2B427A] text-xs font-bold rounded p-2 outline-none focus:border-[#0B1CDE]"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Footer Toggle */}
+                                                <div className="flex items-center justify-between mt-3 px-1">
+                                                    <label className="flex items-center gap-2 cursor-pointer group/toggle select-none">
+                                                        <div className={`w-8 h-4 rounded-full relative transition-colors ${f.required ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}>
+                                                            <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${f.required ? 'left-4.5 translate-x-4' : 'left-0.5 translate-x-0'}`}></div>
+                                                        </div>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={f.required} 
+                                                            onChange={(e) => updateFormField(i, { required: e.target.checked })}
+                                                            className="hidden"
+                                                        />
+                                                        <span className={`text-xs font-bold ${f.required ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>Wajib Diisi (Required)</span>
+                                                    </label>
+                                                    
+                                                    {/* Visual Indicator for Type */}
+                                                    <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 uppercase bg-gray-100 px-2 py-1 rounded">
+                                                        {f.type === 'radio' && <CircleDot className="w-3 h-3"/>}
+                                                        {f.type === 'checkbox' && <CheckSquare2 className="w-3 h-3"/>}
+                                                        {f.type === 'date' && <CalendarDays className="w-3 h-3"/>}
+                                                        {f.type === 'select' && <ListChecks className="w-3 h-3"/>}
+                                                        <span>{f.type}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
+
+                            {/* STEP 4: PRICING (RESTORED DETAILED VERSION) */}
                             {wizardStep === 4 && (
-                                <div className="space-y-6"><h3 className="font-black text-[#2B427A]">HARGA & TIKET</h3><div className="grid grid-cols-2 gap-4"><div onClick={() => setNewEvent(prev => ({ ...prev, price: 0 }))} className={`cursor-pointer rounded-xl p-6 border-2 flex flex-col items-center justify-center gap-3 transition-all ${newEvent.price === 0 ? 'bg-[#DFFF00] border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]' : 'bg-white border-gray-200 text-gray-400'}`}><div className={`p-3 rounded-full ${newEvent.price === 0 ? 'bg-[#2B427A] text-white' : 'bg-gray-100 text-gray-400'}`}><Tag className="w-6 h-6"/></div><span className="font-black text-sm uppercase">GRATIS</span></div><div onClick={() => { if(newEvent.price === 0) setNewEvent(prev => ({ ...prev, price: 50000 })) }} className={`cursor-pointer rounded-xl p-6 border-2 flex flex-col items-center justify-center gap-3 transition-all ${newEvent.price > 0 ? 'bg-[#0B1CDE] border-[#2B427A] text-white shadow-[4px_4px_0px_0px_#2B427A]' : 'bg-white border-gray-200 text-gray-400'}`}><div className={`p-3 rounded-full ${newEvent.price > 0 ? 'bg-white text-[#0B1CDE]' : 'bg-gray-100 text-gray-400'}`}><DollarSign className="w-6 h-6"/></div><span className="font-black text-sm uppercase">BERBAYAR</span></div></div>{newEvent.price > 0 && (<div className="bg-blue-50 p-6 rounded-xl border border-blue-100"><label className="text-xs font-bold text-[#0B1CDE] uppercase mb-2 block">Harga Tiket (Rp)</label><input type="number" value={newEvent.price} onChange={e=>setNewEvent({...newEvent, price:Number(e.target.value)})} className="w-full pl-4 py-3 text-2xl font-black text-[#2B427A] rounded-lg border-2 border-[#0B1CDE]" /></div>)}<div className="bg-gray-50 p-6 rounded-xl border border-gray-200"><label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Kuota Peserta</label><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants:Number(e.target.value)})} className="w-full pl-4 py-3 text-lg font-bold text-[#2B427A] rounded-lg border-2 border-gray-200" /></div></div>
+                                <div className="space-y-6">
+                                    <h3 className="font-black text-[#2B427A]">HARGA & TIKET</h3>
+                                    
+                                    {/* Ticket Type Toggle */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div 
+                                            onClick={() => setNewEvent(prev => ({ ...prev, price: 0 }))}
+                                            className={`cursor-pointer rounded-xl p-6 border-2 flex flex-col items-center justify-center gap-3 transition-all ${newEvent.price === 0 ? 'bg-[#DFFF00] border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]' : 'bg-white border-gray-200 text-gray-400 hover:border-[#2B427A]'}`}
+                                        >
+                                            <div className={`p-3 rounded-full ${newEvent.price === 0 ? 'bg-[#2B427A] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                                <Tag className="w-6 h-6"/>
+                                            </div>
+                                            <span className="font-black text-sm uppercase">GRATIS</span>
+                                        </div>
+
+                                        <div 
+                                            onClick={() => { if(newEvent.price === 0) setNewEvent(prev => ({ ...prev, price: 50000 })) }}
+                                            className={`cursor-pointer rounded-xl p-6 border-2 flex flex-col items-center justify-center gap-3 transition-all ${newEvent.price > 0 ? 'bg-[#0B1CDE] border-[#2B427A] text-white shadow-[4px_4px_0px_0px_#2B427A]' : 'bg-white border-gray-200 text-gray-400 hover:border-[#0B1CDE]'}`}
+                                        >
+                                            <div className={`p-3 rounded-full ${newEvent.price > 0 ? 'bg-white text-[#0B1CDE]' : 'bg-gray-100 text-gray-400'}`}>
+                                                <DollarSign className="w-6 h-6"/>
+                                            </div>
+                                            <span className="font-black text-sm uppercase">BERBAYAR</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Price Input (Only if Paid) */}
+                                    {newEvent.price > 0 && (
+                                        <div className="animate-fade-in bg-blue-50 p-6 rounded-xl border border-blue-100">
+                                            <label className="text-xs font-bold text-[#0B1CDE] uppercase mb-2 block">Harga Tiket (Rupiah)</label>
+                                            <div className="relative">
+                                                <div className="absolute left-0 top-0 bottom-0 w-12 bg-[#0B1CDE] rounded-l-lg flex items-center justify-center text-white font-black text-lg">Rp</div>
+                                                <input 
+                                                    type="number" 
+                                                    value={newEvent.price} 
+                                                    onChange={e=>setNewEvent({...newEvent, price:Number(e.target.value)})} 
+                                                    className="w-full pl-16 pr-4 py-3 text-2xl font-black text-[#2B427A] rounded-lg border-2 border-[#0B1CDE] outline-none focus:shadow-[0px_0px_0px_4px_rgba(11,28,222,0.2)]"
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-gray-500 font-bold mt-2">Pastikan nominal benar. Contoh: 35000</p>
+                                        </div>
+                                    )}
+
+                                    {/* Quota Input */}
+                                    <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Kuota Peserta (Maksimal)</label>
+                                        <div className="relative">
+                                            <UsersIcon className="absolute left-4 top-3.5 w-5 h-5 text-gray-400" />
+                                            <input 
+                                                type="number" 
+                                                value={newEvent.maxParticipants} 
+                                                onChange={e=>setNewEvent({...newEvent, maxParticipants:Number(e.target.value)})} 
+                                                className="w-full pl-12 pr-4 py-3 text-lg font-bold text-[#2B427A] rounded-lg border-2 border-gray-200 outline-none focus:border-[#2B427A]" 
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             )}
 
                             {/* STEP 5: CERTIFICATE EDITOR WITH AUTO-DETECT */}
