@@ -73,7 +73,6 @@ export interface Event {
   formFields?: FormField[];
   certificateConfig?: CertificateConfig; // NEW: Event-specific cert config
   enableTicketScanner?: boolean; // NEW: Toggle for QR Code feature
-  autoSendCertificate?: boolean; // NEW: Toggle for Auto-send on Approve
 }
 
 export enum RegistrationStatus {
