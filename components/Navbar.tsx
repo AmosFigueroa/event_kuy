@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Calendar, User, LogOut, LogIn, LayoutDashboard } from 'lucide-react';
+import { User, LogOut, LogIn, LayoutDashboard, Calendar } from 'lucide-react';
 import { getUserSession, logout } from '../services/api';
 import '../types';
 
@@ -36,8 +36,8 @@ const Navbar: React.FC = () => {
           {/* LOGO SECTION */}
           <div className="flex items-center">
             <Link to="/" className="flex-shrink-0 flex items-center gap-3 group">
-              <div className="bg-[#DFFF00] p-2 border-2 border-[#2B427A] rounded-lg shadow-[4px_4px_0px_0px_#2B427A] group-hover:translate-y-[2px] group-hover:shadow-[2px_2px_0px_0px_#2B427A] transition-all">
-                <Calendar className="h-6 w-6 text-[#2B427A]" />
+              <div className="bg-[#DFFF00] p-1.5 border-2 border-[#2B427A] rounded-lg shadow-[4px_4px_0px_0px_#2B427A] group-hover:translate-y-[2px] group-hover:shadow-[2px_2px_0px_0px_#2B427A] transition-all">
+                <Calendar className="h-7 w-7 text-[#2B427A]" />
               </div>
               <div className="flex flex-col">
                   <span className="text-xl font-black text-[#2B427A] uppercase tracking-tighter leading-none">
