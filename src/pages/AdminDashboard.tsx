@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, TrendingUp, Activity, DollarSign as DollarIcon } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -11,6 +11,9 @@ import CustomAlert from '../components/CustomAlert';
 // Constants for Certificate Canvas (A4 Landscape aspect ratio)
 const CANVAS_WIDTH = 842;
 const CANVAS_HEIGHT = 595;
+
+// Chart Colors
+const COLORS = ['#0B1CDE', '#DFFF00', '#EF4444', '#2B427A'];
 
 const AdminDashboard: React.FC = () => {
   // View State: 'overview' | 'events' | 'registrations' | 'settings' | 'event-editor' | 'scan-history'
@@ -1075,6 +1078,202 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
+  const renderOverview = () => {
+      // 1. Data Preparation for Chart (Trend Pendaftaran)
+      const registrationTrend = registrations.reduce((acc, curr) => {
+          const date = new Date(curr.registrationDate).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+          acc[date] = (acc[date] || 0) + 1;
+          return acc;
+      }, {} as Record<string, number>);
+
+      const chartData = Object.keys(registrationTrend).map(key => ({
+          name: key,
+          count: registrationTrend[key]
+      })).sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime()).slice(-7); // Last 7 days/entries
+
+      // 2. Data Preparation for Pie Chart (Status)
+      const statusCounts = registrations.reduce((acc, curr) => {
+          acc[curr.status] = (acc[curr.status] || 0) + 1;
+          return acc;
+      }, {} as Record<string, number>);
+      
+      const pieData = [
+          { name: 'Disetujui', value: statusCounts['APPROVED'] || 0, color: '#16a34a' }, // Green
+          { name: 'Menunggu', value: statusCounts['PENDING'] || 0, color: '#ca8a04' }, // Yellow
+          { name: 'Ditolak', value: statusCounts['REJECTED'] || 0, color: '#dc2626' } // Red
+      ].filter(d => d.value > 0);
+
+      // 3. Stats Calculation
+      const totalRevenue = registrations.filter(r => r.status === 'APPROVED').reduce((sum, r) => {
+          const evt = events.find(e => e.id === r.eventId);
+          return sum + (evt ? evt.price : 0);
+      }, 0);
+
+      const approvalRate = registrations.length > 0 
+          ? Math.round(((statusCounts['APPROVED'] || 0) / registrations.length) * 100) 
+          : 0;
+
+      // 4. Popular Events
+      const topEvents = [...events].sort((a, b) => b.currentParticipants - a.currentParticipants).slice(0, 5);
+
+      // 5. Recent Activity
+      const recentActivity = [...registrations].sort((a, b) => new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime()).slice(0, 5);
+
+      return (
+          <div className="space-y-6 animate-fade-in">
+             {/* TOP CARDS */}
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                 {/* Total Events */}
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Acara</h3>
+                        <p className="text-3xl font-black text-[#2B427A]">{events.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><CalendarIcon className="w-6 h-6"/></div>
+                 </div>
+                 {/* Total Registrants */}
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Pendaftar</h3>
+                        <p className="text-3xl font-black text-[#0B1CDE]">{registrations.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#0B1CDE]"><UsersIcon className="w-6 h-6"/></div>
+                 </div>
+                 {/* Estimated Revenue */}
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Estimasi Pendapatan</h3>
+                        <p className="text-3xl font-black text-[#2B427A] truncate">Rp {(totalRevenue/1000).toFixed(0)}k</p>
+                     </div>
+                     <div className="p-3 bg-green-50 rounded-lg text-green-600"><DollarIcon className="w-6 h-6"/></div>
+                 </div>
+                 {/* Approval Rate */}
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Tingkat Persetujuan</h3>
+                        <p className="text-3xl font-black text-[#DFFF00] text-outline">{approvalRate}%</p>
+                     </div>
+                     <div className="p-3 bg-yellow-50 rounded-lg text-[#DFFF00] stroke-black"><CheckSquare className="w-6 h-6 text-[#DFFF00] stroke-black"/></div>
+                 </div>
+             </div>
+
+             {/* CHARTS ROW */}
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Activity Trend */}
+                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-sm">
+                     <h3 className="font-black text-[#2B427A] uppercase mb-6 flex items-center gap-2">
+                         <TrendingUp className="w-5 h-5 text-[#0B1CDE]"/> Tren Pendaftaran (7 Hari)
+                     </h3>
+                     <div className="h-64 w-full">
+                         <ResponsiveContainer width="100%" height="100%">
+                             <AreaChart data={chartData}>
+                                 <defs>
+                                     <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                         <stop offset="5%" stopColor="#0B1CDE" stopOpacity={0.8}/>
+                                         <stop offset="95%" stopColor="#0B1CDE" stopOpacity={0}/>
+                                     </linearGradient>
+                                 </defs>
+                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
+                                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10}} />
+                                 <Tooltip contentStyle={{borderRadius: '8px', border: '2px solid #2B427A', fontWeight: 'bold'}} />
+                                 <Area type="monotone" dataKey="count" stroke="#0B1CDE" fillOpacity={1} fill="url(#colorCount)" strokeWidth={3} />
+                             </AreaChart>
+                         </ResponsiveContainer>
+                     </div>
+                 </div>
+
+                 {/* Status Distribution */}
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-sm">
+                     <h3 className="font-black text-[#2B427A] uppercase mb-4 flex items-center gap-2">
+                         <Activity className="w-5 h-5 text-[#0B1CDE]"/> Status Tiket
+                     </h3>
+                     <div className="h-64 w-full relative">
+                         <ResponsiveContainer width="100%" height="100%">
+                             <PieChart>
+                                 <Pie
+                                     data={pieData}
+                                     cx="50%"
+                                     cy="50%"
+                                     innerRadius={60}
+                                     outerRadius={80}
+                                     paddingAngle={5}
+                                     dataKey="value"
+                                 >
+                                     {pieData.map((entry, index) => (
+                                         <Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />
+                                     ))}
+                                 </Pie>
+                                 <Tooltip />
+                                 <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                             </PieChart>
+                         </ResponsiveContainer>
+                         {/* Center Text */}
+                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-8">
+                             <div className="text-center">
+                                 <span className="text-2xl font-black text-[#2B427A]">{registrations.length}</span>
+                                 <p className="text-[10px] uppercase font-bold text-gray-400">Total</p>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+             </div>
+
+             {/* BOTTOM LISTS */}
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                 {/* Popular Events */}
+                 <div className="bg-white rounded-xl border-2 border-[#2B427A] overflow-hidden">
+                     <div className="p-4 bg-[#2B427A] text-white flex justify-between items-center">
+                         <h3 className="font-bold uppercase text-sm">Event Terpopuler</h3>
+                         <Award className="w-4 h-4 text-[#DFFF00]"/>
+                     </div>
+                     <div>
+                         {topEvents.map((evt, idx) => (
+                             <div key={evt.id} className="p-4 border-b border-gray-100 flex justify-between items-center hover:bg-gray-50">
+                                 <div className="flex items-center gap-3">
+                                     <span className={`font-black text-lg w-6 ${idx === 0 ? 'text-[#DFFF00] text-outline' : 'text-gray-300'}`}>#{idx+1}</span>
+                                     <div>
+                                         <p className="font-bold text-sm text-[#2B427A] truncate max-w-[200px]">{evt.title}</p>
+                                         <p className="text-[10px] text-gray-400">{new Date(evt.date).toLocaleDateString()}</p>
+                                     </div>
+                                 </div>
+                                 <div className="text-right">
+                                     <p className="font-black text-[#0B1CDE]">{evt.currentParticipants}</p>
+                                     <p className="text-[10px] text-gray-400">Peserta</p>
+                                 </div>
+                             </div>
+                         ))}
+                         {topEvents.length === 0 && <div className="p-8 text-center text-gray-400 text-xs">Belum ada data event.</div>}
+                     </div>
+                 </div>
+
+                 {/* Recent Activity */}
+                 <div className="bg-white rounded-xl border-2 border-[#2B427A] overflow-hidden">
+                     <div className="p-4 bg-white border-b-2 border-[#2B427A] flex justify-between items-center">
+                         <h3 className="font-bold uppercase text-sm text-[#2B427A]">Pendaftar Terbaru</h3>
+                         <Clock className="w-4 h-4 text-[#0B1CDE]"/>
+                     </div>
+                     <div>
+                         {recentActivity.map((reg) => (
+                             <div key={reg.id} className="p-4 border-b border-gray-100 flex justify-between items-center hover:bg-gray-50">
+                                 <div className="flex items-center gap-3">
+                                     <div className={`w-2 h-8 rounded-full ${reg.status === 'APPROVED' ? 'bg-green-500' : reg.status === 'REJECTED' ? 'bg-red-500' : 'bg-yellow-400'}`}></div>
+                                     <div>
+                                         <p className="font-bold text-sm text-[#2B427A]">{reg.userName}</p>
+                                         <p className="text-[10px] text-gray-400 truncate max-w-[150px]">{reg.eventTitle}</p>
+                                     </div>
+                                 </div>
+                                 <span className="text-[10px] font-mono text-gray-400">{new Date(reg.registrationDate).toLocaleDateString()}</span>
+                             </div>
+                         ))}
+                         {recentActivity.length === 0 && <div className="p-8 text-center text-gray-400 text-xs">Belum ada aktivitas.</div>}
+                     </div>
+                 </div>
+             </div>
+          </div>
+      );
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans relative">
       <CustomAlert isOpen={alertState.isOpen} type={alertState.type} title={alertState.title} message={alertState.message} onClose={closeAlert} onConfirm={alertState.onConfirm} confirmText={alertState.confirmText}/>
@@ -1211,7 +1410,7 @@ const AdminDashboard: React.FC = () => {
                 <div className="flex-1 flex flex-col bg-white min-w-0">
                     <div className="flex-1 overflow-y-auto p-8 relative">
                         {/* STEP 1 */}
-                        {wizardStep === 1 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Informasi Dasar</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Seminar Nasional Bisnis" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label><input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label><select value={isCustomCat ? 'OTHER' : newEvent.category} onChange={(e) => { if (e.target.value === 'OTHER') { setIsCustomCat(true); setNewEvent({...newEvent, category: ''}); } else { setIsCustomCat(false); setNewEvent({...newEvent, category: e.target.value}); } }} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-[#0B1CDE] outline-none">{Object.values(EventCategory).map((c: any)=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full mt-2 p-3 border-2 border-[#DFFF00] rounded-xl font-bold" placeholder="Ketik Kategori..." />}</div></div></div>)}
+                        {wizardStep === 1 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Informasi Dasar</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Seminar Nasional Bisnis" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label><input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label><select value={isCustomCat ? 'OTHER' : newEvent.category} onChange={(e) => { if (e.target.value === 'OTHER') { setIsCustomCat(true); setNewEvent({...newEvent, category: ''}); } else { setIsCustomCat(false); setNewEvent({...newEvent, category: e.target.value}); } }} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-[#0B1CDE] outline-none">{Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full mt-2 p-3 border-2 border-[#DFFF00] rounded-xl font-bold" placeholder="Ketik Kategori..." />}</div></div></div>)}
                         {/* STEP 2 */}
                         {wizardStep === 2 && (
                             <div className="space-y-6 animate-fade-in">
@@ -1343,31 +1542,7 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'events' && renderEventsList()}
         {activeTab === 'registrations' && renderRegistrations()}
         {activeTab === 'scan-history' && renderScanHistory()}
-        {activeTab === 'overview' && (
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
-                     <div>
-                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total Acara</h3>
-                        <p className="text-4xl font-black text-[#2B427A]">{events.length}</p>
-                     </div>
-                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><CalendarIcon className="w-8 h-8"/></div>
-                 </div>
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
-                     <div>
-                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Pendaftar</h3>
-                        <p className="text-4xl font-black text-[#0B1CDE]">{registrations.length}</p>
-                     </div>
-                     <div className="p-3 bg-blue-50 rounded-lg text-[#0B1CDE]"><UsersIcon className="w-8 h-8"/></div>
-                 </div>
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
-                     <div>
-                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total User</h3>
-                        <p className="text-4xl font-black text-[#DFFF00] drop-shadow-sm text-outline">{uniqueUserCount}</p>
-                     </div>
-                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><UserCheck className="w-8 h-8"/></div>
-                 </div>
-             </div>
-        )}
+        {activeTab === 'overview' && renderOverview()}
       </main>
       
       <style>{`@keyframes slide-up {0% { transform: translate(-50%, 100%); opacity: 0; }100% { transform: translate(-50%, 0); opacity: 1; }}.animate-slide-up {animation: slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;} .text-outline { -webkit-text-stroke: 1px #2B427A; text-shadow: 2px 2px 0px #2B427A; }`}</style>
