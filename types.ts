@@ -19,14 +19,14 @@ export enum EventCategory {
   COMPETITION = 'Competition'
 }
 
-export type FormFieldType = 'text' | 'number' | 'email' | 'select' | 'textarea' | 'file' | 'radio' | 'checkbox' | 'date' | 'time';
+export type FormFieldType = 'text' | 'number' | 'email' | 'select' | 'textarea' | 'file';
 
 export interface FormField {
   id: string;
   label: string;
   type: FormFieldType;
   required: boolean;
-  options?: string[]; // For select, radio, checkbox inputs (comma separated)
+  options?: string[]; // For select inputs, comma separated
   placeholder?: string;
 }
 
