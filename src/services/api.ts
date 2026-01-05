@@ -20,6 +20,21 @@ export const createSlug = (title: string) => {
     .replace(/^-+|-+$/g, '');
 };
 
+export const formatTime = (time: string | undefined): string => {
+  if (!time) return '';
+  // Handle Google Sheets Date objects (typically 1899-12-30...) or ISO strings
+  if (time.includes('1899-') || (time.includes('T') && time.endsWith('Z'))) {
+    try {
+      const date = new Date(time);
+      if (isNaN(date.getTime())) return time;
+      return date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace('.', ':');
+    } catch (e) {
+      return time;
+    }
+  }
+  return time;
+};
+
 const callScript = async (action: string, payload: any = {}, method: 'GET' | 'POST' = 'GET') => {
   const baseUrl = getApiUrl();
   if (!baseUrl) throw new Error("API URL is missing");
