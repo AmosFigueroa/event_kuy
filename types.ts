@@ -19,14 +19,14 @@ export enum EventCategory {
   COMPETITION = 'Competition'
 }
 
-export type FormFieldType = 'text' | 'number' | 'email' | 'select' | 'textarea' | 'file';
+export type FormFieldType = 'text' | 'number' | 'email' | 'select' | 'textarea' | 'file' | 'radio' | 'checkbox' | 'date' | 'time';
 
 export interface FormField {
   id: string;
   label: string;
   type: FormFieldType;
   required: boolean;
-  options?: string[]; // For select inputs, comma separated
+  options?: string[]; // For select, radio, checkbox inputs (comma separated)
   placeholder?: string;
 }
 
@@ -73,6 +73,7 @@ export interface Event {
   formFields?: FormField[];
   certificateConfig?: CertificateConfig; // NEW: Event-specific cert config
   enableTicketScanner?: boolean; // NEW: Toggle for QR Code feature
+  autoSendCertificate?: boolean; // NEW: Toggle for Auto-send on Approve
 }
 
 export enum RegistrationStatus {
