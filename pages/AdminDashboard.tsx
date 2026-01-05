@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, Menu, Percent, ToggleLeft, ToggleRight, List, AtSign, FileUp, CalendarDays, CheckSquare2, CircleDot, AlertCircle, Smartphone, Monitor, Printer, Grid } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, Menu, Percent, ToggleLeft, ToggleRight, List, AtSign, FileUp, CalendarDays, CheckSquare2, CircleDot, AlertCircle, Smartphone, Monitor, Printer, Grid, Maximize } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -83,14 +83,17 @@ const AdminDashboard: React.FC = () => {
   const [qrisPreview, setQrisPreview] = useState<string | null>(null);
   
   // Certificate Settings State (Global & Wizard)
-  // We use these states for BOTH the global settings and the event wizard Step 5
-  // When entering Step 5, we initialize these from the event data.
-  // When entering Settings > Certificate, we initialize from global settings.
   const [certBgUrl, setCertBgUrl] = useState<string>('');
   const [certBgFile, setCertBgFile] = useState<File | null>(null);
   const [certElements, setCertElements] = useState<CertificateElement[]>([]);
   const [activeElementId, setActiveElementId] = useState<string | null>(null);
   const [savingCertSettings, setSavingCertSettings] = useState(false);
+
+  // DRAG & RESIZE STATE
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 }); // Mouse Pos
+  const [elementStartPos, setElementStartPos] = useState({ x: 0, y: 0, width: 0, fontSize: 0 }); // Element Pos/Size
   
   // Bank Account Form State
   const [tempAccount, setTempAccount] = useState<BankAccount>({ id: '', bankName: '', accountNumber: '', accountHolder: '' });
@@ -150,29 +153,21 @@ const AdminDashboard: React.FC = () => {
 
   // --- CERTIFICATE DESIGNER LOGIC ---
   
-  // Initialize Designer based on context (Global Settings or Event Wizard)
   useEffect(() => {
       if (activeTab === 'settings' && settingsTab === 'certificate') {
-          // Load Global Settings
           fetchCertificateSettings().then(config => {
               if (config) {
                   setCertBgUrl(config.backgroundUrl || '');
                   setCertElements(config.elements || []);
-                  setCertBgFile(null); // Reset file input
+                  setCertBgFile(null); 
               }
           });
       } else if (activeTab === 'event-editor' && wizardStep === 5) {
-          // Load Event Specific Settings
-          // If editing an existing event, use its config.
-          // If creating new, check if we already have some state in newEvent, otherwise maybe load default?
-          // For now, just use what's in newEvent
           const config = newEvent.certificateConfig;
           if (config) {
               setCertBgUrl(config.backgroundUrl || '');
               setCertElements(config.elements || []);
           } else {
-              // Optional: Load global default if event has none?
-              // For now, start empty
               setCertBgUrl('');
               setCertElements([]);
           }
@@ -180,7 +175,6 @@ const AdminDashboard: React.FC = () => {
       }
   }, [activeTab, settingsTab, wizardStep, editingId]);
 
-  // Save Designer State back to newEvent when leaving Step 5 or changing inputs
   useEffect(() => {
       if (activeTab === 'event-editor' && wizardStep === 5) {
           setNewEvent(prev => ({
@@ -192,6 +186,53 @@ const AdminDashboard: React.FC = () => {
           }));
       }
   }, [certBgUrl, certElements]);
+
+  // Global Mouse Handlers for Drag/Resize
+  useEffect(() => {
+      const handleWindowMouseMove = (e: MouseEvent) => {
+          if (!activeElementId) return;
+
+          if (isDragging) {
+              const deltaX = e.clientX - dragStartPos.x;
+              const deltaY = e.clientY - dragStartPos.y;
+              updateElement(activeElementId, {
+                  x: elementStartPos.x + deltaX,
+                  y: elementStartPos.y + deltaY
+              });
+          } else if (isResizing) {
+              const deltaX = e.clientX - dragStartPos.x;
+              // Simple scaling logic
+              // For Text: Scale font size
+              // For Image: Scale width
+              const activeEl = certElements.find(el => el.id === activeElementId);
+              if (activeEl) {
+                  if (activeEl.type === 'image') {
+                      const newWidth = Math.max(20, elementStartPos.width + deltaX);
+                      updateElement(activeElementId, { width: newWidth });
+                  } else {
+                      // Text scaling (slower factor for better control)
+                      const newFontSize = Math.max(8, elementStartPos.fontSize + (deltaX / 2));
+                      updateElement(activeElementId, { fontSize: newFontSize });
+                  }
+              }
+          }
+      };
+
+      const handleWindowMouseUp = () => {
+          setIsDragging(false);
+          setIsResizing(false);
+      };
+
+      if (isDragging || isResizing) {
+          window.addEventListener('mousemove', handleWindowMouseMove);
+          window.addEventListener('mouseup', handleWindowMouseUp);
+      }
+
+      return () => {
+          window.removeEventListener('mousemove', handleWindowMouseMove);
+          window.removeEventListener('mouseup', handleWindowMouseUp);
+      };
+  }, [isDragging, isResizing, activeElementId, dragStartPos, elementStartPos, certElements]);
 
 
   const addElement = (type: 'text' | 'dynamic' | 'image', initialField: string = '') => {
@@ -207,7 +248,7 @@ const AdminDashboard: React.FC = () => {
           color: '#000000',
           fontWeight: 'bold',
           align: 'center',
-          width: type === 'image' ? 100 : undefined,
+          width: type === 'image' ? 150 : undefined,
           textTransform: 'none'
       };
       setCertElements([...certElements, newEl]);
@@ -253,65 +294,26 @@ const AdminDashboard: React.FC = () => {
       }
   };
 
+  const onElementMouseDown = (e: React.MouseEvent, el: CertificateElement) => {
+      e.stopPropagation(); // Prevent canvas click
+      setActiveElementId(el.id);
+      setIsDragging(true);
+      setDragStartPos({ x: e.clientX, y: e.clientY });
+      setElementStartPos({ x: el.x, y: el.y, width: el.width || 0, fontSize: el.fontSize || 0 });
+  };
+
+  const onResizeMouseDown = (e: React.MouseEvent, el: CertificateElement) => {
+      e.stopPropagation();
+      setActiveElementId(el.id);
+      setIsResizing(true);
+      setDragStartPos({ x: e.clientX, y: e.clientY }); // Use same state for simplification
+      setElementStartPos({ x: el.x, y: el.y, width: el.width || 0, fontSize: el.fontSize || 0 });
+  };
+
   // ... (Helper functions match existing) ...
-  const formatDriveUrl = (url: string) => {
-      if (!url) return '';
-      if (url.includes('lh3.googleusercontent.com') || !url.includes('google.com')) return url;
-      let id = '';
-      const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-      if (match1) id = match1[1];
-      if (!id && url.includes('id=')) {
-          try {
-            const urlObj = new URL(url);
-            id = urlObj.searchParams.get('id') || '';
-          } catch(e) {
-             const params = url.split('?')[1];
-             if(params) {
-                 const p = new URLSearchParams(params);
-                 id = p.get('id') || '';
-             }
-          }
-      }
-      if (id) return `https://lh3.googleusercontent.com/d/${id}`;
-      return url;
-  };
-
-  const formatTimeDisplay = (time: string | undefined) => {
-      if (!time) return '-';
-      if (time.includes('T')) {
-          try {
-              const dateObj = new Date(time);
-              if (isNaN(dateObj.getTime())) return time;
-              return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
-          } catch(e) {
-              return time.split('T')[1]?.substring(0,5) || time;
-          }
-      }
-      return time;
-  };
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [evts, regs, payment] = await Promise.all([
-          fetchEvents(), 
-          fetchRegistrations(), 
-          fetchPaymentSettings()
-      ]);
-      setEvents(evts || []);
-      setRegistrations(regs || []);
-      setPaymentSettings(payment || { bankAccounts: [], qrisUrl: '' });
-      if (payment && payment.qrisUrl) setQrisPreview(payment.qrisUrl);
-      const uniqueEmails = new Set(regs?.map(r => r.userEmail.toLowerCase()) || []);
-      setUniqueUserCount(uniqueEmails.size);
-    } catch (error) {
-      console.error("Load Data Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ... (Other handlers preserved: handleAiAnalysis, handleStatusUpdate, handleExport, handleBulkSend, handleSavePayment, resetWizard, etc.)
+  const formatDriveUrl = (url: string) => { if (!url) return ''; if (url.includes('lh3.googleusercontent.com') || !url.includes('google.com')) return url; let id = ''; const match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/); if (match1) id = match1[1]; if (!id && url.includes('id=')) { try { const urlObj = new URL(url); id = urlObj.searchParams.get('id') || ''; } catch(e) { const params = url.split('?')[1]; if(params) { const p = new URLSearchParams(params); id = p.get('id') || ''; } } } if (id) return `https://lh3.googleusercontent.com/d/${id}`; return url; };
+  const formatTimeDisplay = (time: string | undefined) => { if (!time) return '-'; if (time.includes('T')) { try { const dateObj = new Date(time); if (isNaN(dateObj.getTime())) return time; return dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':'); } catch(e) { return time.split('T')[1]?.substring(0,5) || time; } } return time; };
+  const loadData = async () => { setLoading(true); try { const [evts, regs, payment] = await Promise.all([ fetchEvents(), fetchRegistrations(), fetchPaymentSettings() ]); setEvents(evts || []); setRegistrations(regs || []); setPaymentSettings(payment || { bankAccounts: [], qrisUrl: '' }); if (payment && payment.qrisUrl) setQrisPreview(payment.qrisUrl); const uniqueEmails = new Set(regs?.map(r => r.userEmail.toLowerCase()) || []); setUniqueUserCount(uniqueEmails.size); } catch (error) { console.error("Load Data Error:", error); } finally { setLoading(false); } };
   const handleAiAnalysis = async () => { if (!viewingProof || !viewingProof.proofUrl) return; const event = events.find(e => e.id === viewingProof.eventId); const expectedAmount = event ? event.price : 0; setIsAnalyzing(true); setAiResult(null); try { const directUrl = formatDriveUrl(viewingProof.proofUrl); const response = await fetch(directUrl, { mode: 'cors' }); const blob = await response.blob(); const reader = new FileReader(); reader.onloadend = async () => { const base64data = (reader.result as string).split(',')[1]; try { const result = await analyzePaymentProof(base64data, expectedAmount); setAiResult(result); } catch (aiErr: any) { setAiResult({ isValid: false, reason: "Gagal memproses AI: " + aiErr.message, confidence: 'LOW' }); } finally { setIsAnalyzing(false); } }; reader.readAsDataURL(blob); } catch (err) { setIsAnalyzing(false); setAiResult({ isValid: false, reason: "Gagal mengambil gambar. Cek manual.", confidence: 'LOW' }); } };
   const handleStatusUpdate = async (id: string, status: RegistrationStatus) => { try { await updateRegistrationStatus(id, status); if (status === RegistrationStatus.APPROVED) { const reg = registrations.find(r => r.id === id); if (reg) { const evt = events.find(e => e.id === reg.eventId); if (evt && evt.autoSendCertificate) { setToast({ show: true, msg: `Status diperbarui & Mengirim Sertifikat...` }); await sendCertificate(id); setToast({ show: true, msg: `Sertifikat Terkirim Otomatis!` }); } else { setToast({ show: true, msg: `Status diperbarui menjadi ${status}` }); } } } else { setToast({ show: true, msg: `Status diperbarui menjadi ${status}` }); } setRegistrations(prev => prev.map(r => r.id === id ? { ...r, status } : r)); if (viewingProof?.id === id) setViewingProof(null); setTimeout(() => setToast({show: false, msg: ''}), 3000); } catch (error: any) { showAlert('error', 'Gagal', error.message); } };
   const handleExportData = async () => { setExportLoading(true); try { const csvString = await fetchParticipantsCsv(selectedEventFilter); const blob = new Blob([csvString], { type: 'text/csv' }); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `participants_export_${new Date().toISOString()}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url); setShowExportModal(false); } catch (e: any) { showAlert('error', 'Gagal', 'Gagal mengunduh CSV.'); } finally { setExportLoading(false); } };
@@ -490,7 +492,7 @@ const AdminDashboard: React.FC = () => {
                                                   <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Font Size</label>
                                                   <input 
                                                       type="number" 
-                                                      value={activeEl.fontSize || 12} 
+                                                      value={Math.round(activeEl.fontSize || 12)} 
                                                       onChange={(e) => updateElement(activeEl.id, { fontSize: Number(e.target.value) })}
                                                       className="w-full p-2 bg-white border border-gray-300 rounded-lg text-xs font-bold"
                                                   />
@@ -528,7 +530,7 @@ const AdminDashboard: React.FC = () => {
                                           <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Posisi X</label>
                                           <input 
                                               type="number" 
-                                              value={activeEl.x} 
+                                              value={Math.round(activeEl.x)} 
                                               onChange={(e) => updateElement(activeEl.id, { x: Number(e.target.value) })}
                                               className="w-full p-2 bg-white border border-gray-300 rounded-lg text-xs font-bold"
                                           />
@@ -537,7 +539,7 @@ const AdminDashboard: React.FC = () => {
                                           <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Posisi Y</label>
                                           <input 
                                               type="number" 
-                                              value={activeEl.y} 
+                                              value={Math.round(activeEl.y)} 
                                               onChange={(e) => updateElement(activeEl.id, { y: Number(e.target.value) })}
                                               className="w-full p-2 bg-white border border-gray-300 rounded-lg text-xs font-bold"
                                           />
@@ -582,8 +584,8 @@ const AdminDashboard: React.FC = () => {
                           {certElements.map(el => (
                               <div
                                   key={el.id}
-                                  onClick={(e) => { e.stopPropagation(); setActiveElementId(el.id); }}
-                                  className={`absolute cursor-move hover:outline hover:outline-1 hover:outline-[#0B1CDE] ${activeElementId === el.id ? 'outline outline-2 outline-[#0B1CDE] z-50' : 'z-10'}`}
+                                  onMouseDown={(e) => onElementMouseDown(e, el)}
+                                  className={`absolute group cursor-move hover:outline hover:outline-1 hover:outline-[#0B1CDE] ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
                                   style={{
                                       left: el.x,
                                       top: el.y,
@@ -595,13 +597,23 @@ const AdminDashboard: React.FC = () => {
                                       textAlign: el.align,
                                       whiteSpace: 'nowrap',
                                       width: el.width ? `${el.width}px` : 'auto',
-                                      userSelect: 'none'
+                                      userSelect: 'none',
+                                      border: activeElementId === el.id ? '2px solid #0B1CDE' : 'none'
                                   }}
                               >
                                   {activeElementId === el.id && (
-                                      <div className="absolute -top-6 left-0 bg-[#0B1CDE] text-white text-[9px] px-2 py-0.5 rounded font-bold uppercase whitespace-nowrap shadow-sm">
-                                          {el.label}
-                                      </div>
+                                      <>
+                                          <div className="absolute -top-7 left-0 bg-[#0B1CDE] text-white text-[9px] px-2 py-0.5 rounded font-bold uppercase whitespace-nowrap shadow-sm">
+                                              {el.label}
+                                          </div>
+                                          {/* Resize Handle */}
+                                          <div 
+                                              onMouseDown={(e) => onResizeMouseDown(e, el)}
+                                              className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-[#0B1CDE] rounded-full cursor-nwse-resize hover:bg-[#0B1CDE] transition-colors shadow-sm z-50 flex items-center justify-center"
+                                          >
+                                              <div className="w-1.5 h-1.5 bg-[#0B1CDE] rounded-full"></div>
+                                          </div>
+                                      </>
                                   )}
                                   
                                   {el.type === 'dynamic' ? (
