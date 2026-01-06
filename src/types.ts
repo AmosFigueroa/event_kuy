@@ -31,7 +31,8 @@ export interface CertificateElement {
   fontFamily?: string; // Optional for image
   color?: string; // Optional for image
   fontWeight?: 'normal' | 'bold'; // Optional for image
-  align?: 'left' | 'center' | 'right'; // Optional for image
+  align?: 'left' | 'center' | 'right'; // Horizontal Alignment
+  verticalAlign?: 'top' | 'middle' | 'bottom'; // NEW: Vertical Alignment
   textTransform?: 'none' | 'uppercase' | 'lowercase';
   width?: number; // Required for image/centering
   height?: number; // Added for image

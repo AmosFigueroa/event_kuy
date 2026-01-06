@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, TrendingUp, Activity, DollarSign as DollarIcon } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, TrendingUp, Activity, DollarSign as DollarIcon, ArrowUpFromLine, ArrowDownFromLine } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
@@ -548,6 +548,7 @@ const AdminDashboard: React.FC = () => {
               fontSize: 24,
               fontFamily: 'Helvetica',
               align: 'center',
+              verticalAlign: 'middle', // Default vertical align
               width: type === 'image' ? 150 : undefined,
               color: '#000000',
               fontWeight: 'bold'
@@ -717,13 +718,25 @@ const AdminDashboard: React.FC = () => {
                                   )}
 
                                   <div className="col-span-2">
-                                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align)</label>
+                                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align Horizontal)</label>
                                       <div className="relative">
                                           <AlignJustify className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
                                           <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700">
                                               <option value="left">Kiri</option>
                                               <option value="center">Tengah</option>
                                               <option value="right">Kanan</option>
+                                          </select>
+                                      </div>
+                                  </div>
+
+                                  <div className="col-span-2">
+                                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align Vertical)</label>
+                                      <div className="relative">
+                                          <ArrowUpFromLine className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
+                                          <select value={activeElement.verticalAlign || 'middle'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, verticalAlign: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700">
+                                              <option value="top">Atas (Top)</option>
+                                              <option value="middle">Tengah (Middle)</option>
+                                              <option value="bottom">Bawah (Bottom)</option>
                                           </select>
                                       </div>
                                   </div>
@@ -760,33 +773,46 @@ const AdminDashboard: React.FC = () => {
                               <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-4xl uppercase select-none border-2 border-dashed border-gray-300 m-4">Area Sertifikat</div>
                           )}
                           
-                          {elements.map(el => (
-                              <div 
-                                key={el.id} 
-                                onMouseDown={(e) => handleMouseDown(e, el.id)}
-                                className={`absolute cursor-move select-none group ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
-                                style={{ 
-                                    left: el.x, top: el.y, 
-                                    transform: el.align === 'center' ? 'translate(-50%, -50%)' : el.align === 'right' ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
-                                    width: el.width || 'auto'
-                                }}
-                              >
-                                  {/* Selection Box Visual */}
-                                  <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
-                                  
-                                  {/* Content Render */}
-                                  <div style={{
-                                      fontSize: el.fontSize, 
-                                      fontFamily: el.fontFamily, 
-                                      color: el.color, 
-                                      fontWeight: el.fontWeight,
-                                      textAlign: el.align,
-                                      position: 'relative' // to sit above selection box
-                                  }}>
-                                      {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
-                                  </div>
-                              </div>
-                          ))}
+                          {elements.map(el => {
+                              // Determine Transform based on Horizontal and Vertical Alignment
+                              let translateX = '-50%';
+                              if (el.align === 'left') translateX = '0';
+                              if (el.align === 'right') translateX = '-100%';
+
+                              let translateY = '-50%';
+                              if (el.verticalAlign === 'top') translateY = '0';
+                              if (el.verticalAlign === 'bottom') translateY = '-100%';
+
+                              const transform = `translate(${translateX}, ${translateY})`;
+
+                              return (
+                                <div 
+                                    key={el.id} 
+                                    onMouseDown={(e) => handleMouseDown(e, el.id)}
+                                    className={`absolute cursor-move select-none group ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
+                                    style={{ 
+                                        left: el.x, top: el.y, 
+                                        transform: transform,
+                                        width: el.width || 'auto'
+                                    }}
+                                >
+                                    {/* Selection Box Visual */}
+                                    <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
+                                    
+                                    {/* Content Render */}
+                                    <div style={{
+                                        fontSize: el.fontSize, 
+                                        fontFamily: el.fontFamily, 
+                                        color: el.color, 
+                                        fontWeight: el.fontWeight,
+                                        textAlign: el.align,
+                                        position: 'relative' // to sit above selection box
+                                    }}>
+                                        {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
+                                    </div>
+                                </div>
+                              );
+                          })}
                       </div>
                   </div>
               </div>
@@ -1047,8 +1073,42 @@ const AdminDashboard: React.FC = () => {
                                                reg.status === RegistrationStatus.REJECTED ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
                                            }`}>{reg.status}</span>
                                        </td>
-                                       <td className="p-4 flex justify-center gap-2">
-                                           <button onClick={() => setViewingProof(reg)} className="p-2 text-blue-600 bg-blue-50 rounded hover:bg-blue-100" title="Lihat Bukti"><Eye className="w-4 h-4"/></button>
+                                       <td className="p-4 flex items-center justify-center gap-2">
+                                           {/* View Proof */}
+                                           <button onClick={() => setViewingProof(reg)} className="p-2 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors" title="Lihat Bukti & Detail">
+                                               <Eye className="w-4 h-4"/>
+                                           </button>
+
+                                           {/* Quick Approve */}
+                                           <button 
+                                               onClick={() => {
+                                                   if(reg.status !== RegistrationStatus.APPROVED) {
+                                                       handleStatusUpdate(reg.id, RegistrationStatus.APPROVED);
+                                                   }
+                                               }}
+                                               className={`p-2 rounded transition-colors ${reg.status === RegistrationStatus.APPROVED ? 'bg-green-100 text-green-700 cursor-default' : 'bg-gray-100 text-gray-400 hover:bg-green-100 hover:text-green-600'}`}
+                                               title="Terima / Approve"
+                                               disabled={reg.status === RegistrationStatus.APPROVED}
+                                           >
+                                               <CheckCircle className="w-4 h-4"/>
+                                           </button>
+
+                                           {/* Quick Reject */}
+                                           <button 
+                                               onClick={() => {
+                                                   if (reg.status !== RegistrationStatus.REJECTED) {
+                                                       // Optional: Add confirmation for rejection if needed, but for speed, direct call is often preferred in dashboards
+                                                       handleStatusUpdate(reg.id, RegistrationStatus.REJECTED);
+                                                   }
+                                               }}
+                                               className={`p-2 rounded transition-colors ${reg.status === RegistrationStatus.REJECTED ? 'bg-red-100 text-red-700 cursor-default' : 'bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-600'}`}
+                                               title="Tolak / Reject"
+                                               disabled={reg.status === RegistrationStatus.REJECTED}
+                                           >
+                                               <XCircle className="w-4 h-4"/>
+                                           </button>
+
+                                           {/* Send Cert (Only if Approved) */}
                                            {reg.status === RegistrationStatus.APPROVED && (
                                                <button onClick={() => {
                                                     showConfirm(
@@ -1064,7 +1124,9 @@ const AdminDashboard: React.FC = () => {
                                                         },
                                                         "KIRIM SEKARANG"
                                                     );
-                                               }} className="p-2 text-purple-600 bg-purple-50 rounded hover:bg-purple-100" title="Kirim Sertifikat"><Award className="w-4 h-4"/></button>
+                                               }} className="p-2 text-purple-600 bg-purple-50 rounded hover:bg-purple-100 transition-colors" title="Kirim Sertifikat">
+                                                   <Award className="w-4 h-4"/>
+                                               </button>
                                            )}
                                        </td>
                                    </tr>
@@ -1406,62 +1468,12 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 
                 {/* Editor Content */}
-                <div className="flex-1 flex flex-col bg-white min-w-0">
+                <div className="flex-1 flex flex-col bg-white">
                     <div className="flex-1 overflow-y-auto p-8 relative">
                         {/* STEP 1 */}
                         {wizardStep === 1 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Informasi Dasar</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Seminar Nasional Bisnis" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label><input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label><select value={isCustomCat ? 'OTHER' : newEvent.category} onChange={(e) => { if (e.target.value === 'OTHER') { setIsCustomCat(true); setNewEvent({...newEvent, category: ''}); } else { setIsCustomCat(false); setNewEvent({...newEvent, category: e.target.value}); } }} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-[#0B1CDE] outline-none">{Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full mt-2 p-3 border-2 border-[#DFFF00] rounded-xl font-bold" placeholder="Ketik Kategori..." />}</div></div></div>)}
                         {/* STEP 2 */}
-                        {wizardStep === 2 && (
-                            <div className="space-y-6 animate-fade-in">
-                                <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3>
-                                <div>
-                                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi (Nama Tempat/Platform)</label>
-                                    <input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Auditorium Kampus / Zoom Meeting" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2">
-                                        <MapPin className="w-4 h-4"/> Link Google Maps (Opsional)
-                                    </label>
-                                    <input 
-                                        type="url" 
-                                        value={newEvent.mapUrl||''} 
-                                        onChange={e=>setNewEvent({...newEvent, mapUrl:e.target.value})} 
-                                        className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none text-blue-600" 
-                                        placeholder="https://maps.app.goo.gl/..." 
-                                    />
-                                    <p className="text-xs text-gray-400 mt-1">Jika diisi, klik pada lokasi di halaman depan akan langsung membuka link ini.</p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">
-                                        Deskripsi
-                                        <button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button>
-                                    </label>
-                                    <textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/>
-                                </div>
-                                <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 flex items-center justify-between">
-                                    <div>
-                                        <h4 className="font-black text-[#2B427A] uppercase flex items-center gap-2"><QrCode className="w-5 h-5"/> Sistem Tiket QR Code</h4>
-                                        <p className="text-xs text-gray-500 font-bold mt-1">Aktifkan agar peserta mendapatkan QR Code unik untuk Check-In saat acara.</p>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className={`text-xs font-bold ${newEvent.enableTicketScanner ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>{newEvent.enableTicketScanner ? 'AKTIF' : 'NONAKTIF'}</span>
-                                        <button onClick={() => setNewEvent({...newEvent, enableTicketScanner: !newEvent.enableTicketScanner})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${newEvent.enableTicketScanner ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all duration-300 ${newEvent.enableTicketScanner ? 'left-7' : 'left-1'}`} /></button>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center">
-                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label>
-                                        <input type="file" onChange={handleBannerChange} className="w-full text-xs" />
-                                        {bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}
-                                    </div>
-                                    <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center">
-                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label>
-                                        <input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />
-                                        {thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        {wizardStep === 2 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi</label><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Link Zoom / Alamat Lengkap" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">Deskripsi<button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button></label><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/></div><div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 flex items-center justify-between"><div><h4 className="font-black text-[#2B427A] uppercase flex items-center gap-2"><QrCode className="w-5 h-5"/> Sistem Tiket QR Code</h4><p className="text-xs text-gray-500 font-bold mt-1">Aktifkan agar peserta mendapatkan QR Code unik untuk Check-In saat acara.</p></div><div className="flex items-center gap-3"><span className={`text-xs font-bold ${newEvent.enableTicketScanner ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>{newEvent.enableTicketScanner ? 'AKTIF' : 'NONAKTIF'}</span><button onClick={() => setNewEvent({...newEvent, enableTicketScanner: !newEvent.enableTicketScanner})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${newEvent.enableTicketScanner ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all duration-300 ${newEvent.enableTicketScanner ? 'left-7' : 'left-1'}`} /></button></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label><input type="file" onChange={handleBannerChange} className="w-full text-xs" />{bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}</div><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />{thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}</div></div></div>)}
                         {/* STEP 3 - FORM BUILDER UPDATED */}
                         {wizardStep === 3 && (
                             <div className="space-y-6 animate-fade-in">
@@ -1502,9 +1514,9 @@ const AdminDashboard: React.FC = () => {
                         {/* STEP 5 */}
                         {wizardStep === 5 && (<div className="space-y-6 animate-fade-in h-full flex flex-col"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Desain Sertifikat</h3><p className="text-sm text-gray-500 mb-4">Buat desain sertifikat khusus untuk acara ini. Jika dikosongkan, sertifikat default akan digunakan.</p><div className="flex-1 border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(true)}</div></div>)}
                     </div>
-                    <div className="p-6 bg-gray-50 border-t border-gray-200 flex flex-wrap gap-4 justify-between items-center z-10 relative">
+                    <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
                         {wizardStep > 1 ? (<button onClick={()=>setWizardStep(prev=>prev-1)} className="px-6 py-3 rounded-xl font-bold text-gray-600 hover:bg-gray-200 flex items-center gap-2"><ChevronLeft className="w-4 h-4"/> KEMBALI</button>) : <div/>}
-                        {wizardStep < 5 ? (<button onClick={()=>setWizardStep(prev=>prev+1)} className="px-8 py-3 rounded-xl font-black bg-[#2B427A] text-white flex items-center gap-2 shadow-lg hover:bg-[#0B1CDE] transition-colors">SELANJUTNYA <ChevronRight className="w-4 h-4"/></button>) : (<button onClick={handleCreateOrUpdateEvent} disabled={isSubmittingEvent} className="px-6 md:px-10 py-3 rounded-xl font-black bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-[-2px] transition-all flex items-center gap-2">{isSubmittingEvent ? <Loader className="w-5 h-5 animate-spin"/> : <CheckCircle className="w-5 h-5"/>} {editingId ? 'SIMPAN PERUBAHAN' : 'PUBLIKASIKAN ACARA'}</button>)}
+                        {wizardStep < 5 ? (<button onClick={()=>setWizardStep(prev=>prev+1)} className="px-8 py-3 rounded-xl font-black bg-[#2B427A] text-white flex items-center gap-2 shadow-lg hover:bg-[#0B1CDE] transition-colors">SELANJUTNYA <ChevronRight className="w-4 h-4"/></button>) : (<button onClick={handleCreateOrUpdateEvent} disabled={isSubmittingEvent} className="px-10 py-3 rounded-xl font-black bg-[#DFFF00] text-[#2B427A] border-2 border-[#2B427A] hover:shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-[-2px] transition-all flex items-center gap-2">{isSubmittingEvent ? <Loader className="w-5 h-5 animate-spin"/> : <CheckCircle className="w-5 h-5"/>} {editingId ? 'SIMPAN PERUBAHAN' : 'PUBLIKASIKAN ACARA'}</button>)}
                     </div>
                 </div>
             </div>
