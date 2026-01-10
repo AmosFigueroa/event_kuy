@@ -29,7 +29,7 @@ const CertificatePage: React.FC = () => {
     setAlertState({ isOpen: true, type, title, message });
   };
 
-  // Responsive Scaling State
+  // Responsive Scaling State (Hanya untuk Preview di Layar)
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const certRef = useRef<HTMLDivElement>(null);
@@ -69,7 +69,7 @@ const CertificatePage: React.FC = () => {
     load();
   }, [id]);
 
-  // Handle Resize for Responsive Scaling
+  // Handle Resize for Responsive Scaling (Preview Only)
   useEffect(() => {
     const handleResize = () => {
         if (containerRef.current) {
@@ -98,30 +98,44 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // --- OPTIMIZATION SETTINGS (UPDATED) ---
-        // Scale 2: Generates ~1684px width. Sufficient for A4 print at ~150 DPI.
-        // Scale 4 creates massive files (30MB+). Scale 2 keeps it manageable (1MB+).
+        // --- FIXED A4 DOWNLOAD CONFIGURATION ---
+        // Scale 2: Generates approx 1684px width (High enough for print, low enough for size)
+        // windowWidth: Tricks mobile browsers into rendering as Desktop (prevents mobile CSS/scaling issues)
+        
         const canvas = await html2canvas(certRef.current, {
             scale: 2, 
+            width: CERT_WIDTH,
+            height: CERT_HEIGHT,
             useCORS: true,
             allowTaint: true,
             logging: false,
             backgroundColor: '#ffffff', // JPEG requires solid background
+            // VITAL FOR MOBILE: Force simulation of a desktop window
+            windowWidth: 1200, 
+            windowHeight: 800,
             imageTimeout: 15000, 
             onclone: (clonedDoc) => {
                 const element = clonedDoc.getElementById('certificate-view');
                 if (element) {
-                    // Reset CSS transforms on the cloned element to ensure 1:1 capture
+                    // FORCE RESET ALL CSS TRANSFORMS & DIMENSIONS
+                    // This ensures that even if the mobile view is scaled down to 0.3,
+                    // the downloaded version is rendered at scale 1.0 (before html2canvas scaling)
                     element.style.transform = 'none';
                     element.style.margin = '0';
+                    element.style.padding = '0';
                     element.style.width = `${CERT_WIDTH}px`;
                     element.style.height = `${CERT_HEIGHT}px`;
+                    element.style.position = 'fixed'; // Force out of flow
+                    element.style.top = '0';
+                    element.style.left = '0';
+                    element.style.maxWidth = 'none';
+                    element.style.maxHeight = 'none';
                 }
             }
         });
 
-        // KEY CHANGE: Use JPEG with 0.60 (60%) Quality
-        // This reduces file size significantly compared to PNG (Lossless)
+        // Use JPEG with 0.60 (60%) Quality
+        // Good balance: text is readable, file size is very small
         const imgData = canvas.toDataURL('image/jpeg', 0.60);
         
         // Init PDF with Compression Enabled
@@ -138,7 +152,7 @@ const CertificatePage: React.FC = () => {
         // Add Image as JPEG with 'FAST' compression alias
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         
-        // FORMAT NAMA FILE: sertifikat_namaevent_namapeserta_nourutan
+        // FORMAT NAMA FILE
         const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
         const eventName = sanitize(registration.eventTitle);
         const participantName = sanitize(registration.userName);
@@ -147,7 +161,7 @@ const CertificatePage: React.FC = () => {
         const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
 
         pdf.save(fileName);
-        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh (Versi Ringan).');
+        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh (A4 Horizontal).');
     } catch (e) {
         showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
         console.error(e);
@@ -292,7 +306,7 @@ const CertificatePage: React.FC = () => {
             disabled={downloading}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#DFFF00] text-[#2B427A] px-6 py-3 rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50"
          >
-             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (COMPRESSED)
+             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (LITE)
          </button>
       </div>
 
@@ -300,11 +314,10 @@ const CertificatePage: React.FC = () => {
         className="w-full flex justify-center pb-10" 
         ref={containerRef}
       >
-          {/* Scaling Wrapper */}
+          {/* Scaling Wrapper - This controls VISUAL PREVIEW only */}
           <div style={{ width: VISUAL_WIDTH * scale, height: VISUAL_HEIGHT * scale, position: 'relative' }}>
               
               {/* THE VISUAL FRAME (Scale Applied Here) */}
-              {/* HTML2CANVAS Targets the CHILD (certRef), so this frame is ignored during download */}
               <div 
                 style={{
                     width: VISUAL_WIDTH,
@@ -340,6 +353,7 @@ const CertificatePage: React.FC = () => {
                          border: '1px solid #e5e5e5'
                      }}>
                          {/* The Actual Certificate Node (Clean for PDF) */}
+                         {/* This node has FIXED dimensions in pixels to ensure consistent download quality */}
                          <div 
                             ref={certRef}
                             id="certificate-view" // ID for html2canvas targeting
