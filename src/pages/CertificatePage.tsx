@@ -30,6 +30,7 @@ const CertificatePage: React.FC = () => {
 
   // Responsive Scaling State
   const [scale, setScale] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const certRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +72,10 @@ const CertificatePage: React.FC = () => {
   // Handle Resize for Responsive Scaling
   useEffect(() => {
     const handleResize = () => {
+        // Detect mobile device
+        const mobile = window.innerWidth < 768;
+        setIsMobile(mobile);
+        
         if (containerRef.current) {
             const parentWidth = containerRef.current.offsetWidth;
             const padding = 32;
@@ -160,36 +165,51 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // CRITICAL FIX: Dynamic scaling based on actual text width
+          // MOBILE FIX: Apply scaling for userName on mobile devices
           if (el.field === 'userName') {
               const len = textContent.length;
-              const baseSize = el.fontSize || 48;
+              const baseSize = el.fontSize || 45;
               
-              // Progressive scaling - more natural transition
-              // Assumes baseSize around 48-72px (typical certificate name size)
-              if (len <= 20) {
-                  // Short names: keep original size
-                  dynamicFontSize = baseSize;
-              } else if (len <= 30) {
-                  // Medium names: slight reduction
-                  dynamicFontSize = baseSize * (1 - ((len - 20) / 100));
-              } else if (len <= 40) {
-                  // Long names: more reduction
-                  dynamicFontSize = baseSize * (0.9 - ((len - 30) / 50));
-              } else if (len <= 55) {
-                  // Very long names: significant reduction
-                  dynamicFontSize = baseSize * (0.7 - ((len - 40) / 40));
+              // Different scaling strategy for mobile vs desktop
+              if (isMobile) {
+                  // MOBILE: More aggressive scaling
+                  if (len <= 15) {
+                      dynamicFontSize = baseSize * 1.0;
+                  } else if (len <= 20) {
+                      dynamicFontSize = baseSize * 0.85;
+                  } else if (len <= 25) {
+                      dynamicFontSize = baseSize * 0.70;
+                  } else if (len <= 30) {
+                      dynamicFontSize = baseSize * 0.58;
+                  } else if (len <= 35) {
+                      dynamicFontSize = baseSize * 0.48;
+                  } else if (len <= 40) {
+                      dynamicFontSize = baseSize * 0.40;
+                  } else if (len <= 50) {
+                      dynamicFontSize = baseSize * 0.33;
+                  } else {
+                      dynamicFontSize = baseSize * 0.28;
+                  }
+                  
+                  // Mobile minimum
+                  dynamicFontSize = Math.max(dynamicFontSize, 10);
               } else {
-                  // Extremely long names: maximum reduction
-                  dynamicFontSize = baseSize * 0.33;
+                  // DESKTOP: Less aggressive scaling
+                  if (len <= 20) {
+                      dynamicFontSize = baseSize;
+                  } else if (len <= 30) {
+                      dynamicFontSize = baseSize * 0.88;
+                  } else if (len <= 40) {
+                      dynamicFontSize = baseSize * 0.72;
+                  } else if (len <= 50) {
+                      dynamicFontSize = baseSize * 0.58;
+                  } else {
+                      dynamicFontSize = baseSize * 0.45;
+                  }
+                  
+                  // Desktop minimum
+                  dynamicFontSize = Math.max(dynamicFontSize, 14);
               }
-              
-              // Ensure minimum readable size (relative to base)
-              const minSize = Math.max(baseSize * 0.25, 12);
-              dynamicFontSize = Math.max(dynamicFontSize, minSize);
-              
-              // Debug log (remove in production)
-              console.log(`Name: "${textContent}" | Length: ${len} | Base: ${baseSize}px | Final: ${dynamicFontSize.toFixed(1)}px`);
           }
 
       } else if (el.type === 'text') {
@@ -216,29 +236,26 @@ const CertificatePage: React.FC = () => {
           content = String(textContent).toLowerCase();
       }
 
-      // CRITICAL FIX: Proper positioning that respects boundaries
+      // MOBILE FIX: Proper positioning with mobile consideration
       let containerStyle: React.CSSProperties = {};
       let textWrapperStyle: React.CSSProperties = {};
       
-      // Calculate safe area based on alignment
+      // Calculate safe area based on device and alignment
       let maxWidth: number | string = 'auto';
       let containerLeft = el.x;
       
       if (el.field === 'userName') {
-          // CRITICAL: Use percentage-based max-width for responsiveness
-          const safeWidthPercent = 0.90; // 90% of certificate width
-          const certWidth = typeof CERT_WIDTH === 'number' ? CERT_WIDTH : 842;
+          const certWidth = CERT_WIDTH;
+          // Mobile gets more constraint, desktop gets more space
+          const safeWidthPercent = isMobile ? 0.92 : 0.88;
           
           if (el.align === 'center' || !el.align) {
-              // Center aligned: use 90% of cert width
               maxWidth = certWidth * safeWidthPercent;
               containerLeft = el.x;
           } else if (el.align === 'left') {
-              // Left aligned: from x position to right edge
               const xPos = typeof el.x === 'string' ? parseFloat(el.x) : el.x;
               maxWidth = certWidth - xPos - (certWidth * (1 - safeWidthPercent) / 2);
           } else if (el.align === 'right') {
-              // Right aligned: from left edge to x position  
               const xPos = typeof el.x === 'string' ? parseFloat(el.x) : el.x;
               maxWidth = xPos - (certWidth * (1 - safeWidthPercent) / 2);
           }
@@ -263,7 +280,7 @@ const CertificatePage: React.FC = () => {
           containerStyle.transform = 'translate(-100%, -50%)';
       }
 
-      // Text wrapper style
+      // Text wrapper style with mobile optimization
       textWrapperStyle = {
           color: el.color || '#000000',
           fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
@@ -273,10 +290,13 @@ const CertificatePage: React.FC = () => {
           width: el.type === 'image' ? `${el.width || 100}px` : '100%',
           maxWidth: el.type === 'image' ? undefined : maxWidth,
           textTransform: el.textTransform || 'none',
-          lineHeight: el.type === 'image' ? undefined : '1.15',
+          lineHeight: el.type === 'image' ? undefined : (isMobile ? '1.1' : '1.15'),
           wordBreak: el.type === 'image' ? undefined : 'break-word',
           overflowWrap: el.type === 'image' ? undefined : 'break-word',
           hyphens: el.type === 'image' ? undefined : 'auto',
+          // MOBILE FIX: Ensure text stays crisp on mobile
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
       };
 
       // Stroke style with better rendering
