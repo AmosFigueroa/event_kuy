@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader, Download, ArrowLeft, Award, CheckCircle } from 'lucide-react';
@@ -97,21 +98,20 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // --- OPTIMIZATION SETTINGS ---
-        // Scale 2: Cukup untuk cetak A4 dan layar HD (approx 1684px width).
-        // JPEG 0.60: Kompresi agresif untuk ukuran file kecil (<1MB) tapi teks tetap terbaca jelas.
-        
+        // --- OPTIMIZATION SETTINGS (UPDATED) ---
+        // Scale 2: Generates ~1684px width. Sufficient for A4 print at ~150 DPI.
+        // Scale 4 creates massive files (30MB+). Scale 2 keeps it manageable (1MB+).
         const canvas = await html2canvas(certRef.current, {
             scale: 2, 
             useCORS: true,
             allowTaint: true,
             logging: false,
-            backgroundColor: '#ffffff', // JPEG butuh background solid
+            backgroundColor: '#ffffff', // JPEG requires solid background
             imageTimeout: 15000, 
             onclone: (clonedDoc) => {
                 const element = clonedDoc.getElementById('certificate-view');
                 if (element) {
-                    // Reset CSS transforms untuk memastikan hasil capture 1:1
+                    // Reset CSS transforms on the cloned element to ensure 1:1 capture
                     element.style.transform = 'none';
                     element.style.margin = '0';
                     element.style.width = `${CERT_WIDTH}px`;
@@ -120,10 +120,11 @@ const CertificatePage: React.FC = () => {
             }
         });
 
-        // Convert ke JPEG dengan kualitas 60%
+        // KEY CHANGE: Use JPEG with 0.60 (60%) Quality
+        // This reduces file size significantly compared to PNG (Lossless)
         const imgData = canvas.toDataURL('image/jpeg', 0.60);
         
-        // Init PDF dengan kompresi aktif
+        // Init PDF with Compression Enabled
         const pdf = new jsPDF({
             orientation: 'l', 
             unit: 'mm', 
@@ -134,10 +135,10 @@ const CertificatePage: React.FC = () => {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        // Tambahkan gambar sebagai JPEG dengan metode kompresi 'FAST'
+        // Add Image as JPEG with 'FAST' compression alias
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         
-        // FORMAT NAMA FILE
+        // FORMAT NAMA FILE: sertifikat_namaevent_namapeserta_nourutan
         const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
         const eventName = sanitize(registration.eventTitle);
         const participantName = sanitize(registration.userName);
