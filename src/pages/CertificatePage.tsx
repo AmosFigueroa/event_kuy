@@ -160,23 +160,36 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // PERBAIKAN #3: Improved auto-resize dengan max-width consideration
+          // CRITICAL FIX: Dynamic scaling based on actual text width
           if (el.field === 'userName') {
               const len = textContent.length;
-              const baseSize = el.fontSize || 12;
+              const baseSize = el.fontSize || 48;
               
-              if (len > 45) {
-                  dynamicFontSize = baseSize * 0.45;
-              } else if (len > 35) {
-                  dynamicFontSize = baseSize * 0.55;
-              } else if (len > 25) {
-                  dynamicFontSize = baseSize * 0.7;
-              } else if (len > 18) {
-                  dynamicFontSize = baseSize * 0.85;
+              // Progressive scaling - more natural transition
+              // Assumes baseSize around 48-72px (typical certificate name size)
+              if (len <= 20) {
+                  // Short names: keep original size
+                  dynamicFontSize = baseSize;
+              } else if (len <= 30) {
+                  // Medium names: slight reduction
+                  dynamicFontSize = baseSize * (1 - ((len - 20) / 100));
+              } else if (len <= 40) {
+                  // Long names: more reduction
+                  dynamicFontSize = baseSize * (0.9 - ((len - 30) / 50));
+              } else if (len <= 55) {
+                  // Very long names: significant reduction
+                  dynamicFontSize = baseSize * (0.7 - ((len - 40) / 40));
+              } else {
+                  // Extremely long names: maximum reduction
+                  dynamicFontSize = baseSize * 0.33;
               }
               
-              // Ensure minimum readable size
-              dynamicFontSize = Math.max(dynamicFontSize, 14);
+              // Ensure minimum readable size (relative to base)
+              const minSize = Math.max(baseSize * 0.25, 12);
+              dynamicFontSize = Math.max(dynamicFontSize, minSize);
+              
+              // Debug log (remove in production)
+              console.log(`Name: "${textContent}" | Length: ${len} | Base: ${baseSize}px | Final: ${dynamicFontSize.toFixed(1)}px`);
           }
 
       } else if (el.type === 'text') {
@@ -203,60 +216,90 @@ const CertificatePage: React.FC = () => {
           content = String(textContent).toLowerCase();
       }
 
-      // PERBAIKAN #4: Better positioning logic
-      let transform = 'translate(-50%, -50%)';
-      let left = el.x;
-      let justifyContent = 'center';
+      // CRITICAL FIX: Proper positioning that respects boundaries
+      let containerStyle: React.CSSProperties = {};
+      let textWrapperStyle: React.CSSProperties = {};
       
-      if (el.align === 'left') {
-        transform = 'translate(0, -50%)';
-        justifyContent = 'flex-start';
-      } else if (el.align === 'right') {
-        transform = 'translate(-100%, -50%)';
-        justifyContent = 'flex-end';
+      // Calculate safe area based on alignment
+      let maxWidth: number | string = 'auto';
+      let containerLeft = el.x;
+      
+      if (el.field === 'userName') {
+          // CRITICAL: Use percentage-based max-width for responsiveness
+          const safeWidthPercent = 0.90; // 90% of certificate width
+          const certWidth = typeof CERT_WIDTH === 'number' ? CERT_WIDTH : 842;
+          
+          if (el.align === 'center' || !el.align) {
+              // Center aligned: use 90% of cert width
+              maxWidth = certWidth * safeWidthPercent;
+              containerLeft = el.x;
+          } else if (el.align === 'left') {
+              // Left aligned: from x position to right edge
+              const xPos = typeof el.x === 'string' ? parseFloat(el.x) : el.x;
+              maxWidth = certWidth - xPos - (certWidth * (1 - safeWidthPercent) / 2);
+          } else if (el.align === 'right') {
+              // Right aligned: from left edge to x position  
+              const xPos = typeof el.x === 'string' ? parseFloat(el.x) : el.x;
+              maxWidth = xPos - (certWidth * (1 - safeWidthPercent) / 2);
+          }
+      } else {
+          maxWidth = el.width || 'auto';
       }
 
-      // PERBAIKAN #5: Simplified stroke style (mengurangi blur)
-      const strokeStyle = el.strokeWidth && el.strokeWidth > 0 
-        ? { 
-            textShadow: `
-              -${el.strokeWidth}px -${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'},
-              ${el.strokeWidth}px -${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'},
-              -${el.strokeWidth}px ${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'},
-              ${el.strokeWidth}px ${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'}
-            `.trim(),
-          } 
-        : {};
+      // Set container positioning
+      containerStyle = {
+          left: containerLeft,
+          top: el.y,
+          position: 'absolute',
+          zIndex: 10,
+      };
 
-      // PERBAIKAN #6: Add max-width untuk prevent overflow
-      const maxWidth = el.width || (el.field === 'userName' ? CERT_WIDTH * 0.8 : 'auto');
+      // Apply transform based on alignment
+      if (el.align === 'center' || !el.align) {
+          containerStyle.transform = 'translate(-50%, -50%)';
+      } else if (el.align === 'left') {
+          containerStyle.transform = 'translateY(-50%)';
+      } else if (el.align === 'right') {
+          containerStyle.transform = 'translate(-100%, -50%)';
+      }
+
+      // Text wrapper style
+      textWrapperStyle = {
+          color: el.color || '#000000',
+          fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
+          fontFamily: el.fontFamily || 'Arial, sans-serif',
+          fontWeight: el.fontWeight || 'bold',
+          textAlign: el.align || 'center',
+          width: el.type === 'image' ? `${el.width || 100}px` : '100%',
+          maxWidth: el.type === 'image' ? undefined : maxWidth,
+          textTransform: el.textTransform || 'none',
+          lineHeight: el.type === 'image' ? undefined : '1.15',
+          wordBreak: el.type === 'image' ? undefined : 'break-word',
+          overflowWrap: el.type === 'image' ? undefined : 'break-word',
+          hyphens: el.type === 'image' ? undefined : 'auto',
+      };
+
+      // Stroke style with better rendering
+      if (el.strokeWidth && el.strokeWidth > 0 && el.type !== 'image') {
+          const sw = el.strokeWidth;
+          const sc = el.strokeColor || '#FFFFFF';
+          textWrapperStyle.textShadow = `
+              -${sw}px -${sw}px 0 ${sc},
+              ${sw}px -${sw}px 0 ${sc},
+              -${sw}px ${sw}px 0 ${sc},
+              ${sw}px ${sw}px 0 ${sc},
+              0 -${sw}px 0 ${sc},
+              0 ${sw}px 0 ${sc},
+              -${sw}px 0 0 ${sc},
+              ${sw}px 0 0 ${sc}
+          `.trim();
+      }
 
       return (
-        <div
-            key={el.id}
-            className="absolute z-10"
-            style={{
-                left: left,
-                top: el.y,
-                color: el.color || '#000000',
-                fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
-                fontFamily: el.fontFamily || 'Arial, sans-serif',
-                fontWeight: el.fontWeight || 'bold',
-                textAlign: el.align || 'center',
-                maxWidth: el.type === 'image' ? undefined : maxWidth,
-                width: el.type === 'image' ? `${el.width || 100}px` : 'auto',
-                transform: transform,
-                whiteSpace: el.type === 'image' ? 'normal' : 'normal', // Changed to allow wrapping
-                wordWrap: el.type === 'image' ? undefined : 'break-word',
-                textTransform: el.textTransform || 'none',
-                lineHeight: el.type === 'image' ? undefined : '1.2',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: justifyContent,
-                ...strokeStyle
-            }}
-        >
-            {content}
+        <div key={el.id} style={containerStyle}>
+            <div style={textWrapperStyle}>
+                {content}
+            </div>
         </div>
       );
   };
