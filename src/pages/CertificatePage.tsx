@@ -98,13 +98,13 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // OPTIMIZATION:
-        // 1. Scale 3 is sufficient for crisp A4 print (approx 2526x1785 px).
-        // 2. Use JPEG instead of PNG to drastically reduce file size for background images.
-        // 3. Enable PDF compression.
+        // AGGRESSIVE OPTIMIZATION FOR FILE SIZE < 5MB:
+        // 1. Scale 2 (approx 150 DPI). Good for screen and standard print.
+        //    (842 * 2 = 1684px width).
+        // 2. JPEG Quality 0.6. Good compression, visual artifacts minimal for certificates.
         
         const canvas = await html2canvas(certRef.current, {
-            scale: 3, 
+            scale: 2, 
             useCORS: true,
             allowTaint: true,
             logging: false,
@@ -122,8 +122,8 @@ const CertificatePage: React.FC = () => {
             }
         });
 
-        // Use JPEG with 0.85 quality (High Quality, Low Size)
-        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        // Use JPEG with 0.60 quality (Aggressive compression for small size)
+        const imgData = canvas.toDataURL('image/jpeg', 0.60);
         
         // Init PDF with compression enabled
         const pdf = new jsPDF({
@@ -136,7 +136,7 @@ const CertificatePage: React.FC = () => {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         
         // FORMAT NAMA FILE: sertifikat_namaevent_namapeserta_nourutan
         const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
@@ -147,7 +147,7 @@ const CertificatePage: React.FC = () => {
         const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
 
         pdf.save(fileName);
-        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh.');
+        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh (Size Optimized).');
     } catch (e) {
         showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
         console.error(e);
@@ -292,7 +292,7 @@ const CertificatePage: React.FC = () => {
             disabled={downloading}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#DFFF00] text-[#2B427A] px-6 py-3 rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50"
          >
-             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (OPTIMIZED)
+             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (COMPRESSED)
          </button>
       </div>
 
