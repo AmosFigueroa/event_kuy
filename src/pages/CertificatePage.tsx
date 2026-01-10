@@ -268,7 +268,7 @@ const CertificatePage: React.FC = () => {
                 textTransform: el.textTransform || 'none',
                 lineHeight: 1.2, // Consistent line height
                 WebkitTextSizeAdjust: 'none', // Prevent iOS/Android text inflation
-                textSizeAdjust: 'none',
+                // removed generic 'textSizeAdjust' to prevent TypeScript errors
                 ...strokeStyle
             }}
         >
