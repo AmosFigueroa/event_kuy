@@ -99,9 +99,6 @@ const CertificatePage: React.FC = () => {
 
     try {
         // --- FIXED A4 DOWNLOAD CONFIGURATION ---
-        // Scale 2: Generates approx 1684px width (High enough for print, low enough for size)
-        // windowWidth: Tricks mobile browsers into rendering as Desktop (prevents mobile CSS/scaling issues)
-        
         const canvas = await html2canvas(certRef.current, {
             scale: 2, 
             width: CERT_WIDTH,
@@ -109,7 +106,7 @@ const CertificatePage: React.FC = () => {
             useCORS: true,
             allowTaint: true,
             logging: false,
-            backgroundColor: '#ffffff', // JPEG requires solid background
+            backgroundColor: '#ffffff', 
             // VITAL FOR MOBILE: Force simulation of a desktop window
             windowWidth: 1200, 
             windowHeight: 800,
@@ -118,27 +115,35 @@ const CertificatePage: React.FC = () => {
                 const element = clonedDoc.getElementById('certificate-view');
                 if (element) {
                     // FORCE RESET ALL CSS TRANSFORMS & DIMENSIONS
-                    // This ensures that even if the mobile view is scaled down to 0.3,
-                    // the downloaded version is rendered at scale 1.0 (before html2canvas scaling)
                     element.style.transform = 'none';
                     element.style.margin = '0';
                     element.style.padding = '0';
                     element.style.width = `${CERT_WIDTH}px`;
                     element.style.height = `${CERT_HEIGHT}px`;
-                    element.style.position = 'fixed'; // Force out of flow
+                    element.style.position = 'fixed'; 
                     element.style.top = '0';
                     element.style.left = '0';
                     element.style.maxWidth = 'none';
                     element.style.maxHeight = 'none';
+                    
+                    // CRITICAL FIX FOR MOBILE: Disable Text Inflation
+                    // Mobile browsers often inflate text size to make it readable. We must disable this for the capture.
+                    const style = clonedDoc.createElement('style');
+                    style.innerHTML = `
+                        * { 
+                            -webkit-text-size-adjust: none !important; 
+                            text-size-adjust: none !important; 
+                            -moz-text-size-adjust: none !important; 
+                            -ms-text-size-adjust: none !important; 
+                        }
+                    `;
+                    clonedDoc.head.appendChild(style);
                 }
             }
         });
 
-        // Use JPEG with 0.60 (60%) Quality
-        // Good balance: text is readable, file size is very small
         const imgData = canvas.toDataURL('image/jpeg', 0.60);
         
-        // Init PDF with Compression Enabled
         const pdf = new jsPDF({
             orientation: 'l', 
             unit: 'mm', 
@@ -149,7 +154,6 @@ const CertificatePage: React.FC = () => {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        // Add Image as JPEG with 'FAST' compression alias
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         
         // FORMAT NAMA FILE
@@ -172,7 +176,6 @@ const CertificatePage: React.FC = () => {
 
   const getElementContent = (field: string) => {
       if (!registration) return '';
-      // Force Uppercase for Name as requested
       if (field === 'userName') return registration.userName.toUpperCase();
       
       if (field === 'eventTitle') return registration.eventTitle;
@@ -203,11 +206,11 @@ const CertificatePage: React.FC = () => {
           if (el.field === 'userName') {
               const len = textContent.length;
               if (len > 40) {
-                  dynamicFontSize = dynamicFontSize * 0.5; // Very long name
+                  dynamicFontSize = dynamicFontSize * 0.5; 
               } else if (len > 30) {
-                  dynamicFontSize = dynamicFontSize * 0.65; // Long name
+                  dynamicFontSize = dynamicFontSize * 0.65; 
               } else if (len > 20) {
-                  dynamicFontSize = dynamicFontSize * 0.8; // Medium name
+                  dynamicFontSize = dynamicFontSize * 0.8; 
               }
           }
 
@@ -218,7 +221,7 @@ const CertificatePage: React.FC = () => {
           content = <img src={el.field} alt="element" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />;
       }
 
-      // Enforce Uppercase via JS Logic (Stronger than CSS for PDF capture)
+      // Enforce Uppercase via JS Logic
       if (el.type !== 'image' && el.textTransform === 'uppercase') {
           content = String(textContent).toUpperCase();
       } else if (el.type !== 'image' && el.textTransform === 'lowercase') {
@@ -240,7 +243,6 @@ const CertificatePage: React.FC = () => {
         ? { 
             WebkitTextStrokeWidth: `${el.strokeWidth}px`, 
             WebkitTextStrokeColor: el.strokeColor || '#FFFFFF',
-            // Paint order ensures the stroke doesn't eat the text fill too much
             paintOrder: 'stroke fill'
           } 
         : {};
@@ -254,14 +256,19 @@ const CertificatePage: React.FC = () => {
                 top: el.y,
                 color: el.color || '#000000',
                 fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
-                // Default to App Font to prevent jarring fallbacks
-                fontFamily: el.fontFamily || 'Plus Jakarta Sans, sans-serif',
+                // Default to standard font if custom font fails, but prioritize consistent rendering
+                fontFamily: el.fontFamily || 'Arial, sans-serif',
                 fontWeight: el.fontWeight || 'bold',
                 textAlign: el.align || 'center',
                 width: el.width ? `${el.width}px` : 'auto',
+                maxWidth: '95%', // Prevent overflowing off canvas
                 transform: transform, 
+                // CRITICAL: Prevent wrapping and text adjustments on mobile
                 whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
                 textTransform: el.textTransform || 'none',
+                lineHeight: 1.2, // Consistent line height
+                WebkitTextSizeAdjust: 'none', // Prevent iOS/Android text inflation
+                textSizeAdjust: 'none',
                 ...strokeStyle
             }}
         >
