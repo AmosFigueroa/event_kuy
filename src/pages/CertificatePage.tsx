@@ -32,8 +32,7 @@ const CertificatePage: React.FC = () => {
   // Responsive Scaling State (Hanya untuk Preview di Layar)
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
-  const certRef = useRef<HTMLDivElement>(null);   // Reference for the visible preview
-  const exportRef = useRef<HTMLDivElement>(null); // Reference for the hidden export container
+  const certRef = useRef<HTMLDivElement>(null);
 
   // Constants MUST match AdminDashboard canvas size to ensure WYSIWYG
   const CERT_WIDTH = 842; 
@@ -94,89 +93,6 @@ const CertificatePage: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [loading]);
 
-  const handleDownload = async () => {
-    // IMPORTANT: Target exportRef (Hidden) instead of certRef (Visible)
-    if (!exportRef.current || !registration) return;
-    setDownloading(true);
-
-    try {
-        // Use the hidden, fixed-size container for capture
-        const canvas = await html2canvas(exportRef.current, {
-            scale: 2, // High quality scale
-            width: CERT_WIDTH,
-            height: CERT_HEIGHT,
-            useCORS: true,
-            allowTaint: true,
-            logging: false,
-            backgroundColor: '#ffffff', 
-            // FORCE DESKTOP SIMULATION
-            // This tricks the engine into thinking it's on a 1920px wide screen
-            // preventing mobile text inflation algorithms.
-            windowWidth: 1920, 
-            windowHeight: 1080,
-            imageTimeout: 15000,
-            onclone: (doc) => {
-                // AGGRESSIVE CSS RESET FOR CAPTURE
-                const style = doc.createElement('style');
-                style.innerHTML = `
-                    html, body {
-                        width: 1920px !important;
-                        height: 1080px !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                        overflow: visible !important;
-                    }
-                    * { 
-                        -webkit-text-size-adjust: 100% !important; 
-                        text-size-adjust: 100% !important; 
-                        -moz-text-size-adjust: 100% !important;
-                        -ms-text-size-adjust: 100% !important;
-                        box-sizing: border-box !important;
-                    }
-                    /* Force font rendering consistency */
-                    .cert-text-element {
-                        text-rendering: optimizeLegibility !important;
-                        -webkit-font-smoothing: antialiased !important;
-                        -moz-osx-font-smoothing: grayscale !important;
-                        white-space: nowrap !important;
-                    }
-                `;
-                doc.head.appendChild(style);
-            }
-        });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.80);
-        
-        const pdf = new jsPDF({
-            orientation: 'l', 
-            unit: 'mm', 
-            format: 'a4',
-            compress: true
-        });
-
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-        
-        // FORMAT NAMA FILE
-        const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
-        const eventName = sanitize(registration.eventTitle);
-        const participantName = sanitize(registration.userName);
-        const refNumber = registration.id.substring(0, 8); 
-
-        const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
-
-        pdf.save(fileName);
-        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh (A4 Horizontal).');
-    } catch (e) {
-        showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
-        console.error(e);
-    } finally {
-        setDownloading(false);
-    }
-  };
-
   const getElementContent = (field: string) => {
       if (!registration) return '';
       if (field === 'userName') return registration.userName.toUpperCase();
@@ -194,6 +110,181 @@ const CertificatePage: React.FC = () => {
           } catch(e) { return '-'; }
       }
       return field;
+  };
+
+  /**
+   * GENERATE CERTIFICATE USING NATIVE CANVAS API
+   * This is much more robust on mobile than html2canvas because it ignores
+   * the browser's viewport scaling and text inflation completely.
+   */
+  const handleDownload = async () => {
+    if (!registration) return;
+    setDownloading(true);
+
+    try {
+        const hasConfig = certConfig && certConfig.backgroundUrl;
+        let imgData = '';
+
+        if (hasConfig) {
+            // --- NATIVE CANVAS DRAWING STRATEGY ---
+            const canvas = document.createElement('canvas');
+            const scale = 2; // 2x resolution for crisp PDF
+            canvas.width = CERT_WIDTH * scale;
+            canvas.height = CERT_HEIGHT * scale;
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) throw new Error("Could not create canvas context");
+            
+            // Scale context so we can use logical coordinates
+            ctx.scale(scale, scale);
+
+            // 1. Draw Background
+            if (certConfig.backgroundUrl) {
+                await new Promise<void>((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.src = certConfig.backgroundUrl;
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, CERT_WIDTH, CERT_HEIGHT);
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        console.warn("Failed to load background image");
+                        resolve(); // Proceed without background
+                    };
+                });
+            } else {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, CERT_WIDTH, CERT_HEIGHT);
+            }
+
+            // 2. Draw Elements
+            const elements = certConfig.elements || [];
+            for (const el of elements) {
+                // Determine Content
+                let text = '';
+                if (el.type === 'image') {
+                    // Draw Image Element
+                    if (el.field) {
+                        await new Promise<void>((resolve) => {
+                            const imgEl = new Image();
+                            imgEl.crossOrigin = 'anonymous';
+                            imgEl.src = el.field;
+                            imgEl.onload = () => {
+                                const w = el.width || 100;
+                                const ratio = imgEl.naturalHeight / imgEl.naturalWidth;
+                                const h = w * ratio;
+                                
+                                // Calculate position based on alignment
+                                let x = el.x;
+                                let y = el.y;
+                                
+                                // Adjust anchor point
+                                if (el.align === 'center') x = x - (w / 2);
+                                else if (el.align === 'right') x = x - w;
+                                
+                                if (el.verticalAlign === 'middle') y = y - (h / 2);
+                                else if (el.verticalAlign === 'bottom') y = y - h;
+                                else y = y - (h/2); // Default to middle if undefined for images in this logic
+
+                                ctx.drawImage(imgEl, x, y, w, h);
+                                resolve();
+                            };
+                            imgEl.onerror = () => resolve();
+                        });
+                    }
+                    continue; 
+                } else {
+                    // Text Element
+                    if (el.type === 'dynamic') text = getElementContent(el.field);
+                    else text = el.field;
+                }
+
+                // Text Transforms
+                if (el.textTransform === 'uppercase') text = text.toUpperCase();
+                else if (el.textTransform === 'lowercase') text = text.toLowerCase();
+
+                // Dynamic Font Sizing Logic
+                let fontSize = el.fontSize || 12;
+                if (el.field === 'userName') {
+                    if (text.length > 40) fontSize *= 0.5;
+                    else if (text.length > 30) fontSize *= 0.65;
+                    else if (text.length > 20) fontSize *= 0.8;
+                }
+
+                // Set Font Context
+                const fontWeight = el.fontWeight === 'normal' ? 'normal' : 'bold';
+                const fontFamily = el.fontFamily || 'Arial, sans-serif';
+                ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+                ctx.fillStyle = el.color || '#000000';
+                
+                // Alignment
+                ctx.textAlign = (el.align as CanvasTextAlign) || 'center';
+                
+                // Vertical Align Mapping
+                // Canvas 'textBaseline' options: top, middle, bottom
+                let baseline: CanvasTextBaseline = 'middle';
+                if (el.verticalAlign === 'top') baseline = 'top';
+                if (el.verticalAlign === 'bottom') baseline = 'bottom';
+                ctx.textBaseline = baseline;
+
+                // Stroke (Outline)
+                if (el.strokeWidth && el.strokeWidth > 0) {
+                    ctx.lineWidth = el.strokeWidth;
+                    ctx.strokeStyle = el.strokeColor || '#FFFFFF';
+                    ctx.strokeText(text, el.x, el.y);
+                }
+
+                // Fill Text
+                ctx.fillText(text, el.x, el.y);
+            }
+
+            imgData = canvas.toDataURL('image/jpeg', 0.85);
+
+        } else {
+            // --- FALLBACK FOR DEFAULT TEMPLATE (HTML2CANVAS) ---
+            // Because the default template uses HTML divs/borders that are harder to draw manually
+            if (!certRef.current) return;
+            const canvas = await html2canvas(certRef.current, {
+                scale: 2, 
+                width: CERT_WIDTH,
+                height: CERT_HEIGHT,
+                useCORS: true,
+                backgroundColor: '#ffffff', 
+                windowWidth: 1200, // Force desktop width
+            });
+            imgData = canvas.toDataURL('image/jpeg', 0.85);
+        }
+        
+        // --- PDF GENERATION ---
+        const pdf = new jsPDF({
+            orientation: 'l', 
+            unit: 'mm', 
+            format: 'a4',
+            compress: true
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+        
+        const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
+        const eventName = sanitize(registration.eventTitle);
+        const participantName = sanitize(registration.userName);
+        const refNumber = registration.id.substring(0, 8); 
+
+        const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
+
+        pdf.save(fileName);
+        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh (HD).');
+
+    } catch (e: any) {
+        showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
+        console.error(e);
+    } finally {
+        setDownloading(false);
+    }
   };
 
   const renderElement = (el: CertificateElement) => {
@@ -231,7 +322,7 @@ const CertificatePage: React.FC = () => {
           content = String(textContent).toLowerCase();
       }
 
-      // Determine Transform based on Alignment to ensure position stays predictable
+      // Determine Transform based on Alignment for DOM Preview
       let translateX = '-50%';
       if (el.align === 'left') translateX = '0';
       if (el.align === 'right') translateX = '-100%';
@@ -253,7 +344,7 @@ const CertificatePage: React.FC = () => {
       return (
         <div
             key={el.id}
-            className="absolute z-10 cert-text-element"
+            className="absolute z-10"
             style={{
                 left: el.x,
                 top: el.y,
@@ -263,12 +354,11 @@ const CertificatePage: React.FC = () => {
                 fontWeight: el.fontWeight || 'bold',
                 textAlign: el.align || 'center',
                 width: el.width ? `${el.width}px` : 'auto',
-                maxWidth: '95%', 
+                maxWidth: '95%', // Prevent overflowing off canvas
                 transform: transform, 
                 whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
                 textTransform: el.textTransform || 'none',
-                lineHeight: 1.2,
-                WebkitTextSizeAdjust: 'none',
+                lineHeight: 1.2, 
                 ...strokeStyle
             }}
         >
@@ -277,7 +367,6 @@ const CertificatePage: React.FC = () => {
       );
   };
 
-  // Shared content render function for both Preview and Export containers
   const renderCertificateContent = () => (
       <>
          {hasConfig ? (
@@ -348,7 +437,7 @@ const CertificatePage: React.FC = () => {
             disabled={downloading}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#DFFF00] text-[#2B427A] px-6 py-3 rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50"
          >
-             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (LITE)
+             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (HD)
          </button>
       </div>
 
@@ -394,16 +483,13 @@ const CertificatePage: React.FC = () => {
                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                          border: '1px solid #e5e5e5'
                      }}>
-                         {/* The Actual Certificate Node (Clean for PDF) */}
-                         {/* This node has FIXED dimensions in pixels to ensure consistent download quality */}
+                         {/* The Actual Certificate Node (DOM Preview) */}
                          <div 
                             ref={certRef}
-                            id="certificate-view" // ID for html2canvas targeting
                             className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative"
                             style={{ 
                                 width: `${CERT_WIDTH}px`, 
                                 height: `${CERT_HEIGHT}px`, 
-                                // No scale here, it inherits from parent or is captured natively
                             }}
                          >
                              {renderCertificateContent()}
@@ -413,36 +499,6 @@ const CertificatePage: React.FC = () => {
               </div>
           </div>
       </div>
-
-      {/* --- OFF-SCREEN EXPORT CONTAINER --- */}
-      {/* This container is used ONLY for generating the PDF. It is positioned off-screen so it's not visible. */}
-      {/* It has FIXED dimensions (not responsive) to ensure the generated PDF is perfect on all devices. */}
-      <div 
-        style={{ 
-            position: 'fixed', 
-            top: '-9999px', 
-            left: '-9999px', 
-            width: `${CERT_WIDTH}px`, 
-            height: `${CERT_HEIGHT}px`,
-            overflow: 'hidden',
-            visibility: 'visible', // Must be visible for html2canvas to render
-            zIndex: -1
-        }}
-      >
-          <div 
-            ref={exportRef}
-            className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative"
-            style={{ 
-                width: `${CERT_WIDTH}px`, 
-                height: `${CERT_HEIGHT}px`,
-                // Explicitly disable text size adjustments here as well
-                WebkitTextSizeAdjust: 'none',
-            }}
-          >
-              {renderCertificateContent()}
-          </div>
-      </div>
-
     </div>
   );
 };
