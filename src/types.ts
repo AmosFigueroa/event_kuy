@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export enum EventCategory {
@@ -46,6 +47,8 @@ export interface CertificateConfig {
   csvDataUrl?: string; // URL to the uploaded CSV JSON data in Drive
 }
 
+export type EventStatus = 'COMING_SOON' | 'OPEN' | 'EXTENDED' | 'CLOSED';
+
 export interface Event {
   id: string;
   title: string;
@@ -53,18 +56,20 @@ export interface Event {
   date: string;
   time: string;
   location: string;
-  mapUrl?: string; // NEW: Specific Google Maps Link
+  mapUrl?: string; // Specific Google Maps Link
+  groupLink?: string; // NEW: WhatsApp/Telegram Group Link
   price: number;
   category: string; 
   bannerUrl: string;
-  thumbnailUrl?: string; // ADDED: Portrait thumbnail for grids (4:5)
+  thumbnailUrl?: string; // Portrait thumbnail for grids (4:5)
   maxParticipants: number;
   currentParticipants: number;
   paymentInstructions?: string;
-  isOpen: boolean;
+  isOpen: boolean; // Computed based on status for backward compatibility
+  status: EventStatus; // NEW: Explicit Status
   formFields?: FormField[];
-  certificateConfig?: CertificateConfig; // NEW: Event-specific cert config
-  enableTicketScanner?: boolean; // NEW: Toggle for QR Code feature
+  certificateConfig?: CertificateConfig; // Event-specific cert config
+  enableTicketScanner?: boolean; // Toggle for QR Code feature
 }
 
 export enum RegistrationStatus {
@@ -99,7 +104,6 @@ export interface PaymentSettings {
   qrisUrl?: string;
 }
 
-// Updated to match Config
 export interface CertificateSettings {
   backgroundUrl?: string;
   elements: CertificateElement[];

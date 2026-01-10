@@ -117,7 +117,8 @@ const EventDetail: React.FC = () => {
                   customData: customData 
               }, base64);
               
-              navigate('/payment-success', { state: { price: event.price } });
+              // PASS EVENT ID TO SUCCESS PAGE
+              navigate('/payment-success', { state: { price: event.price, eventId: event.id } });
           } catch (apiErr: any) {
               const errMsg = apiErr.message || "Kesalahan jaringan.";
               setError(errMsg);
@@ -235,9 +236,13 @@ const EventDetail: React.FC = () => {
                       <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-gray-300">
                           <Clock className="w-10 h-10 text-gray-400" />
                       </div>
-                      <h3 className="text-xl font-black text-gray-600 uppercase mb-2">Pendaftaran Ditutup</h3>
+                      <h3 className="text-xl font-black text-gray-600 uppercase mb-2">
+                          {event.status === 'COMING_SOON' ? 'SEGERA HADIR' : 'Pendaftaran Ditutup'}
+                      </h3>
                       <p className="text-gray-500 text-sm mb-6 px-4 leading-relaxed font-medium">
-                          Terima kasih atas antusiasme Anda. Kuota telah terpenuhi atau batas waktu pendaftaran untuk acara ini telah berakhir.
+                          {event.status === 'COMING_SOON' 
+                            ? 'Nantikan informasi pendaftaran untuk acara ini segera!' 
+                            : 'Terima kasih atas antusiasme Anda. Kuota telah terpenuhi atau batas waktu pendaftaran telah berakhir.'}
                       </p>
                       <button 
                           onClick={() => navigate('/events')}

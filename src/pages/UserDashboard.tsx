@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard, QrCode, Download } from 'lucide-react';
+import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard, QrCode, Download, MessageCircle } from 'lucide-react';
 import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession, createSlug, formatTime } from '../services/api';
 import { Registration, RegistrationStatus, Event } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -358,6 +358,18 @@ const UserDashboard: React.FC = () => {
 
                             {/* ACTIONS */}
                             <div className="w-full space-y-2 mt-2">
+                                {/* NEW: Group Link Button */}
+                                {ticket.eventDetails?.groupLink && (
+                                    <a 
+                                        href={ticket.eventDetails.groupLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center justify-center gap-2 text-sm bg-green-500 text-white border-2 border-green-600 hover:bg-green-600 px-4 py-2 rounded-lg font-black transition-all shadow-sm"
+                                    >
+                                        <MessageCircle className="w-4 h-4" /> GABUNG GRUP
+                                    </a>
+                                )}
+
                                 <button 
                                     onClick={() => handleDownloadTicket(ticket)}
                                     disabled={downloadingTicket === ticket.id}

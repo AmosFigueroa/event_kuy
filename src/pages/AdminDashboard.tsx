@@ -1,10 +1,10 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, TrendingUp, Activity, DollarSign as DollarIcon, ArrowUpFromLine, ArrowDownFromLine } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, TrendingUp, Activity, DollarSign as DollarIcon, ArrowUpFromLine, ArrowDownFromLine, Link as LinkIcon, MessageCircle } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
-import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement } from '../types';
+import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement, EventStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
 import CustomAlert from '../components/CustomAlert';
 
@@ -16,7 +16,7 @@ const CANVAS_HEIGHT = 595;
 const COLORS = ['#0B1CDE', '#DFFF00', '#EF4444', '#2B427A'];
 
 const AdminDashboard: React.FC = () => {
-  // View State: 'overview' | 'events' | 'registrations' | 'settings' | 'event-editor' | 'scan-history'
+  // View State
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [events, setEvents] = useState<Event[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
@@ -102,7 +102,9 @@ const AdminDashboard: React.FC = () => {
     time: '09:00',
     certificateConfig: { backgroundUrl: '', elements: [] },
     enableTicketScanner: false,
-    mapUrl: ''
+    mapUrl: '',
+    groupLink: '',
+    status: 'OPEN'
   });
   const [customCategory, setCustomCategory] = useState(''); 
   const [isCustomCat, setIsCustomCat] = useState(false);
@@ -235,19 +237,29 @@ const AdminDashboard: React.FC = () => {
   const handleExportData = async () => {
       setExportLoading(true);
       try {
-          const csvString = await fetchParticipantsCsv(selectedEventFilter);
-          const blob = new Blob([csvString], { type: 'text/csv' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `participants_export_${new Date().toISOString()}.csv`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-          setShowExportModal(false);
+          const result = await fetchParticipantsCsv(selectedEventFilter);
+          
+          if (result && result.csv) {
+              const binaryString = window.atob(result.csv);
+              const bytes = new Uint8Array(binaryString.length);
+              for (let i = 0; i < binaryString.length; i++) {
+                  bytes[i] = binaryString.charCodeAt(i);
+              }
+              const blob = new Blob([bytes], { type: 'text/csv' });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = result.filename || `export_${new Date().getTime()}.csv`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+              setShowExportModal(false);
+          } else {
+              throw new Error("Data CSV tidak diterima");
+          }
       } catch (e: any) {
-          showAlert('error', 'Gagal', 'Gagal mengunduh CSV.');
+          showAlert('error', 'Gagal', 'Gagal mengunduh CSV: ' + e.message);
       } finally {
           setExportLoading(false);
       }
@@ -362,7 +374,9 @@ const AdminDashboard: React.FC = () => {
       time: '09:00',
       certificateConfig: { backgroundUrl: '', elements: [] },
       enableTicketScanner: false,
-      mapUrl: ''
+      mapUrl: '',
+      groupLink: '',
+      status: 'OPEN'
     });
     setBannerFile(null);
     setBannerPreview(null);
@@ -535,7 +549,6 @@ const AdminDashboard: React.FC = () => {
           setInitialPos(null);
       };
 
-      // ADDED: Touch handlers for mobile/tablet editing
       const handleTouchStart = (e: React.TouchEvent, id: string) => {
           const touch = e.touches[0];
           setActiveElementId(id);
@@ -563,12 +576,8 @@ const AdminDashboard: React.FC = () => {
 
       return (
           <div className="flex flex-col lg:flex-row h-full bg-white rounded-xl overflow-hidden border border-gray-200">
-              {/* LEFT SIDEBAR: TOOLS + PROPERTIES */}
               <div className="w-full lg:w-80 bg-gray-50 border-r border-gray-200 flex flex-col z-30 shadow-xl h-full">
-                  
-                  {/* TOP SCROLLABLE: TOOLS */}
                   <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                      {/* Add Elements Group */}
                       <div>
                           <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">TAMBAH ELEMEN</h4>
                           <div className="space-y-2">
@@ -586,8 +595,6 @@ const AdminDashboard: React.FC = () => {
                               </button>
                           </div>
                       </div>
-
-                      {/* Background Group */}
                       <div className="pt-4 border-t border-gray-200">
                           <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND</h4>
                           <label className="w-full cursor-pointer group">
@@ -624,8 +631,6 @@ const AdminDashboard: React.FC = () => {
                           <p className="text-[10px] text-gray-400 mt-2 font-medium">Format: JPG/PNG, Orientasi Landscape (A4)</p>
                       </div>
                   </div>
-
-                  {/* BOTTOM AREA: PROPERTIES PANEL (Sticky at bottom of sidebar) */}
                   <div className="bg-white border-t-2 border-gray-200 p-5 flex-shrink-0 max-h-[50%] overflow-y-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] custom-scrollbar">
                       <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
                         <h4 className="text-xs font-black text-[#2B427A] uppercase tracking-wider flex items-center gap-2">
@@ -640,7 +645,6 @@ const AdminDashboard: React.FC = () => {
                             </button>
                         )}
                       </div>
-                      
                       {activeElement ? (
                           <div className="space-y-4 animate-fade-in">
                               <div>
@@ -666,7 +670,6 @@ const AdminDashboard: React.FC = () => {
                                       </div>
                                   )}
                               </div>
-
                               <div className="grid grid-cols-2 gap-3">
                                   {activeElement.type !== 'image' && (
                                     <>
@@ -693,9 +696,8 @@ const AdminDashboard: React.FC = () => {
                                       </div>
                                     </>
                                   )}
-
                                   <div className="col-span-2">
-                                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align Horizontal)</label>
+                                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align)</label>
                                       <div className="relative">
                                           <AlignJustify className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
                                           <select value={activeElement.align || 'center'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, align: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700">
@@ -705,19 +707,6 @@ const AdminDashboard: React.FC = () => {
                                           </select>
                                       </div>
                                   </div>
-
-                                  <div className="col-span-2">
-                                      <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align Vertical)</label>
-                                      <div className="relative">
-                                          <ArrowUpFromLine className="w-3 h-3 absolute left-3 top-3 text-gray-400"/>
-                                          <select value={activeElement.verticalAlign || 'middle'} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, verticalAlign: e.target.value as any } : el))} className="w-full pl-8 pr-2 py-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700">
-                                              <option value="top">Atas (Top)</option>
-                                              <option value="middle">Tengah (Middle)</option>
-                                              <option value="bottom">Bawah (Bottom)</option>
-                                          </select>
-                                      </div>
-                                  </div>
-
                                   {activeElement.type === 'image' && (
                                       <div className="col-span-2">
                                           <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Lebar (px)</label>
@@ -734,8 +723,6 @@ const AdminDashboard: React.FC = () => {
                       )}
                   </div>
               </div>
-
-              {/* RIGHT: CANVAS */}
               <div className="flex-1 flex flex-col min-w-0 bg-[#F0F2F5] relative">
                   <div className="flex-1 overflow-auto p-8 flex items-center justify-center relative shadow-inner" 
                       onMouseMove={handleMouseMove} 
@@ -744,25 +731,20 @@ const AdminDashboard: React.FC = () => {
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
                   >
-                      {/* The Paper Canvas */}
                       <div className="relative bg-white shadow-2xl transition-shadow" style={{ width: 842, height: 595, flexShrink: 0 }}>
                           {bgUrl ? (
                               <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                           ) : (
                               <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-4xl uppercase select-none border-2 border-dashed border-gray-300 m-4">Area Sertifikat</div>
                           )}
-                          
                           {elements.map(el => {
                               let translateX = '-50%';
                               if (el.align === 'left') translateX = '0';
                               if (el.align === 'right') translateX = '-100%';
-
                               let translateY = '-50%';
                               if (el.verticalAlign === 'top') translateY = '0';
                               if (el.verticalAlign === 'bottom') translateY = '-100%';
-
                               const transform = `translate(${translateX}, ${translateY})`;
-
                               return (
                                 <div 
                                     key={el.id} 
@@ -775,10 +757,7 @@ const AdminDashboard: React.FC = () => {
                                         width: el.width || 'auto'
                                     }}
                                 >
-                                    {/* Selection Box Visual */}
                                     <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
-                                    
-                                    {/* Content Render */}
                                     <div style={{
                                         fontSize: el.fontSize, 
                                         fontFamily: el.fontFamily, 
@@ -801,17 +780,21 @@ const AdminDashboard: React.FC = () => {
 
   const renderScanHistory = () => {
       let checkedInRegs = registrations.filter(r => r.checkInStatus === 'CHECKED_IN');
+      
       if (selectedEventFilter !== 'ALL') {
           checkedInRegs = checkedInRegs.filter(r => r.eventId === selectedEventFilter);
       }
+
       checkedInRegs.sort((a, b) => {
           const tA = a.checkInTime ? new Date(a.checkInTime).getTime() : 0;
           const tB = b.checkInTime ? new Date(b.checkInTime).getTime() : 0;
           return tB - tA;
       });
+
       const totalForFilter = selectedEventFilter === 'ALL' 
           ? registrations.filter(r => r.status === 'APPROVED').length 
           : registrations.filter(r => r.eventId === selectedEventFilter && r.status === 'APPROVED').length;
+      
       const attendanceRate = totalForFilter > 0 ? Math.round((checkedInRegs.length / totalForFilter) * 100) : 0;
 
       return (
@@ -822,6 +805,8 @@ const AdminDashboard: React.FC = () => {
                       <FileSpreadsheet className="w-4 h-4"/> DOWNLOAD LAPORAN (CSV)
                   </button>
               </div>
+
+              {/* Event Filter */}
               <div className="bg-white p-4 rounded-xl border-2 border-[#2B427A] mb-6">
                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Filter Acara:</label>
                    <select value={selectedEventFilter} onChange={e => setSelectedEventFilter(e.target.value)} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold outline-none">
@@ -829,6 +814,8 @@ const AdminDashboard: React.FC = () => {
                        {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
                    </select>
                </div>
+
+              {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                   <div className="bg-white p-5 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
                       <div>
@@ -852,6 +839,8 @@ const AdminDashboard: React.FC = () => {
                       <div className="p-3 bg-yellow-50 rounded-lg"><CheckSquare className="w-6 h-6 text-[#DFFF00] stroke-black"/></div>
                   </div>
               </div>
+
+              {/* Table */}
               <div className="bg-white rounded-xl border-2 border-[#2B427A] overflow-hidden">
                    <div className="overflow-x-auto">
                        <table className="w-full text-left border-collapse">
@@ -889,88 +878,10 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
-  const renderEventsList = () => (
-      <div className="space-y-6 animate-fade-in">
-          <div className="flex justify-between items-center mb-4">
-              <h3 className="font-black text-[#2B427A] text-2xl uppercase">Daftar Acara</h3>
-              <button onClick={() => { resetWizard(); setActiveTab('event-editor'); }} className="px-6 py-2 bg-[#DFFF00] text-[#2B427A] rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2">
-                  <Plus className="w-5 h-5"/> BUAT ACARA BARU
-              </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map(event => (
-                <div key={event.id} className="bg-white rounded-2xl border-2 border-[#2B427A] overflow-hidden flex flex-col shadow-[6px_6px_0px_0px_#2B427A] hover:translate-y-[-2px] transition-transform">
-                    <div className="h-48 relative bg-gray-200">
-                        {event.bannerUrl ? (
-                            <img src={event.bannerUrl} alt={event.title} className="w-full h-full object-cover" />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 font-bold">NO IMAGE</div>
-                        )}
-                        <div className="absolute top-4 right-4 bg-[#DFFF00] text-[#2B427A] font-black px-3 py-1 text-xs uppercase border border-[#2B427A] rounded shadow-sm">
-                            {event.category}
-                        </div>
-                    </div>
-                    <div className="p-5 flex-1">
-                        <h4 className="text-2xl font-black text-[#2B427A] uppercase mb-3 leading-tight line-clamp-2">{event.title}</h4>
-                        <div className="flex items-center gap-4 text-sm text-gray-500 font-bold mb-2">
-                            <div className="flex items-center gap-2">
-                                <CalendarIcon className="w-4 h-4 text-[#0B1CDE]" />
-                                <span>{new Date(event.date).toLocaleDateString()}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <UsersIcon className="w-4 h-4 text-[#0B1CDE]" />
-                                <span>{event.currentParticipants}/{event.maxParticipants}</span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-400 font-bold uppercase mt-2">
-                            <span className={`w-2 h-2 rounded-full ${event.isOpen ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                            {event.isOpen ? 'PENDAFTARAN DIBUKA' : 'DITUTUP'}
-                        </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 border-t-2 border-dashed border-[#2B427A]/20 flex gap-2">
-                        <button 
-                            onClick={() => {
-                                resetWizard();
-                                setEditingId(event.id);
-                                setNewEvent(event);
-                                setBannerPreview(event.bannerUrl);
-                                setThumbnailPreview(event.thumbnailUrl);
-                                setCertBgPreview(event.certificateConfig?.backgroundUrl || null);
-                                setActiveTab('event-editor');
-                            }} 
-                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-[#0B1CDE] font-black rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors uppercase text-xs"
-                        >
-                            <Edit2 className="w-4 h-4"/> EDIT
-                        </button>
-                        <button 
-                            onClick={async () => { await toggleEventStatus(event.id); loadData(); }} 
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 font-black rounded-lg border transition-colors uppercase text-xs ${event.isOpen ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100' : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'}`}
-                        >
-                            <Power className="w-4 h-4"/> {event.isOpen ? 'TUTUP' : 'BUKA'}
-                        </button>
-                        <button 
-                            onClick={() => showConfirm('Hapus Acara?', 'Yakin ingin menghapus acara ini? Data pendaftar juga akan hilang.', async () => {
-                                await deleteEvent(event.id);
-                                loadData();
-                            })} 
-                            className="p-2 bg-red-50 text-red-500 rounded-lg border border-red-200 hover:bg-red-100 transition-colors"
-                        >
-                            <Trash2 className="w-5 h-5"/>
-                        </button>
-                        <button onClick={() => navigate(`/scanner/${event.id}`)} className="p-2 bg-gray-100 text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-200" title="Scan Tiket">
-                            <ScanLine className="w-5 h-5"/>
-                        </button>
-                    </div>
-                </div>
-            ))}
-          </div>
-          {events.length === 0 && <div className="text-center py-12 text-gray-400 font-bold border-2 border-dashed border-gray-200 rounded-xl">Belum ada acara yang dibuat.</div>}
-      </div>
-  );
-
   const renderRegistrations = () => {
       const filteredRegistrations = registrations.filter(r => selectedEventFilter === 'ALL' || r.eventId === selectedEventFilter);
       const hasApprovedUsers = filteredRegistrations.some(r => r.status === RegistrationStatus.APPROVED);
+
       return (
           <div className="animate-fade-in space-y-4">
                <div className="flex justify-between items-center mb-4">
@@ -986,9 +897,11 @@ const AdminDashboard: React.FC = () => {
                               KIRIM SEMUA SERTIFIKAT
                           </button>
                       )}
+                      
                       <button onClick={() => setShowExportModal(true)} className="px-4 py-2 bg-green-100 text-green-700 font-bold rounded hover:bg-green-200 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> EXPORT CSV</button>
                   </div>
                </div>
+               
                <div className="bg-white p-4 rounded-xl border-2 border-[#2B427A] mb-4">
                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Filter Acara:</label>
                    <select value={selectedEventFilter} onChange={e => setSelectedEventFilter(e.target.value)} className="w-full border-2 border-gray-200 rounded-lg p-2 font-bold outline-none">
@@ -996,6 +909,7 @@ const AdminDashboard: React.FC = () => {
                        {events.map(e => <option key={e.id} value={e.id}>{e.title}</option>)}
                    </select>
                </div>
+
                <div className="bg-white rounded-xl border-2 border-[#2B427A] overflow-hidden">
                    <div className="overflow-x-auto">
                        <table className="w-full text-left border-collapse">
@@ -1052,170 +966,104 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
-  const renderOverview = () => {
-      const sortedRegs = [...registrations].sort((a, b) => new Date(a.registrationDate).getTime() - new Date(b.registrationDate).getTime());
-      const trendMap = new Map<string, number>();
-      sortedRegs.forEach(r => {
-          const d = new Date(r.registrationDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-          trendMap.set(d, (trendMap.get(d) || 0) + 1);
-      });
-      const chartData = Array.from(trendMap).map(([name, count]) => ({ name, count })).slice(-7);
-      const statusCounts = registrations.reduce((acc, curr) => {
-          acc[curr.status] = (acc[curr.status] || 0) + 1;
-          return acc;
-      }, {} as Record<string, number>);
-      const pieData = [
-          { name: 'Disetujui', value: statusCounts['APPROVED'] || 0, color: '#16a34a' },
-          { name: 'Menunggu', value: statusCounts['PENDING'] || 0, color: '#ca8a04' },
-          { name: 'Ditolak', value: statusCounts['REJECTED'] || 0, color: '#dc2626' }
-      ].filter(d => d.value > 0);
-      const totalRevenue = registrations.filter(r => r.status === 'APPROVED').reduce((sum, r) => {
-          const evt = events.find(e => e.id === r.eventId);
-          return sum + (evt ? evt.price : 0);
-      }, 0);
-      const approvalRate = registrations.length > 0 
-          ? Math.round(((statusCounts['APPROVED'] || 0) / registrations.length) * 100) 
-          : 0;
-      const topEvents = [...events].sort((a, b) => b.currentParticipants - a.currentParticipants).slice(0, 5);
-      const recentActivity = [...registrations].sort((a, b) => new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime()).slice(0, 5);
-
-      return (
-          <div className="space-y-6 animate-fade-in">
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
-                     <div>
-                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Acara</h3>
-                        <p className="text-3xl font-black text-[#2B427A]">{events.length}</p>
-                     </div>
-                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><CalendarIcon className="w-6 h-6"/></div>
-                 </div>
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
-                     <div>
-                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Pendaftar</h3>
-                        <p className="text-3xl font-black text-[#0B1CDE]">{registrations.length}</p>
-                     </div>
-                     <div className="p-3 bg-blue-50 rounded-lg text-[#0B1CDE]"><UsersIcon className="w-6 h-6"/></div>
-                 </div>
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
-                     <div>
-                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Estimasi Pendapatan</h3>
-                        <p className="text-3xl font-black text-[#2B427A] truncate">Rp {(totalRevenue/1000).toFixed(0)}k</p>
-                     </div>
-                     <div className="p-3 bg-green-50 rounded-lg text-green-600"><DollarIcon className="w-6 h-6"/></div>
-                 </div>
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
-                     <div>
-                        <h3 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mb-1">Tingkat Persetujuan</h3>
-                        <p className="text-3xl font-black text-[#DFFF00] text-outline">{approvalRate}%</p>
-                     </div>
-                     <div className="p-3 bg-yellow-50 rounded-lg text-[#DFFF00] stroke-black"><CheckSquare className="w-6 h-6 text-[#DFFF00] stroke-black"/></div>
-                 </div>
-             </div>
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 <div className="lg:col-span-2 bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-sm">
-                     <h3 className="font-black text-[#2B427A] uppercase mb-6 flex items-center gap-2">
-                         <TrendingUp className="w-5 h-5 text-[#0B1CDE]"/> Tren Pendaftaran (7 Hari Terakhir)
-                     </h3>
-                     <div className="h-64 w-full">
-                         <ResponsiveContainer width="100%" height="100%">
-                             <AreaChart data={chartData}>
-                                 <defs>
-                                     <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                                         <stop offset="5%" stopColor="#0B1CDE" stopOpacity={0.8}/>
-                                         <stop offset="95%" stopColor="#0B1CDE" stopOpacity={0}/>
-                                     </linearGradient>
-                                 </defs>
-                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 'bold'}} dy={10} />
-                                 <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10}} allowDecimals={false} />
-                                 <Tooltip contentStyle={{borderRadius: '8px', border: '2px solid #2B427A', fontWeight: 'bold'}} />
-                                 <Area type="monotone" dataKey="count" stroke="#0B1CDE" fillOpacity={1} fill="url(#colorCount)" strokeWidth={3} />
-                             </AreaChart>
-                         </ResponsiveContainer>
-                     </div>
-                 </div>
-                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-sm">
-                     <h3 className="font-black text-[#2B427A] uppercase mb-4 flex items-center gap-2">
-                         <Activity className="w-5 h-5 text-[#0B1CDE]"/> Status Tiket
-                     </h3>
-                     <div className="h-64 w-full relative">
-                         <ResponsiveContainer width="100%" height="100%">
-                             <PieChart>
-                                 <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                     {pieData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} strokeWidth={0} />))}
-                                 </Pie>
-                                 <Tooltip />
-                                 <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                             </PieChart>
-                         </ResponsiveContainer>
-                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none pb-8">
-                             <div className="text-center">
-                                 <span className="text-2xl font-black text-[#2B427A]">{registrations.length}</span>
-                                 <p className="text-[10px] uppercase font-bold text-gray-400">Total</p>
-                             </div>
-                         </div>
-                     </div>
-                 </div>
-             </div>
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                 <div className="bg-white rounded-xl border-2 border-[#2B427A] overflow-hidden">
-                     <div className="p-4 bg-[#2B427A] text-white flex justify-between items-center">
-                         <h3 className="font-bold uppercase text-sm">Event Terpopuler</h3>
-                         <Award className="w-4 h-4 text-[#DFFF00]"/>
-                     </div>
-                     <div>
-                         {topEvents.map((evt, idx) => (
-                             <div key={evt.id} className="p-4 border-b border-gray-100 flex justify-between items-center hover:bg-gray-50">
-                                 <div className="flex items-center gap-3">
-                                     <span className={`font-black text-lg w-6 ${idx === 0 ? 'text-[#DFFF00] text-outline' : 'text-gray-300'}`}>#{idx+1}</span>
-                                     <div>
-                                         <p className="font-bold text-sm text-[#2B427A] truncate max-w-[200px]">{evt.title}</p>
-                                         <p className="text-[10px] text-gray-400">{new Date(evt.date).toLocaleDateString()}</p>
-                                     </div>
-                                 </div>
-                                 <div className="text-right">
-                                     <p className="font-black text-[#0B1CDE]">{evt.currentParticipants}</p>
-                                     <p className="text-[10px] text-gray-400">Peserta</p>
-                                 </div>
-                             </div>
-                         ))}
-                         {topEvents.length === 0 && <div className="p-8 text-center text-gray-400 text-xs">Belum ada data event.</div>}
-                     </div>
-                 </div>
-                 <div className="bg-white rounded-xl border-2 border-[#2B427A] overflow-hidden">
-                     <div className="p-4 bg-white border-b-2 border-[#2B427A] flex justify-between items-center">
-                         <h3 className="font-bold uppercase text-sm text-[#2B427A]">Pendaftar Terbaru</h3>
-                         <Clock className="w-4 h-4 text-[#0B1CDE]"/>
-                     </div>
-                     <div>
-                         {recentActivity.map((reg) => (
-                             <div key={reg.id} className="p-4 border-b border-gray-100 flex justify-between items-center hover:bg-gray-50">
-                                 <div className="flex items-center gap-3">
-                                     <div className={`w-2 h-8 rounded-full ${reg.status === 'APPROVED' ? 'bg-green-500' : reg.status === 'REJECTED' ? 'bg-red-500' : 'bg-yellow-400'}`}></div>
-                                     <div>
-                                         <p className="font-bold text-sm text-[#2B427A]">{reg.userName}</p>
-                                         <p className="text-[10px] text-gray-400 truncate max-w-[150px]">{reg.eventTitle}</p>
-                                     </div>
-                                 </div>
-                                 <span className="text-[10px] font-mono text-gray-400">{new Date(reg.registrationDate).toLocaleDateString()}</span>
-                             </div>
-                         ))}
-                         {recentActivity.length === 0 && <div className="p-8 text-center text-gray-400 text-xs">Belum ada aktivitas.</div>}
-                     </div>
-                 </div>
-             </div>
+  const renderEventsList = () => (
+      <div className="space-y-6 animate-fade-in">
+          <div className="flex justify-between items-center mb-4">
+              <h3 className="font-black text-[#2B427A] text-2xl uppercase">Daftar Acara</h3>
+              <button onClick={() => { resetWizard(); setActiveTab('event-editor'); }} className="px-6 py-2 bg-[#DFFF00] text-[#2B427A] rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all flex items-center gap-2">
+                  <Plus className="w-5 h-5"/> BUAT ACARA BARU
+              </button>
           </div>
-      );
-  };
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.map(event => (
+                <div key={event.id} className="bg-white rounded-2xl border-2 border-[#2B427A] overflow-hidden flex flex-col shadow-[6px_6px_0px_0px_#2B427A] hover:translate-y-[-2px] transition-transform">
+                    <div className="h-48 relative bg-gray-200">
+                        {event.bannerUrl ? (
+                            <img src={event.bannerUrl} alt={event.title} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 font-bold">NO IMAGE</div>
+                        )}
+                        <div className="absolute top-4 right-4 bg-[#DFFF00] text-[#2B427A] font-black px-3 py-1 text-xs uppercase border border-[#2B427A] rounded shadow-sm">
+                            {event.category}
+                        </div>
+                    </div>
+                    <div className="p-5 flex-1">
+                        <h4 className="text-2xl font-black text-[#2B427A] uppercase mb-3 leading-tight line-clamp-2">{event.title}</h4>
+                        <div className="flex items-center gap-4 text-sm text-gray-500 font-bold mb-2">
+                            <div className="flex items-center gap-2">
+                                <CalendarIcon className="w-4 h-4 text-[#0B1CDE]" />
+                                <span>{new Date(event.date).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <UsersIcon className="w-4 h-4 text-[#0B1CDE]" />
+                                <span>{event.currentParticipants}/{event.maxParticipants}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-400 font-bold uppercase mt-2">
+                            <span className={`w-2 h-2 rounded-full ${event.status === 'OPEN' || event.status === 'EXTENDED' ? 'bg-green-500' : event.status === 'COMING_SOON' ? 'bg-blue-500' : 'bg-red-500'}`}></span>
+                            {event.status === 'EXTENDED' ? 'DIPERPANJANG' : event.status === 'COMING_SOON' ? 'SEGERA HADIR' : (event.isOpen ? 'DIBUKA' : 'DITUTUP')}
+                        </div>
+                    </div>
+                    <div className="p-4 bg-gray-50 border-t-2 border-dashed border-[#2B427A]/20 flex gap-2">
+                        <button 
+                            onClick={() => {
+                                resetWizard();
+                                setEditingId(event.id);
+                                setNewEvent(event);
+                                setBannerPreview(event.bannerUrl);
+                                setThumbnailPreview(event.thumbnailUrl);
+                                setCertBgPreview(event.certificateConfig?.backgroundUrl || null);
+                                setIsCustomCat(!Object.values(EventCategory).includes(event.category as EventCategory));
+                                if (!Object.values(EventCategory).includes(event.category as EventCategory)) setCustomCategory(event.category);
+                                setActiveTab('event-editor');
+                            }} 
+                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-blue-50 text-[#0B1CDE] font-black rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors uppercase text-xs"
+                        >
+                            <Edit2 className="w-4 h-4"/> EDIT
+                        </button>
+                        
+                        <button 
+                            onClick={async () => { await toggleEventStatus(event.id); loadData(); }} 
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 font-black rounded-lg border transition-colors uppercase text-xs ${event.isOpen ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100' : 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'}`}
+                        >
+                            <Power className="w-4 h-4"/> {event.isOpen ? 'TUTUP' : 'BUKA'}
+                        </button>
+
+                        <button 
+                            onClick={() => showConfirm('Hapus Acara?', 'Yakin ingin menghapus acara ini? Data pendaftar juga akan hilang.', async () => {
+                                await deleteEvent(event.id);
+                                loadData();
+                            })} 
+                            className="p-2 bg-red-50 text-red-500 rounded-lg border border-red-200 hover:bg-red-100 transition-colors"
+                        >
+                            <Trash2 className="w-5 h-5"/>
+                        </button>
+                    </div>
+                </div>
+            ))}
+          </div>
+      </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row font-sans relative">
       <CustomAlert isOpen={alertState.isOpen} type={alertState.type} title={alertState.title} message={alertState.message} onClose={closeAlert} onConfirm={alertState.onConfirm} confirmText={alertState.confirmText}/>
+      {/* PROOF MODAL WITH AI */}
       {viewingProof && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in" onClick={() => setViewingProof(null)}>
               <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col md:flex-row overflow-hidden shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
                   <div className="w-full md:w-1/2 bg-gray-900 flex items-center justify-center p-4 relative bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
-                      <img src={formatDriveUrl(viewingProof.proofUrl)} className="max-w-full max-h-[60vh] md:max-h-full object-contain rounded shadow-2xl border border-gray-700 bg-gray-800" alt="Bukti Pembayaran" referrerPolicy="no-referrer" crossOrigin="anonymous" onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = "https://placehold.co/400x300/1a202c/FFF?text=Gagal+Memuat+Gambar"; }} />
+                      <img 
+                        src={formatDriveUrl(viewingProof.proofUrl)} 
+                        className="max-w-full max-h-[60vh] md:max-h-full object-contain rounded shadow-2xl border border-gray-700 bg-gray-800" 
+                        alt="Bukti Pembayaran" 
+                        referrerPolicy="no-referrer" 
+                        crossOrigin="anonymous"
+                        onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = "https://placehold.co/400x300/1a202c/FFF?text=Gagal+Memuat+Gambar";
+                        }}
+                      />
                       <a href={formatDriveUrl(viewingProof.proofUrl)} target="_blank" rel="noopener noreferrer" className="absolute top-4 right-4 bg-white/20 p-2 rounded-full hover:bg-white/40 text-white backdrop-blur-sm transition-colors" title="Buka Asli"><ExternalLink className="w-5 h-5"/></a>
                   </div>
                   <div className="w-full md:w-1/2 p-6 flex flex-col overflow-y-auto bg-white">
@@ -1231,6 +1079,8 @@ const AdminDashboard: React.FC = () => {
               </div>
           </div>
       )}
+
+      {/* TOAST NOTIFICATION */}
       {toast.show && (
           <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up">
               <div className="bg-[#2B427A] text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 border-2 border-[#DFFF00]">
@@ -1239,6 +1089,8 @@ const AdminDashboard: React.FC = () => {
               </div>
           </div>
       )}
+
+      {/* EXPORT MODAL */}
       {showExportModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in" onClick={() => setShowExportModal(false)}>
               <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl animate-scale-up" onClick={e => e.stopPropagation()}>
@@ -1251,6 +1103,7 @@ const AdminDashboard: React.FC = () => {
               </div>
           </div>
       )}
+
       <aside className={`bg-[#2B427A] border-r-2 border-[#2B427A] h-auto md:min-h-screen sticky top-0 text-white z-10 transition-all duration-300 ${isSidebarCollapsed ? 'md:w-24' : 'md:w-72'} w-full flex flex-col`}>
         <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:flex absolute -right-3 top-9 bg-[#DFFF00] text-[#2B427A] p-1 rounded-full border-2 border-[#2B427A] hover:scale-110 transition-transform z-50 shadow-sm items-center justify-center">
             {isSidebarCollapsed ? <ChevronRight size={16} strokeWidth={3} /> : <ChevronLeft size={16} strokeWidth={3} />}
@@ -1282,8 +1135,10 @@ const AdminDashboard: React.FC = () => {
             ))}
         </nav>
       </aside>
+
       <main className="flex-1 p-8 md:p-12 overflow-y-auto">
         {loading && <div className="mb-6 bg-[#DFFF00] text-[#2B427A] px-4 py-2 rounded-lg inline-flex items-center gap-2 font-black border-2 border-[#2B427A]"><Loader className="w-4 h-4 animate-spin"/> MEMUAT DATA...</div>}
+        
         {activeTab === 'event-editor' && (
             <div className="flex flex-col md:flex-row h-[calc(100vh-140px)] bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden animate-fade-in">
                 <div className="w-full md:w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
@@ -1302,42 +1157,50 @@ const AdminDashboard: React.FC = () => {
                 </div>
                 <div className="flex-1 flex flex-col bg-white">
                     <div className="flex-1 overflow-y-auto p-8 relative">
-                        {wizardStep === 1 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Informasi Dasar</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Seminar Nasional Bisnis" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label><input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label><select value={isCustomCat ? 'OTHER' : newEvent.category} onChange={(e) => { if (e.target.value === 'OTHER') { setIsCustomCat(true); setNewEvent({...newEvent, category: ''}); } else { setIsCustomCat(false); setNewEvent({...newEvent, category: e.target.value}); } }} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-[#0B1CDE] outline-none">{Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full mt-2 p-3 border-2 border-[#DFFF00] rounded-xl font-bold" placeholder="Ketik Kategori..." />}</div></div></div>)}
-                        {wizardStep === 2 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi</label><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Link Zoom / Alamat Lengkap" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">Deskripsi<button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button></label><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/></div><div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 flex items-center justify-between"><div><h4 className="font-black text-[#2B427A] uppercase flex items-center gap-2"><QrCode className="w-5 h-5"/> Sistem Tiket QR Code</h4><p className="text-xs text-gray-500 font-bold mt-1">Aktifkan agar peserta mendapatkan QR Code unik untuk Check-In saat acara.</p></div><div className="flex items-center gap-3"><span className={`text-xs font-bold ${newEvent.enableTicketScanner ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>{newEvent.enableTicketScanner ? 'AKTIF' : 'NONAKTIF'}</span><button onClick={() => setNewEvent({...newEvent, enableTicketScanner: !newEvent.enableTicketScanner})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${newEvent.enableTicketScanner ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all duration-300 ${newEvent.enableTicketScanner ? 'left-7' : 'left-1'}`} /></button></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label><input type="file" onChange={handleBannerChange} className="w-full text-xs" />{bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}</div><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />{thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}</div></div></div>)}
-                        {wizardStep === 3 && (
+                        {wizardStep === 1 && (
                             <div className="space-y-6 animate-fade-in">
-                                <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Formulir Pendaftaran</h3>
-                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
-                                    <p className="text-sm text-blue-800 font-medium flex items-center gap-2"><Info className="w-4 h-4"/> Field <strong>Nama</strong> dan <strong>Email</strong> sudah termasuk secara otomatis.</p>
-                                </div>
-                                {newEvent.formFields?.map((field, idx) => (
-                                    <div key={idx} className="flex gap-4 items-end bg-gray-50 p-4 rounded-xl border border-gray-200 animate-fade-in">
-                                        <div className="flex-1">
-                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Label Field</label>
-                                            <input type="text" value={field.label} onChange={e => updateFormField(idx, { label: e.target.value })} className="w-full p-2 border rounded font-bold text-sm" placeholder="Contoh: No. WhatsApp / Upload CV"/>
-                                        </div>
-                                        <div className="w-40">
-                                            <label className="text-[10px] font-bold text-gray-400 uppercase">Tipe</label>
-                                            <select value={field.type} onChange={e => updateFormField(idx, { type: e.target.value as FormFieldType })} className="w-full p-2 border rounded font-bold text-sm">
-                                                <option value="text">Teks Singkat</option>
-                                                <option value="number">Angka</option>
-                                                <option value="select">Pilihan (Dropdown)</option>
-                                                <option value="textarea">Area Teks</option>
-                                                <option value="file">Upload File</option>
-                                            </select>
-                                        </div>
-                                        {field.type === 'select' && (
-                                            <div className="flex-1">
-                                                <label className="text-[10px] font-bold text-gray-400 uppercase">Opsi (Pisahkan Koma)</label>
-                                                <input type="text" value={field.options?.join(',')} onChange={e => updateFormField(idx, { options: e.target.value.split(',').map(s=>s.trim()) })} className="w-full p-2 border rounded font-bold text-sm" placeholder="Pilihan A, Pilihan B"/>
-                                            </div>
-                                        )}
-                                        <button onClick={() => removeFormField(idx)} className="text-red-500 p-2 hover:bg-red-50 rounded"><Trash2 className="w-5 h-5"/></button>
+                                <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Informasi Dasar</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Judul Acara</label><input type="text" value={newEvent.title||''} onChange={e=>setNewEvent({...newEvent, title:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Contoh: Seminar Nasional Bisnis" /></div>
+                                    <div>
+                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Status Acara</label>
+                                        <select value={newEvent.status || 'OPEN'} onChange={(e) => setNewEvent({...newEvent, status: e.target.value as EventStatus})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-[#0B1CDE] outline-none text-[#2B427A]">
+                                            <option value="COMING_SOON">COMING SOON (Segera Hadir)</option>
+                                            <option value="OPEN">OPEN (Pendaftaran Dibuka)</option>
+                                            <option value="EXTENDED">EXTENDED (Diperpanjang)</option>
+                                            <option value="CLOSED">CLOSED (Ditutup)</option>
+                                        </select>
                                     </div>
-                                ))}
-                                <button onClick={addFormField} className="w-full py-4 border-2 border-dashed border-[#2B427A] text-[#2B427A] font-bold rounded-xl hover:bg-blue-50 flex items-center justify-center gap-2 transition-colors"><Plus className="w-5 h-5"/> TAMBAH FIELD CUSTOM</button>
+                                    <div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Tanggal</label><input type="date" value={newEvent.date||''} onChange={e=>setNewEvent({...newEvent, date:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div>
+                                    <div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Waktu</label><input type="time" value={newEvent.time||'09:00'} onChange={e=>setNewEvent({...newEvent, time:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div>
+                                    <div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Kategori</label><select value={isCustomCat ? 'OTHER' : newEvent.category} onChange={(e) => { if (e.target.value === 'OTHER') { setIsCustomCat(true); setNewEvent({...newEvent, category: ''}); } else { setIsCustomCat(false); setNewEvent({...newEvent, category: e.target.value}); } }} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold bg-white focus:border-[#0B1CDE] outline-none">{Object.values(EventCategory).map(c=><option key={c} value={c}>{c}</option>)}<option value="OTHER">Lainnya...</option></select>{isCustomCat && <input type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} className="w-full mt-2 p-3 border-2 border-[#DFFF00] rounded-xl font-bold" placeholder="Ketik Kategori..." />}</div>
+                                </div>
                             </div>
                         )}
+                        {wizardStep === 2 && (
+                            <div className="space-y-6 animate-fade-in">
+                                <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi (Teks)</label>
+                                        <input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Gedung Auditorium / Zoom" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2"><MapPin className="w-4 h-4"/> Link Google Maps (Opsional)</label>
+                                        <input type="text" value={newEvent.mapUrl||''} onChange={e=>setNewEvent({...newEvent, mapUrl:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="https://maps.app.goo.gl/..." />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2 text-green-600"><MessageCircle className="w-4 h-4"/> Link Grup WhatsApp/Telegram (Opsional)</label>
+                                        <input type="text" value={newEvent.groupLink||''} onChange={e=>setNewEvent({...newEvent, groupLink:e.target.value})} className="w-full p-3 border-2 border-green-200 rounded-xl font-bold focus:border-green-500 outline-none bg-green-50" placeholder="https://chat.whatsapp.com/..." />
+                                        <p className="text-[10px] text-gray-500 mt-1">*Link ini hanya akan muncul kepada peserta yang sudah mendaftar.</p>
+                                    </div>
+                                </div>
+                                <div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">Deskripsi<button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button></label><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/></div>
+                                <div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 flex items-center justify-between"><div><h4 className="font-black text-[#2B427A] uppercase flex items-center gap-2"><QrCode className="w-5 h-5"/> Sistem Tiket QR Code</h4><p className="text-xs text-gray-500 font-bold mt-1">Aktifkan agar peserta mendapatkan QR Code unik untuk Check-In saat acara.</p></div><div className="flex items-center gap-3"><span className={`text-xs font-bold ${newEvent.enableTicketScanner ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>{newEvent.enableTicketScanner ? 'AKTIF' : 'NONAKTIF'}</span><button onClick={() => setNewEvent({...newEvent, enableTicketScanner: !newEvent.enableTicketScanner})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${newEvent.enableTicketScanner ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all duration-300 ${newEvent.enableTicketScanner ? 'left-7' : 'left-1'}`} /></button></div></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label><input type="file" onChange={handleBannerChange} className="w-full text-xs" />{bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}</div><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />{thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}</div></div>
+                            </div>
+                        )}
+                        {wizardStep === 3 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Formulir Pendaftaran</h3><div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6"><p className="text-sm text-blue-800 font-medium flex items-center gap-2"><Info className="w-4 h-4"/> Field <strong>Nama</strong> dan <strong>Email</strong> sudah termasuk secara otomatis.</p></div>{newEvent.formFields?.map((field, idx) => (<div key={idx} className="flex gap-4 items-end bg-gray-50 p-4 rounded-xl border border-gray-200 animate-fade-in"><div className="flex-1"><label className="text-[10px] font-bold text-gray-400 uppercase">Label Field</label><input type="text" value={field.label} onChange={e => updateFormField(idx, { label: e.target.value })} className="w-full p-2 border rounded font-bold text-sm" placeholder="Contoh: No. WhatsApp / Upload CV"/></div><div className="w-40"><label className="text-[10px] font-bold text-gray-400 uppercase">Tipe</label><select value={field.type} onChange={e => updateFormField(idx, { type: e.target.value as FormFieldType })} className="w-full p-2 border rounded font-bold text-sm"><option value="text">Teks Singkat</option><option value="number">Angka</option><option value="select">Pilihan (Dropdown)</option><option value="textarea">Area Teks</option><option value="file">Upload File</option></select></div>{field.type === 'select' && (<div className="flex-1"><label className="text-[10px] font-bold text-gray-400 uppercase">Opsi (Pisahkan Koma)</label><input type="text" value={field.options?.join(',')} onChange={e => updateFormField(idx, { options: e.target.value.split(',').map(s=>s.trim()) })} className="w-full p-2 border rounded font-bold text-sm" placeholder="Pilihan A, Pilihan B"/></div>)}<button onClick={() => removeFormField(idx)} className="text-red-500 p-2 hover:bg-red-50 rounded"><Trash2 className="w-5 h-5"/></button></div>))}<button onClick={addFormField} className="w-full py-4 border-2 border-dashed border-[#2B427A] text-[#2B427A] font-bold rounded-xl hover:bg-blue-50 flex items-center justify-center gap-2 transition-colors"><Plus className="w-5 h-5"/> TAMBAH FIELD CUSTOM</button></div>)}
                         {wizardStep === 4 && (<div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Harga & Kuota</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Harga Tiket</label><div className="flex items-center gap-3"><span className="text-2xl font-bold text-gray-400">Rp</span><input type="number" value={newEvent.price} onChange={e=>setNewEvent({...newEvent, price: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div><p className="text-xs text-gray-400 mt-4 font-bold bg-gray-50 p-2 rounded inline-block">Masukkan 0 untuk Acara GRATIS</p></div><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Kuota Peserta</label><div className="flex items-center gap-3"><UsersIcon className="w-8 h-8 text-gray-400"/><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div></div></div></div>)}
                         {wizardStep === 5 && (<div className="space-y-6 animate-fade-in h-full flex flex-col"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Desain Sertifikat</h3><p className="text-sm text-gray-500 mb-4">Buat desain sertifikat khusus untuk acara ini. Jika dikosongkan, sertifikat default akan digunakan.</p><div className="flex-1 border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(true)}</div></div>)}
                     </div>
@@ -1348,6 +1211,7 @@ const AdminDashboard: React.FC = () => {
                 </div>
             </div>
         )}
+        
         {activeTab === 'settings' && (
            <div className="flex flex-col md:flex-row h-[calc(100vh-140px)] bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden">
                <div className="w-full md:w-64 bg-gray-50 border-r-2 border-gray-200 flex flex-col">
@@ -1362,3 +1226,52 @@ const AdminDashboard: React.FC = () => {
                    {settingsTab === 'payment' && (
                       <div className="animate-fade-in max-w-4xl mx-auto">
                          <div className="flex justify-between items-center mb-8 border-b pb-4"><h3 className="font-black text-[#2B427A] uppercase">Pengaturan Rekening & QRIS</h3><button onClick={handleSavePaymentSettings} disabled={savingPayment} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingPayment ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN PENGATURAN</button></div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div>
+                                 <h4 className="font-bold text-[#2B427A] mb-4 uppercase text-sm border-b pb-2">Daftar Rekening Bank</h4>
+                                 <div className="space-y-4 mb-6">{paymentSettings.bankAccounts.map((acc, idx) => (<div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex justify-between items-center group hover:bg-white hover:shadow-md transition-all"><div><div className="font-black text-[#2B427A]">{acc.bankName}</div><div className="text-sm font-mono text-gray-600">{acc.accountNumber}</div><div className="text-xs text-gray-400 uppercase">{acc.accountHolder}</div></div><button onClick={() => { const updated = paymentSettings.bankAccounts.filter((_, i) => i !== idx); setPaymentSettings({...paymentSettings, bankAccounts: updated}); }} className="text-red-500 bg-white p-2 rounded border border-gray-200 hover:bg-red-50"><Trash2 className="w-4 h-4"/></button></div>))}{paymentSettings.bankAccounts.length === 0 && <p className="text-sm text-gray-400 italic">Belum ada rekening.</p>}</div>
+                                 <div className="bg-blue-50 p-5 rounded-xl border border-blue-100"><h5 className="font-bold text-[#0B1CDE] text-xs uppercase mb-3 flex items-center gap-2"><PlusCircle className="w-4 h-4"/> Tambah Rekening Baru</h5><div className="space-y-3"><input type="text" placeholder="Nama Bank (mis: BCA)" value={tempAccount.bankName} onChange={e=>setTempAccount({...tempAccount, bankName: e.target.value})} className="w-full p-2 text-sm border rounded font-bold" /><input type="text" placeholder="Nomor Rekening" value={tempAccount.accountNumber} onChange={e=>setTempAccount({...tempAccount, accountNumber: e.target.value})} className="w-full p-2 text-sm border rounded font-bold" /><input type="text" placeholder="Atas Nama" value={tempAccount.accountHolder} onChange={e=>setTempAccount({...tempAccount, accountHolder: e.target.value})} className="w-full p-2 text-sm border rounded font-bold" /><button onClick={() => { if(tempAccount.bankName && tempAccount.accountNumber) { setPaymentSettings({...paymentSettings, bankAccounts: [...paymentSettings.bankAccounts, { ...tempAccount, id: Date.now().toString() }]}); setTempAccount({ id: '', bankName: '', accountNumber: '', accountHolder: '' }); } }} className="w-full py-2 bg-[#2B427A] text-white font-bold rounded text-sm hover:bg-[#0B1CDE]">TAMBAH KE DAFTAR</button></div></div>
+                            </div>
+                            <div><h4 className="font-bold text-[#2B427A] mb-4 uppercase text-sm border-b pb-2">Upload QRIS</h4><div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 cursor-pointer relative transition-colors"><input type="file" accept="image/*" onChange={(e) => setQrisFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/>{qrisFile ? (<div className="flex flex-col items-center"><div className="bg-green-100 text-green-700 p-2 rounded mb-2"><CheckCircle className="w-6 h-6"/></div><div className="text-sm font-bold text-gray-800">{qrisFile.name}</div><div className="text-xs text-gray-500 mt-1">Klik untuk ganti</div></div>) : paymentSettings.qrisUrl ? (<div className="flex flex-col items-center"><img src={paymentSettings.qrisUrl} className="h-48 object-contain mb-4 rounded border shadow-sm" alt="QRIS" /><span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded">Klik untuk ganti gambar</span></div>) : (<div className="py-8"><Upload className="w-10 h-10 text-gray-300 mx-auto mb-2"/><div className="text-gray-500 font-bold text-sm">Upload Gambar QRIS (JPG/PNG)</div></div>)}</div></div>
+                         </div>
+                      </div>
+                   )}
+               </div>
+           </div>
+        )}
+        {activeTab === 'events' && renderEventsList()}
+        {activeTab === 'registrations' && renderRegistrations()}
+        {activeTab === 'scan-history' && renderScanHistory()}
+        {activeTab === 'overview' && (
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total Acara</h3>
+                        <p className="text-4xl font-black text-[#2B427A]">{events.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><CalendarIcon className="w-8 h-8"/></div>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Pendaftar</h3>
+                        <p className="text-4xl font-black text-[#0B1CDE]">{registrations.length}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#0B1CDE]"><UsersIcon className="w-8 h-8"/></div>
+                 </div>
+                 <div className="bg-white p-6 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-gray-400 font-bold text-xs uppercase tracking-widest mb-1">Total User</h3>
+                        <p className="text-4xl font-black text-[#DFFF00] drop-shadow-sm text-outline">{uniqueUserCount}</p>
+                     </div>
+                     <div className="p-3 bg-blue-50 rounded-lg text-[#2B427A]"><UserCheck className="w-8 h-8"/></div>
+                 </div>
+             </div>
+        )}
+      </main>
+      
+      <style>{`@keyframes slide-up {0% { transform: translate(-50%, 100%); opacity: 0; }100% { transform: translate(-50%, 0); opacity: 1; }}.animate-slide-up {animation: slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;} .text-outline { -webkit-text-stroke: 1px #2B427A; text-shadow: 2px 2px 0px #2B427A; }`}</style>
+    </div>
+  );
+};
+
+export default AdminDashboard;
