@@ -98,17 +98,15 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // AGGRESSIVE OPTIMIZATION FOR FILE SIZE < 5MB:
-        // 1. Scale 2 (approx 150 DPI). Good for screen and standard print.
-        //    (842 * 2 = 1684px width).
-        // 2. JPEG Quality 0.6. Good compression, visual artifacts minimal for certificates.
-        
+        // --- OPTIMIZATION SETTINGS (SIZE < 5MB) ---
+        // Scale 2: Generates ~1684px width. Sufficient for A4 print at ~150 DPI.
+        // Scale 4: Was generating 30MB+ files. Scale 2 generates manageable files.
         const canvas = await html2canvas(certRef.current, {
             scale: 2, 
             useCORS: true,
             allowTaint: true,
             logging: false,
-            backgroundColor: '#ffffff', // JPEG requires background color (no transparency)
+            backgroundColor: '#ffffff', // JPEG requires solid background
             imageTimeout: 15000, 
             onclone: (clonedDoc) => {
                 const element = clonedDoc.getElementById('certificate-view');
@@ -122,10 +120,11 @@ const CertificatePage: React.FC = () => {
             }
         });
 
-        // Use JPEG with 0.60 quality (Aggressive compression for small size)
+        // KEY CHANGE: Use JPEG with 0.60 (60%) Quality
+        // This reduces file size significantly compared to PNG
         const imgData = canvas.toDataURL('image/jpeg', 0.60);
         
-        // Init PDF with compression enabled
+        // Init PDF with Compression Enabled
         const pdf = new jsPDF({
             orientation: 'l', 
             unit: 'mm', 
@@ -136,6 +135,7 @@ const CertificatePage: React.FC = () => {
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
+        // Add Image as JPEG with 'FAST' compression alias
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         
         // FORMAT NAMA FILE: sertifikat_namaevent_namapeserta_nourutan
