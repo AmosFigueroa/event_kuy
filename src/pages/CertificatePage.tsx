@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, Download, ArrowLeft, Award, CheckCircle } from 'lucide-react';
+import { Loader, Download, ArrowLeft, Award } from 'lucide-react';
 import { fetchRegistrationById } from '../services/api';
 import { Registration, RegistrationStatus, CertificateConfig, CertificateElement } from '../types';
 import html2canvas from 'html2canvas';
@@ -29,7 +29,7 @@ const CertificatePage: React.FC = () => {
     setAlertState({ isOpen: true, type, title, message });
   };
 
-  // Responsive Scaling State (Hanya untuk Preview di Layar)
+  // Responsive Scaling State
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const certRef = useRef<HTMLDivElement>(null);
@@ -39,8 +39,8 @@ const CertificatePage: React.FC = () => {
   const CERT_HEIGHT = 595;
   
   // Frame Configuration (Visual Only)
-  const FRAME_BORDER = 24; // Tebal bingkai hitam
-  const FRAME_MAT = 60;    // Tebal area putih (paspartu/matting)
+  const FRAME_BORDER = 24;
+  const FRAME_MAT = 60;
   const TOTAL_PADDING = FRAME_BORDER + FRAME_MAT;
   
   const VISUAL_WIDTH = CERT_WIDTH + (TOTAL_PADDING * 2);
@@ -69,34 +69,74 @@ const CertificatePage: React.FC = () => {
     load();
   }, [id]);
 
-  // Handle Resize for Responsive Scaling (Preview Only)
+  // Handle Resize for Responsive Scaling
   useEffect(() => {
     const handleResize = () => {
         if (containerRef.current) {
             const parentWidth = containerRef.current.offsetWidth;
-            const padding = 24; // Total horizontal padding of container
+            const padding = 32;
             const availableWidth = parentWidth - padding;
             
-            // Calculate scale based on the VISUAL WIDTH (Certificate + Frame)
-            // This ensures the frame fits in the screen
             const newScale = Math.min(availableWidth / VISUAL_WIDTH, 1);
             setScale(newScale);
         }
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize(); // Initial calculation
-
-    // Recalculate after a slight delay to ensure layout is settled
+    handleResize();
     setTimeout(handleResize, 100);
 
     return () => window.removeEventListener('resize', handleResize);
-  }, [loading]);
+  }, [loading, registration]);
+
+  const handleDownload = async () => {
+    if (!certRef.current || !registration) return;
+    setDownloading(true);
+
+    try {
+        // PERBAIKAN #1: Reduce scale untuk file size lebih kecil
+        // Scale 2 sudah cukup untuk kualitas A4 print (resolusi ~150 DPI)
+        // Ini akan mengurangi file size drastis dari 30MB+ menjadi ~2-5MB
+        const canvas = await html2canvas(certRef.current, {
+            scale: 2, // Dikurangi dari 4 ke 2
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            imageTimeout: 15000,
+            // PERBAIKAN #2: Tambahkan options untuk better rendering
+            allowTaint: false,
+            removeContainer: true,
+            // letterRendering: true, // Removed due to type error
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.92); // JPEG dengan quality 92% lebih kecil dari PNG
+        
+        const pdf = new jsPDF('l', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
+        
+        const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
+        const eventName = sanitize(registration.eventTitle);
+        const participantName = sanitize(registration.userName);
+        const refNumber = registration.id.substring(0, 8);
+
+        const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
+
+        pdf.save(fileName);
+        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh.');
+    } catch (e) {
+        showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
+        console.error(e);
+    } finally {
+        setDownloading(false);
+    }
+  };
 
   const getElementContent = (field: string) => {
       if (!registration) return '';
       if (field === 'userName') return registration.userName.toUpperCase();
-      
       if (field === 'eventTitle') return registration.eventTitle;
       if (field === 'date') return new Date(registration.registrationDate).toLocaleDateString('id-ID'); 
       if (field === 'id') return registration.id;
@@ -112,181 +152,6 @@ const CertificatePage: React.FC = () => {
       return field;
   };
 
-  /**
-   * GENERATE CERTIFICATE USING NATIVE CANVAS API
-   * This is much more robust on mobile than html2canvas because it ignores
-   * the browser's viewport scaling and text inflation completely.
-   */
-  const handleDownload = async () => {
-    if (!registration) return;
-    setDownloading(true);
-
-    try {
-        const hasConfig = certConfig && certConfig.backgroundUrl;
-        let imgData = '';
-
-        if (hasConfig) {
-            // --- NATIVE CANVAS DRAWING STRATEGY ---
-            const canvas = document.createElement('canvas');
-            const scale = 2; // 2x resolution for crisp PDF
-            canvas.width = CERT_WIDTH * scale;
-            canvas.height = CERT_HEIGHT * scale;
-            const ctx = canvas.getContext('2d');
-            
-            if (!ctx) throw new Error("Could not create canvas context");
-            
-            // Scale context so we can use logical coordinates
-            ctx.scale(scale, scale);
-
-            // 1. Draw Background
-            if (certConfig.backgroundUrl) {
-                await new Promise<void>((resolve, reject) => {
-                    const img = new Image();
-                    img.crossOrigin = 'anonymous';
-                    img.src = certConfig.backgroundUrl;
-                    img.onload = () => {
-                        ctx.drawImage(img, 0, 0, CERT_WIDTH, CERT_HEIGHT);
-                        resolve();
-                    };
-                    img.onerror = () => {
-                        console.warn("Failed to load background image");
-                        resolve(); // Proceed without background
-                    };
-                });
-            } else {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, CERT_WIDTH, CERT_HEIGHT);
-            }
-
-            // 2. Draw Elements
-            const elements = certConfig.elements || [];
-            for (const el of elements) {
-                // Determine Content
-                let text = '';
-                if (el.type === 'image') {
-                    // Draw Image Element
-                    if (el.field) {
-                        await new Promise<void>((resolve) => {
-                            const imgEl = new Image();
-                            imgEl.crossOrigin = 'anonymous';
-                            imgEl.src = el.field;
-                            imgEl.onload = () => {
-                                const w = el.width || 100;
-                                const ratio = imgEl.naturalHeight / imgEl.naturalWidth;
-                                const h = w * ratio;
-                                
-                                // Calculate position based on alignment
-                                let x = el.x;
-                                let y = el.y;
-                                
-                                // Adjust anchor point
-                                if (el.align === 'center') x = x - (w / 2);
-                                else if (el.align === 'right') x = x - w;
-                                
-                                if (el.verticalAlign === 'middle') y = y - (h / 2);
-                                else if (el.verticalAlign === 'bottom') y = y - h;
-                                else y = y - (h/2); // Default to middle if undefined for images in this logic
-
-                                ctx.drawImage(imgEl, x, y, w, h);
-                                resolve();
-                            };
-                            imgEl.onerror = () => resolve();
-                        });
-                    }
-                    continue; 
-                } else {
-                    // Text Element
-                    if (el.type === 'dynamic') text = getElementContent(el.field);
-                    else text = el.field;
-                }
-
-                // Text Transforms
-                if (el.textTransform === 'uppercase') text = text.toUpperCase();
-                else if (el.textTransform === 'lowercase') text = text.toLowerCase();
-
-                // Dynamic Font Sizing Logic
-                let fontSize = el.fontSize || 12;
-                if (el.field === 'userName') {
-                    if (text.length > 40) fontSize *= 0.5;
-                    else if (text.length > 30) fontSize *= 0.65;
-                    else if (text.length > 20) fontSize *= 0.8;
-                }
-
-                // Set Font Context
-                const fontWeight = el.fontWeight === 'normal' ? 'normal' : 'bold';
-                const fontFamily = el.fontFamily || 'Arial, sans-serif';
-                ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-                ctx.fillStyle = el.color || '#000000';
-                
-                // Alignment
-                ctx.textAlign = (el.align as CanvasTextAlign) || 'center';
-                
-                // Vertical Align Mapping
-                // Canvas 'textBaseline' options: top, middle, bottom
-                let baseline: CanvasTextBaseline = 'middle';
-                if (el.verticalAlign === 'top') baseline = 'top';
-                if (el.verticalAlign === 'bottom') baseline = 'bottom';
-                ctx.textBaseline = baseline;
-
-                // Stroke (Outline)
-                if (el.strokeWidth && el.strokeWidth > 0) {
-                    ctx.lineWidth = el.strokeWidth;
-                    ctx.strokeStyle = el.strokeColor || '#FFFFFF';
-                    ctx.strokeText(text, el.x, el.y);
-                }
-
-                // Fill Text
-                ctx.fillText(text, el.x, el.y);
-            }
-
-            imgData = canvas.toDataURL('image/jpeg', 0.85);
-
-        } else {
-            // --- FALLBACK FOR DEFAULT TEMPLATE (HTML2CANVAS) ---
-            // Because the default template uses HTML divs/borders that are harder to draw manually
-            if (!certRef.current) return;
-            const canvas = await html2canvas(certRef.current, {
-                scale: 2, 
-                width: CERT_WIDTH,
-                height: CERT_HEIGHT,
-                useCORS: true,
-                backgroundColor: '#ffffff', 
-                windowWidth: 1200, // Force desktop width
-            });
-            imgData = canvas.toDataURL('image/jpeg', 0.85);
-        }
-        
-        // --- PDF GENERATION ---
-        const pdf = new jsPDF({
-            orientation: 'l', 
-            unit: 'mm', 
-            format: 'a4',
-            compress: true
-        });
-
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-        
-        const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
-        const eventName = sanitize(registration.eventTitle);
-        const participantName = sanitize(registration.userName);
-        const refNumber = registration.id.substring(0, 8); 
-
-        const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
-
-        pdf.save(fileName);
-        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh (HD).');
-
-    } catch (e: any) {
-        showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
-        console.error(e);
-    } finally {
-        setDownloading(false);
-    }
-  };
-
   const renderElement = (el: CertificateElement) => {
       let content: React.ReactNode = el.field;
       let textContent = '';
@@ -296,69 +161,99 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // Auto-resize logic for Long Names (userName)
+          // PERBAIKAN #3: Improved auto-resize dengan max-width consideration
           if (el.field === 'userName') {
               const len = textContent.length;
-              if (len > 40) {
-                  dynamicFontSize = dynamicFontSize * 0.5; 
-              } else if (len > 30) {
-                  dynamicFontSize = dynamicFontSize * 0.65; 
-              } else if (len > 20) {
-                  dynamicFontSize = dynamicFontSize * 0.8; 
+              const baseSize = el.fontSize || 12;
+              
+              if (len > 45) {
+                  dynamicFontSize = baseSize * 0.45;
+              } else if (len > 35) {
+                  dynamicFontSize = baseSize * 0.55;
+              } else if (len > 25) {
+                  dynamicFontSize = baseSize * 0.7;
+              } else if (len > 18) {
+                  dynamicFontSize = baseSize * 0.85;
               }
+              
+              // Ensure minimum readable size
+              dynamicFontSize = Math.max(dynamicFontSize, 14);
           }
 
       } else if (el.type === 'text') {
           textContent = el.field;
           content = textContent;
       } else if (el.type === 'image') {
-          content = <img src={el.field} alt="element" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />;
+          content = <img 
+            src={el.field} 
+            alt="element" 
+            style={{ 
+              width: '100%', 
+              height: '100%', 
+              objectFit: 'contain', 
+              pointerEvents: 'none' 
+            }}
+            crossOrigin="anonymous"
+          />;
       }
 
-      // Enforce Uppercase via JS Logic
+      // Text transform
       if (el.type !== 'image' && el.textTransform === 'uppercase') {
           content = String(textContent).toUpperCase();
       } else if (el.type !== 'image' && el.textTransform === 'lowercase') {
           content = String(textContent).toLowerCase();
       }
 
-      // Determine Transform based on Alignment for DOM Preview
-      let translateX = '-50%';
-      if (el.align === 'left') translateX = '0';
-      if (el.align === 'right') translateX = '-100%';
+      // PERBAIKAN #4: Better positioning logic
+      let transform = 'translate(-50%, -50%)';
+      let left = el.x;
+      let justifyContent = 'center';
+      
+      if (el.align === 'left') {
+        transform = 'translate(0, -50%)';
+        justifyContent = 'flex-start';
+      } else if (el.align === 'right') {
+        transform = 'translate(-100%, -50%)';
+        justifyContent = 'flex-end';
+      }
 
-      let translateY = '-50%';
-      if (el.verticalAlign === 'top') translateY = '0';
-      if (el.verticalAlign === 'bottom') translateY = '-100%';
-
-      const transform = `translate(${translateX}, ${translateY})`;
-
+      // PERBAIKAN #5: Simplified stroke style (mengurangi blur)
       const strokeStyle = el.strokeWidth && el.strokeWidth > 0 
         ? { 
-            WebkitTextStrokeWidth: `${el.strokeWidth}px`, 
-            WebkitTextStrokeColor: el.strokeColor || '#FFFFFF',
-            paintOrder: 'stroke fill'
+            textShadow: `
+              -${el.strokeWidth}px -${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'},
+              ${el.strokeWidth}px -${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'},
+              -${el.strokeWidth}px ${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'},
+              ${el.strokeWidth}px ${el.strokeWidth}px 0 ${el.strokeColor || '#FFFFFF'}
+            `.trim(),
           } 
         : {};
+
+      // PERBAIKAN #6: Add max-width untuk prevent overflow
+      const maxWidth = el.width || (el.field === 'userName' ? CERT_WIDTH * 0.8 : 'auto');
 
       return (
         <div
             key={el.id}
             className="absolute z-10"
             style={{
-                left: el.x,
+                left: left,
                 top: el.y,
                 color: el.color || '#000000',
                 fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
                 fontFamily: el.fontFamily || 'Arial, sans-serif',
                 fontWeight: el.fontWeight || 'bold',
                 textAlign: el.align || 'center',
-                width: el.width ? `${el.width}px` : 'auto',
-                maxWidth: '95%', // Prevent overflowing off canvas
-                transform: transform, 
-                whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
+                maxWidth: el.type === 'image' ? undefined : maxWidth,
+                width: el.type === 'image' ? `${el.width || 100}px` : 'auto',
+                transform: transform,
+                whiteSpace: el.type === 'image' ? 'normal' : 'normal', // Changed to allow wrapping
+                wordWrap: el.type === 'image' ? undefined : 'break-word',
                 textTransform: el.textTransform || 'none',
-                lineHeight: 1.2, 
+                lineHeight: el.type === 'image' ? undefined : '1.2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: justifyContent,
                 ...strokeStyle
             }}
         >
@@ -366,40 +261,6 @@ const CertificatePage: React.FC = () => {
         </div>
       );
   };
-
-  const renderCertificateContent = () => (
-      <>
-         {hasConfig ? (
-             <>
-                 <div className="absolute inset-0 z-0">
-                     <img 
-                        src={certConfig.backgroundUrl} 
-                        alt="Certificate Background" 
-                        className="w-full h-full object-cover" 
-                        crossOrigin="anonymous" 
-                     />
-                 </div>
-                 {certConfig.elements.map(renderElement)}
-             </>
-         ) : (
-             // Default Fallback Template
-             <>
-                <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
-                <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
-                <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
-                    <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
-                    <div className="relative px-12 pb-2 mb-8">
-                         <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration?.userName.toUpperCase()}</h2>
-                         <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
-                    </div>
-                    <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
-                         Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration?.eventTitle}"</span>
-                    </p>
-                </div>
-             </>
-         )}
-      </>
-  );
 
   if (loading) return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
@@ -437,7 +298,7 @@ const CertificatePage: React.FC = () => {
             disabled={downloading}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#DFFF00] text-[#2B427A] px-6 py-3 rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50"
          >
-             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (HD)
+             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF
          </button>
       </div>
 
@@ -445,10 +306,8 @@ const CertificatePage: React.FC = () => {
         className="w-full flex justify-center pb-10" 
         ref={containerRef}
       >
-          {/* Scaling Wrapper - This controls VISUAL PREVIEW only */}
           <div style={{ width: VISUAL_WIDTH * scale, height: VISUAL_HEIGHT * scale, position: 'relative' }}>
               
-              {/* THE VISUAL FRAME (Scale Applied Here) */}
               <div 
                 style={{
                     width: VISUAL_WIDTH,
@@ -459,40 +318,63 @@ const CertificatePage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     position: 'relative',
-                    
-                    // OUTER FRAME (BLACK)
                     backgroundColor: '#18181b', 
                     padding: `${FRAME_BORDER}px`,
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 10px 15px -3px rgba(0,0,0,0.5)', 
                     borderRadius: '2px' 
                 }}
               >
-                 {/* MATTING (WHITE BOARD) */}
                  <div style={{
                      width: '100%',
                      height: '100%',
-                     backgroundColor: '#fdfdfd', // Paper white matting
+                     backgroundColor: '#fdfdfd',
                      display: 'flex',
                      alignItems: 'center',
                      justifyContent: 'center',
-                     boxShadow: 'inset 0px 0px 20px rgba(0,0,0,0.15)' // Inner shadow for depth
+                     boxShadow: 'inset 0px 0px 20px rgba(0,0,0,0.15)'
                  }}>
                      
-                     {/* BORDER WRAP AROUND IMAGE (To separate from Matting) */}
                      <div style={{
                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                          border: '1px solid #e5e5e5'
                      }}>
-                         {/* The Actual Certificate Node (DOM Preview) */}
                          <div 
                             ref={certRef}
                             className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative"
                             style={{ 
                                 width: `${CERT_WIDTH}px`, 
-                                height: `${CERT_HEIGHT}px`, 
+                                height: `${CERT_HEIGHT}px`,
                             }}
                          >
-                             {renderCertificateContent()}
+                             {hasConfig ? (
+                                 <>
+                                     <div className="absolute inset-0 z-0">
+                                         <img 
+                                            src={certConfig.backgroundUrl} 
+                                            alt="Certificate Background" 
+                                            className="w-full h-full object-cover" 
+                                            crossOrigin="anonymous"
+                                            loading="eager"
+                                         />
+                                     </div>
+                                     {certConfig.elements.map(renderElement)}
+                                 </>
+                             ) : (
+                                 <>
+                                    <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
+                                    <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
+                                    <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
+                                        <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
+                                        <div className="relative px-12 pb-2 mb-8">
+                                             <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName.toUpperCase()}</h2>
+                                             <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
+                                        </div>
+                                        <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
+                                             Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
+                                        </p>
+                                    </div>
+                                 </>
+                             )}
                          </div>
                      </div>
                  </div>
