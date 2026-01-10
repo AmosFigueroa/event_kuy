@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader, Download, ArrowLeft, Award } from 'lucide-react';
@@ -106,7 +105,7 @@ const CertificatePage: React.FC = () => {
             // PERBAIKAN #2: Tambahkan options untuk better rendering
             allowTaint: false,
             removeContainer: true,
-            // letterRendering: true, // Removed due to type error
+            letterRendering: true,
         });
 
         const imgData = canvas.toDataURL('image/jpeg', 0.92); // JPEG dengan quality 92% lebih kecil dari PNG
