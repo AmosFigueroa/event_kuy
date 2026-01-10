@@ -98,28 +98,51 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // High resolution scale for PDF generation (3x of 842px is plenty for A4)
-        // Note: We capture certRef, which is INSIDE the frame, so the frame is NOT captured.
+        // OPTIMIZATION:
+        // 1. Scale 3 is sufficient for crisp A4 print (approx 2526x1785 px).
+        // 2. Use JPEG instead of PNG to drastically reduce file size for background images.
+        // 3. Enable PDF compression.
+        
         const canvas = await html2canvas(certRef.current, {
-            scale: 4, 
+            scale: 3, 
             useCORS: true,
+            allowTaint: true,
             logging: false,
-            backgroundColor: '#ffffff'
+            backgroundColor: '#ffffff', // JPEG requires background color (no transparency)
+            imageTimeout: 15000, 
+            onclone: (clonedDoc) => {
+                const element = clonedDoc.getElementById('certificate-view');
+                if (element) {
+                    // Reset CSS transforms on the cloned element to ensure 1:1 capture
+                    element.style.transform = 'none';
+                    element.style.margin = '0';
+                    element.style.width = `${CERT_WIDTH}px`;
+                    element.style.height = `${CERT_HEIGHT}px`;
+                }
+            }
         });
 
-        const imgData = canvas.toDataURL('image/png');
-        // A4 Landscape size in mm
-        const pdf = new jsPDF('l', 'mm', 'a4');
+        // Use JPEG with 0.85 quality (High Quality, Low Size)
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
+        
+        // Init PDF with compression enabled
+        const pdf = new jsPDF({
+            orientation: 'l', 
+            unit: 'mm', 
+            format: 'a4',
+            compress: true
+        });
+
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
         
         // FORMAT NAMA FILE: sertifikat_namaevent_namapeserta_nourutan
         const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
         const eventName = sanitize(registration.eventTitle);
         const participantName = sanitize(registration.userName);
-        const refNumber = registration.id.substring(0, 8); // Menggunakan 8 digit pertama ID sebagai nomor urut/referensi
+        const refNumber = registration.id.substring(0, 8); 
 
         const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
 
@@ -217,7 +240,8 @@ const CertificatePage: React.FC = () => {
                 top: el.y,
                 color: el.color || '#000000',
                 fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
-                fontFamily: el.fontFamily || 'Helvetica',
+                // Default to App Font to prevent jarring fallbacks
+                fontFamily: el.fontFamily || 'Plus Jakarta Sans, sans-serif',
                 fontWeight: el.fontWeight || 'bold',
                 textAlign: el.align || 'center',
                 width: el.width ? `${el.width}px` : 'auto',
@@ -268,7 +292,7 @@ const CertificatePage: React.FC = () => {
             disabled={downloading}
             className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#DFFF00] text-[#2B427A] px-6 py-3 rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50"
          >
-             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF
+             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF (OPTIMIZED)
          </button>
       </div>
 
@@ -318,6 +342,7 @@ const CertificatePage: React.FC = () => {
                          {/* The Actual Certificate Node (Clean for PDF) */}
                          <div 
                             ref={certRef}
+                            id="certificate-view" // ID for html2canvas targeting
                             className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative"
                             style={{ 
                                 width: `${CERT_WIDTH}px`, 
