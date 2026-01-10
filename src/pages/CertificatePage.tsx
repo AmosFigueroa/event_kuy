@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader, Download, ArrowLeft, Award } from 'lucide-react';
@@ -98,22 +99,38 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // PERBAIKAN #1: Reduce scale untuk file size lebih kecil
-        // Scale 2 sudah cukup untuk kualitas A4 print (resolusi ~150 DPI)
-        // Ini akan mengurangi file size drastis dari 30MB+ menjadi ~2-5MB
+        // PERBAIKAN: Force desktop viewport simulation untuk mobile
         const canvas = await html2canvas(certRef.current, {
-            scale: 2, // Dikurangi dari 4 ke 2
+            scale: 3, // High quality scale
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
-            imageTimeout: 15000,
-            // PERBAIKAN #2: Tambahkan options untuk better rendering
+            imageTimeout: 20000,
             allowTaint: false,
             removeContainer: true,
-            letterRendering: true,
+            // Force dimensions to prevent mobile inflation
+            windowWidth: 1920,
+            windowHeight: 1080,
+            onclone: (clonedDoc) => {
+                // Inject CSS to reset text inflation on mobile browsers during capture
+                const style = clonedDoc.createElement('style');
+                style.innerHTML = `
+                    html, body {
+                        -webkit-text-size-adjust: 100% !important; 
+                        text-size-adjust: 100% !important; 
+                        width: 1920px !important;
+                        height: 1080px !important;
+                    }
+                    * { 
+                        -webkit-text-size-adjust: 100% !important; 
+                        text-size-adjust: 100% !important; 
+                    }
+                `;
+                clonedDoc.head.appendChild(style);
+            }
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.92); // JPEG dengan quality 92% lebih kecil dari PNG
+        const imgData = canvas.toDataURL('image/jpeg', 0.90);
         
         const pdf = new jsPDF('l', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -165,45 +182,20 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // Username scaling with more aggressive reduction
           if (el.field === 'userName') {
               const len = textContent.length;
               const baseSize = el.fontSize || 45;
               
-              if (isMobile) {
-                  // Mobile: EXTREME scaling to prevent overflow
-                  // Calculate based on average character width ratio
-                  const avgCharWidth = 0.65; // Bold fonts are wider
-                  const estimatedWidth = len * baseSize * avgCharWidth;
-                  const safeWidth = CERT_WIDTH * 0.88; // 88% safe zone
-                  
-                  if (estimatedWidth > safeWidth) {
-                      // Force fit by calculating required font size
-                      dynamicFontSize = (safeWidth / len) / avgCharWidth;
-                      // Add 10% reduction for safety margin
-                      dynamicFontSize = dynamicFontSize * 0.9;
-                  } else {
-                      // Standard scaling tiers
-                      if (len <= 15) dynamicFontSize = baseSize;
-                      else if (len <= 18) dynamicFontSize = baseSize * 0.9;
-                      else if (len <= 22) dynamicFontSize = baseSize * 0.75;
-                      else if (len <= 26) dynamicFontSize = baseSize * 0.62;
-                      else if (len <= 30) dynamicFontSize = baseSize * 0.52;
-                      else dynamicFontSize = baseSize * 0.42;
-                  }
-                  
-                  dynamicFontSize = Math.max(dynamicFontSize, 8);
-              } else {
-                  // Desktop
-                  if (len <= 20) dynamicFontSize = baseSize;
-                  else if (len <= 25) dynamicFontSize = baseSize * 0.85;
-                  else if (len <= 30) dynamicFontSize = baseSize * 0.75;
-                  else if (len <= 35) dynamicFontSize = baseSize * 0.65;
-                  else if (len <= 45) dynamicFontSize = baseSize * 0.55;
-                  else dynamicFontSize = baseSize * 0.45;
-                  
-                  dynamicFontSize = Math.max(dynamicFontSize, 12);
-              }
+              // Simplified scaling logic that works for both desktop and mobile
+              // since canvas capture simulates desktop anyway.
+              if (len <= 20) dynamicFontSize = baseSize;
+              else if (len <= 25) dynamicFontSize = baseSize * 0.85;
+              else if (len <= 30) dynamicFontSize = baseSize * 0.75;
+              else if (len <= 35) dynamicFontSize = baseSize * 0.65;
+              else if (len <= 45) dynamicFontSize = baseSize * 0.55;
+              else dynamicFontSize = baseSize * 0.45;
+              
+              dynamicFontSize = Math.max(dynamicFontSize, 12);
           }
 
       } else if (el.type === 'text') {
@@ -223,24 +215,21 @@ const CertificatePage: React.FC = () => {
           />;
       }
 
-      // Text transform
       if (el.type !== 'image' && el.textTransform === 'uppercase') {
           content = String(textContent).toUpperCase();
       } else if (el.type !== 'image' && el.textTransform === 'lowercase') {
           content = String(textContent).toLowerCase();
       }
 
-      // NUCLEAR OPTION: Completely different approach for userName
+      // Consistent positioning logic
       if (el.field === 'userName') {
-          const sidePadding = isMobile ? 15 : 30;
-          
           return (
             <div
               key={el.id}
               style={{
                 position: 'absolute',
-                left: `${sidePadding}px`,
-                right: `${sidePadding}px`,
+                left: '30px', 
+                right: '30px',
                 top: el.y,
                 transform: 'translateY(-50%)',
                 zIndex: 10,
@@ -259,16 +248,10 @@ const CertificatePage: React.FC = () => {
                   width: '100%',
                   textTransform: el.textTransform || 'none',
                   lineHeight: '1.1',
-                  wordBreak: 'break-word',
-                  overflowWrap: 'break-word',
-                  WebkitFontSmoothing: 'antialiased',
-                  MozOsxFontSmoothing: 'grayscale',
-                  // Force contain within boundaries
-                  maxWidth: '100%',
-                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
                   textOverflow: 'ellipsis',
+                  overflow: 'hidden',
                   padding: '0 5px',
-                  boxSizing: 'border-box',
                 }}
               >
                 {content}
@@ -277,14 +260,8 @@ const CertificatePage: React.FC = () => {
           );
       }
 
-      // For non-userName elements
-      let containerStyle: React.CSSProperties = {};
-      let textWrapperStyle: React.CSSProperties = {};
-      let maxWidth: number | string = el.width || 'auto';
-      let containerLeft = el.x;
-      
-      containerStyle = {
-          left: containerLeft,
+      let containerStyle: React.CSSProperties = {
+          left: el.x,
           top: el.y,
           position: 'absolute',
           zIndex: 10,
@@ -298,42 +275,28 @@ const CertificatePage: React.FC = () => {
           containerStyle.transform = 'translate(-100%, -50%)';
       }
       
-      textWrapperStyle = {
+      const textStyle: React.CSSProperties = {
           color: el.color || '#000000',
           fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
           fontFamily: el.fontFamily || 'Arial, sans-serif',
           fontWeight: el.fontWeight || 'bold',
           textAlign: el.align || 'center',
-          width: el.type === 'image' ? `${el.width || 100}px` : '100%',
-          maxWidth: el.type === 'image' ? undefined : maxWidth,
+          width: el.type === 'image' ? `${el.width || 100}px` : 'auto',
+          maxWidth: el.type === 'image' ? undefined : (el.width || 'auto'),
           textTransform: el.textTransform || 'none',
-          lineHeight: '1.15',
-          wordBreak: 'break-word',
-          overflowWrap: 'break-word',
-          WebkitFontSmoothing: 'antialiased',
-          MozOsxFontSmoothing: 'grayscale',
+          lineHeight: '1.2',
+          whiteSpace: 'nowrap'
       };
 
       if (el.strokeWidth && el.strokeWidth > 0 && el.type !== 'image') {
           const sw = el.strokeWidth;
           const sc = el.strokeColor || '#FFFFFF';
-          textWrapperStyle.textShadow = `
-              -${sw}px -${sw}px 0 ${sc},
-              ${sw}px -${sw}px 0 ${sc},
-              -${sw}px ${sw}px 0 ${sc},
-              ${sw}px ${sw}px 0 ${sc},
-              0 -${sw}px 0 ${sc},
-              0 ${sw}px 0 ${sc},
-              -${sw}px 0 0 ${sc},
-              ${sw}px 0 0 ${sc}
-          `.trim();
+          textStyle.textShadow = `-${sw}px -${sw}px 0 ${sc}, ${sw}px -${sw}px 0 ${sc}, -${sw}px ${sw}px 0 ${sc}, ${sw}px ${sw}px 0 ${sc}, 0 -${sw}px 0 ${sc}, 0 ${sw}px 0 ${sc}, -${sw}px 0 0 ${sc}, ${sw}px 0 0 ${sc}`;
       }
 
       return (
         <div key={el.id} style={containerStyle}>
-            <div style={textWrapperStyle}>
-                {content}
-            </div>
+            <div style={textStyle}>{content}</div>
         </div>
       );
   };
@@ -382,8 +345,10 @@ const CertificatePage: React.FC = () => {
         className="w-full flex justify-center pb-10" 
         ref={containerRef}
       >
+          {/* Scaling Wrapper */}
           <div style={{ width: VISUAL_WIDTH * scale, height: VISUAL_HEIGHT * scale, position: 'relative' }}>
               
+              {/* THE VISUAL FRAME (Scale Applied Here) */}
               <div 
                 style={{
                     width: VISUAL_WIDTH,
@@ -394,6 +359,7 @@ const CertificatePage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     position: 'relative',
+                    
                     backgroundColor: '#18181b', 
                     padding: `${FRAME_BORDER}px`,
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 10px 15px -3px rgba(0,0,0,0.5)', 
