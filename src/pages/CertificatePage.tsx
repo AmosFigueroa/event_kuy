@@ -32,7 +32,8 @@ const CertificatePage: React.FC = () => {
   // Responsive Scaling State (Hanya untuk Preview di Layar)
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
-  const certRef = useRef<HTMLDivElement>(null);
+  const certRef = useRef<HTMLDivElement>(null);   // Reference for the visible preview
+  const exportRef = useRef<HTMLDivElement>(null); // Reference for the hidden export container
 
   // Constants MUST match AdminDashboard canvas size to ensure WYSIWYG
   const CERT_WIDTH = 842; 
@@ -94,55 +95,38 @@ const CertificatePage: React.FC = () => {
   }, [loading]);
 
   const handleDownload = async () => {
-    if (!certRef.current || !registration) return;
+    // IMPORTANT: Target exportRef (Hidden) instead of certRef (Visible)
+    if (!exportRef.current || !registration) return;
     setDownloading(true);
 
     try {
-        // --- FIXED A4 DOWNLOAD CONFIGURATION ---
-        const canvas = await html2canvas(certRef.current, {
-            scale: 2, 
+        // Use the hidden, fixed-size container for capture
+        const canvas = await html2canvas(exportRef.current, {
+            scale: 2, // High quality scale
             width: CERT_WIDTH,
             height: CERT_HEIGHT,
             useCORS: true,
             allowTaint: true,
             logging: false,
             backgroundColor: '#ffffff', 
-            // VITAL FOR MOBILE: Force simulation of a desktop window
-            windowWidth: 1200, 
-            windowHeight: 800,
-            imageTimeout: 15000, 
-            onclone: (clonedDoc) => {
-                const element = clonedDoc.getElementById('certificate-view');
-                if (element) {
-                    // FORCE RESET ALL CSS TRANSFORMS & DIMENSIONS
-                    element.style.transform = 'none';
-                    element.style.margin = '0';
-                    element.style.padding = '0';
-                    element.style.width = `${CERT_WIDTH}px`;
-                    element.style.height = `${CERT_HEIGHT}px`;
-                    element.style.position = 'fixed'; 
-                    element.style.top = '0';
-                    element.style.left = '0';
-                    element.style.maxWidth = 'none';
-                    element.style.maxHeight = 'none';
-                    
-                    // CRITICAL FIX FOR MOBILE: Disable Text Inflation
-                    // Mobile browsers often inflate text size to make it readable. We must disable this for the capture.
-                    const style = clonedDoc.createElement('style');
-                    style.innerHTML = `
-                        * { 
-                            -webkit-text-size-adjust: none !important; 
-                            text-size-adjust: none !important; 
-                            -moz-text-size-adjust: none !important; 
-                            -ms-text-size-adjust: none !important; 
-                        }
-                    `;
-                    clonedDoc.head.appendChild(style);
-                }
+            // Force desktop viewport simulation to prevent mobile layout shifts
+            windowWidth: 1280, 
+            windowHeight: 720,
+            imageTimeout: 15000,
+            onclone: (doc) => {
+                // Inject style to globally disable text inflation in the capture context
+                const style = doc.createElement('style');
+                style.innerHTML = `
+                    * { 
+                        -webkit-text-size-adjust: none !important; 
+                        text-size-adjust: none !important; 
+                    }
+                `;
+                doc.head.appendChild(style);
             }
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.60);
+        const imgData = canvas.toDataURL('image/jpeg', 0.80);
         
         const pdf = new jsPDF({
             orientation: 'l', 
@@ -277,6 +261,41 @@ const CertificatePage: React.FC = () => {
       );
   };
 
+  // Shared content render function for both Preview and Export containers
+  const renderCertificateContent = () => (
+      <>
+         {hasConfig ? (
+             <>
+                 <div className="absolute inset-0 z-0">
+                     <img 
+                        src={certConfig.backgroundUrl} 
+                        alt="Certificate Background" 
+                        className="w-full h-full object-cover" 
+                        crossOrigin="anonymous" 
+                     />
+                 </div>
+                 {certConfig.elements.map(renderElement)}
+             </>
+         ) : (
+             // Default Fallback Template
+             <>
+                <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
+                <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
+                <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
+                    <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
+                    <div className="relative px-12 pb-2 mb-8">
+                         <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration?.userName.toUpperCase()}</h2>
+                         <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
+                    </div>
+                    <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
+                         Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration?.eventTitle}"</span>
+                    </p>
+                </div>
+             </>
+         )}
+      </>
+  );
+
   if (loading) return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
           <Loader className="w-10 h-10 animate-spin text-[#2B427A]" />
@@ -371,41 +390,43 @@ const CertificatePage: React.FC = () => {
                                 // No scale here, it inherits from parent or is captured natively
                             }}
                          >
-                             {hasConfig ? (
-                                 <>
-                                     <div className="absolute inset-0 z-0">
-                                         <img 
-                                            src={certConfig.backgroundUrl} 
-                                            alt="Certificate Background" 
-                                            className="w-full h-full object-cover" 
-                                            crossOrigin="anonymous" 
-                                         />
-                                     </div>
-                                     {certConfig.elements.map(renderElement)}
-                                 </>
-                             ) : (
-                                 // Default Fallback Template
-                                 <>
-                                    <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
-                                    <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
-                                    <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
-                                        <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
-                                        <div className="relative px-12 pb-2 mb-8">
-                                             <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName.toUpperCase()}</h2>
-                                             <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
-                                        </div>
-                                        <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
-                                             Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
-                                        </p>
-                                    </div>
-                                 </>
-                             )}
+                             {renderCertificateContent()}
                          </div>
                      </div>
                  </div>
               </div>
           </div>
       </div>
+
+      {/* --- OFF-SCREEN EXPORT CONTAINER --- */}
+      {/* This container is used ONLY for generating the PDF. It is positioned off-screen so it's not visible. */}
+      {/* It has FIXED dimensions (not responsive) to ensure the generated PDF is perfect on all devices. */}
+      <div 
+        style={{ 
+            position: 'fixed', 
+            top: '-9999px', 
+            left: '-9999px', 
+            width: `${CERT_WIDTH}px`, 
+            height: `${CERT_HEIGHT}px`,
+            overflow: 'hidden',
+            visibility: 'visible', // Must be visible for html2canvas to render
+            zIndex: -1
+        }}
+      >
+          <div 
+            ref={exportRef}
+            className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative"
+            style={{ 
+                width: `${CERT_WIDTH}px`, 
+                height: `${CERT_HEIGHT}px`,
+                // Explicitly disable text size adjustments here as well
+                WebkitTextSizeAdjust: 'none',
+            }}
+          >
+              {renderCertificateContent()}
+          </div>
+      </div>
+
     </div>
   );
 };
