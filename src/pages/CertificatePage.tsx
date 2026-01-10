@@ -165,38 +165,41 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // CRITICAL FIX: Calculate actual rendered width and adjust accordingly
+          // Username scaling with more aggressive reduction
           if (el.field === 'userName') {
               const len = textContent.length;
               const baseSize = el.fontSize || 45;
               
-              // ULTRA AGGRESSIVE for mobile - prevent any overflow
               if (isMobile) {
-                  // Estimate: 1 char ≈ 0.6 * fontSize in width (for bold fonts)
-                  const estimatedWidth = len * (baseSize * 0.6);
-                  const maxAllowedWidth = CERT_WIDTH * 0.92; // 92% safe zone
+                  // Mobile: EXTREME scaling to prevent overflow
+                  // Calculate based on average character width ratio
+                  const avgCharWidth = 0.65; // Bold fonts are wider
+                  const estimatedWidth = len * baseSize * avgCharWidth;
+                  const safeWidth = CERT_WIDTH * 0.88; // 88% safe zone
                   
-                  if (estimatedWidth > maxAllowedWidth) {
-                      // Scale down to fit
-                      dynamicFontSize = (maxAllowedWidth / len) / 0.6;
+                  if (estimatedWidth > safeWidth) {
+                      // Force fit by calculating required font size
+                      dynamicFontSize = (safeWidth / len) / avgCharWidth;
+                      // Add 10% reduction for safety margin
+                      dynamicFontSize = dynamicFontSize * 0.9;
                   } else {
-                      // Use normal scaling
-                      if (len <= 15) dynamicFontSize = baseSize * 1.0;
-                      else if (len <= 20) dynamicFontSize = baseSize * 0.85;
-                      else if (len <= 25) dynamicFontSize = baseSize * 0.70;
-                      else if (len <= 30) dynamicFontSize = baseSize * 0.58;
-                      else dynamicFontSize = baseSize * 0.48;
+                      // Standard scaling tiers
+                      if (len <= 15) dynamicFontSize = baseSize;
+                      else if (len <= 18) dynamicFontSize = baseSize * 0.9;
+                      else if (len <= 22) dynamicFontSize = baseSize * 0.75;
+                      else if (len <= 26) dynamicFontSize = baseSize * 0.62;
+                      else if (len <= 30) dynamicFontSize = baseSize * 0.52;
+                      else dynamicFontSize = baseSize * 0.42;
                   }
                   
-                  // Absolute minimum for mobile
                   dynamicFontSize = Math.max(dynamicFontSize, 8);
-                  
               } else {
-                  // Desktop: less aggressive
+                  // Desktop
                   if (len <= 20) dynamicFontSize = baseSize;
-                  else if (len <= 30) dynamicFontSize = baseSize * 0.88;
-                  else if (len <= 40) dynamicFontSize = baseSize * 0.72;
-                  else if (len <= 50) dynamicFontSize = baseSize * 0.58;
+                  else if (len <= 25) dynamicFontSize = baseSize * 0.85;
+                  else if (len <= 30) dynamicFontSize = baseSize * 0.75;
+                  else if (len <= 35) dynamicFontSize = baseSize * 0.65;
+                  else if (len <= 45) dynamicFontSize = baseSize * 0.55;
                   else dynamicFontSize = baseSize * 0.45;
                   
                   dynamicFontSize = Math.max(dynamicFontSize, 12);
@@ -227,87 +230,90 @@ const CertificatePage: React.FC = () => {
           content = String(textContent).toLowerCase();
       }
 
-      // CRITICAL FIX: Simpler, more reliable positioning
-      let containerStyle: React.CSSProperties = {};
-      let textWrapperStyle: React.CSSProperties = {};
-      
+      // NUCLEAR OPTION: Completely different approach for userName
       if (el.field === 'userName') {
-          // FORCE container to be constrained
-          const padding = isMobile ? 20 : 40; // Padding from edges
-          const maxWidth = CERT_WIDTH - (padding * 2);
+          const sidePadding = isMobile ? 15 : 30;
           
-          containerStyle = {
-              position: 'absolute',
-              left: '50%', // Always center
-              top: el.y,
-              transform: 'translate(-50%, -50%)',
-              width: maxWidth,
-              maxWidth: maxWidth,
-              zIndex: 10,
-              // Critical: prevent overflow
-              overflow: 'hidden',
-          };
-          
-          textWrapperStyle = {
-              color: el.color || '#000000',
-              fontSize: `${dynamicFontSize}px`,
-              fontFamily: el.fontFamily || 'Arial, sans-serif',
-              fontWeight: el.fontWeight || 'bold',
-              textAlign: 'center',
-              width: '100%',
-              textTransform: el.textTransform || 'none',
-              lineHeight: isMobile ? '1.1' : '1.15',
-              // Force text to wrap if needed
-              whiteSpace: 'normal',
-              wordBreak: 'break-word',
-              overflowWrap: 'anywhere', // Changed to 'anywhere' for aggressive wrapping
-              hyphens: 'auto',
-              WebkitFontSmoothing: 'antialiased',
-              MozOsxFontSmoothing: 'grayscale',
-              // Ensure no overflow
-              overflow: 'hidden',
-              textOverflow: 'clip',
-          };
-          
-      } else {
-          // For other elements, use original positioning
-          let maxWidth: number | string = el.width || 'auto';
-          let containerLeft = el.x;
-          
-          containerStyle = {
-              left: containerLeft,
-              top: el.y,
-              position: 'absolute',
-              zIndex: 10,
-          };
-
-          // Apply transform based on alignment
-          if (el.align === 'center' || !el.align) {
-              containerStyle.transform = 'translate(-50%, -50%)';
-          } else if (el.align === 'left') {
-              containerStyle.transform = 'translateY(-50%)';
-          } else if (el.align === 'right') {
-              containerStyle.transform = 'translate(-100%, -50%)';
-          }
-          
-          textWrapperStyle = {
-              color: el.color || '#000000',
-              fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
-              fontFamily: el.fontFamily || 'Arial, sans-serif',
-              fontWeight: el.fontWeight || 'bold',
-              textAlign: el.align || 'center',
-              width: el.type === 'image' ? `${el.width || 100}px` : '100%',
-              maxWidth: el.type === 'image' ? undefined : maxWidth,
-              textTransform: el.textTransform || 'none',
-              lineHeight: '1.15',
-              wordBreak: 'break-word',
-              overflowWrap: 'break-word',
-              WebkitFontSmoothing: 'antialiased',
-              MozOsxFontSmoothing: 'grayscale',
-          };
+          return (
+            <div
+              key={el.id}
+              style={{
+                position: 'absolute',
+                left: `${sidePadding}px`,
+                right: `${sidePadding}px`,
+                top: el.y,
+                transform: 'translateY(-50%)',
+                zIndex: 10,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <div
+                style={{
+                  color: el.color || '#000000',
+                  fontSize: `${dynamicFontSize}px`,
+                  fontFamily: el.fontFamily || 'Arial, sans-serif',
+                  fontWeight: el.fontWeight || 'bold',
+                  textAlign: 'center',
+                  width: '100%',
+                  textTransform: el.textTransform || 'none',
+                  lineHeight: '1.1',
+                  wordBreak: 'break-word',
+                  overflowWrap: 'break-word',
+                  WebkitFontSmoothing: 'antialiased',
+                  MozOsxFontSmoothing: 'grayscale',
+                  // Force contain within boundaries
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  padding: '0 5px',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {content}
+              </div>
+            </div>
+          );
       }
 
-      // Stroke style (only if not userName or if explicitly requested)
+      // For non-userName elements
+      let containerStyle: React.CSSProperties = {};
+      let textWrapperStyle: React.CSSProperties = {};
+      let maxWidth: number | string = el.width || 'auto';
+      let containerLeft = el.x;
+      
+      containerStyle = {
+          left: containerLeft,
+          top: el.y,
+          position: 'absolute',
+          zIndex: 10,
+      };
+
+      if (el.align === 'center' || !el.align) {
+          containerStyle.transform = 'translate(-50%, -50%)';
+      } else if (el.align === 'left') {
+          containerStyle.transform = 'translateY(-50%)';
+      } else if (el.align === 'right') {
+          containerStyle.transform = 'translate(-100%, -50%)';
+      }
+      
+      textWrapperStyle = {
+          color: el.color || '#000000',
+          fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
+          fontFamily: el.fontFamily || 'Arial, sans-serif',
+          fontWeight: el.fontWeight || 'bold',
+          textAlign: el.align || 'center',
+          width: el.type === 'image' ? `${el.width || 100}px` : '100%',
+          maxWidth: el.type === 'image' ? undefined : maxWidth,
+          textTransform: el.textTransform || 'none',
+          lineHeight: '1.15',
+          wordBreak: 'break-word',
+          overflowWrap: 'break-word',
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
+      };
+
       if (el.strokeWidth && el.strokeWidth > 0 && el.type !== 'image') {
           const sw = el.strokeWidth;
           const sc = el.strokeColor || '#FFFFFF';
