@@ -109,17 +109,36 @@ const CertificatePage: React.FC = () => {
             allowTaint: true,
             logging: false,
             backgroundColor: '#ffffff', 
-            // Force desktop viewport simulation to prevent mobile layout shifts
-            windowWidth: 1280, 
-            windowHeight: 720,
+            // FORCE DESKTOP SIMULATION
+            // This tricks the engine into thinking it's on a 1920px wide screen
+            // preventing mobile text inflation algorithms.
+            windowWidth: 1920, 
+            windowHeight: 1080,
             imageTimeout: 15000,
             onclone: (doc) => {
-                // Inject style to globally disable text inflation in the capture context
+                // AGGRESSIVE CSS RESET FOR CAPTURE
                 const style = doc.createElement('style');
                 style.innerHTML = `
+                    html, body {
+                        width: 1920px !important;
+                        height: 1080px !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: visible !important;
+                    }
                     * { 
-                        -webkit-text-size-adjust: none !important; 
-                        text-size-adjust: none !important; 
+                        -webkit-text-size-adjust: 100% !important; 
+                        text-size-adjust: 100% !important; 
+                        -moz-text-size-adjust: 100% !important;
+                        -ms-text-size-adjust: 100% !important;
+                        box-sizing: border-box !important;
+                    }
+                    /* Force font rendering consistency */
+                    .cert-text-element {
+                        text-rendering: optimizeLegibility !important;
+                        -webkit-font-smoothing: antialiased !important;
+                        -moz-osx-font-smoothing: grayscale !important;
+                        white-space: nowrap !important;
                     }
                 `;
                 doc.head.appendChild(style);
@@ -234,25 +253,22 @@ const CertificatePage: React.FC = () => {
       return (
         <div
             key={el.id}
-            className="absolute z-10"
+            className="absolute z-10 cert-text-element"
             style={{
                 left: el.x,
                 top: el.y,
                 color: el.color || '#000000',
                 fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
-                // Default to standard font if custom font fails, but prioritize consistent rendering
                 fontFamily: el.fontFamily || 'Arial, sans-serif',
                 fontWeight: el.fontWeight || 'bold',
                 textAlign: el.align || 'center',
                 width: el.width ? `${el.width}px` : 'auto',
-                maxWidth: '95%', // Prevent overflowing off canvas
+                maxWidth: '95%', 
                 transform: transform, 
-                // CRITICAL: Prevent wrapping and text adjustments on mobile
                 whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
                 textTransform: el.textTransform || 'none',
-                lineHeight: 1.2, // Consistent line height
-                WebkitTextSizeAdjust: 'none', // Prevent iOS/Android text inflation
-                // removed generic 'textSizeAdjust' to prevent TypeScript errors
+                lineHeight: 1.2,
+                WebkitTextSizeAdjust: 'none',
                 ...strokeStyle
             }}
         >
