@@ -50,7 +50,6 @@ const Home: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const navigate = useNavigate();
   
   // Stats State
   const [stats, setStats] = useState({ participants: 0, prokers: 0 });
@@ -144,13 +143,13 @@ const Home: React.FC = () => {
                 <span className="text-[#2B427A] font-black text-sm uppercase tracking-wide">WEB PORTAL EVENT BISDIG</span>
             </div>
             
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter mb-6 leading-none drop-shadow-lg uppercase">
-                Official Event Portal <br/>
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#DFFF00] to-[#0B1CDE]">HMP Bisdig</span>
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter mb-6 leading-none drop-shadow-lg">
+                EVENT <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#DFFF00] to-[#0B1CDE]">BISDIG</span><br/>
+                KITA <span className="text-[#DFFF00]">BERSAMA</span>
             </h1>
             
-            <p className="text-xl md:text-2xl text-blue-100 mb-12 max-w-3xl mx-auto font-medium leading-relaxed">
-                Temukan, ikuti, dan kelola seluruh kegiatan Himpunan Mahasiswa Bisnis Digital di sini. Platform terpadu untuk menciptakan pengalaman organisasi yang tak terlupakan.
+            <p className="text-xl md:text-2xl text-blue-100 mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
+                Platform manajemen acara resmi Himpunan Mahasiswa Bisnis Digital. Temukan peluang, bangun relasi, dan kembangkan skillmu di sini.
             </p>
             
             <div className="flex flex-col sm:flex-row justify-center gap-5">
@@ -167,13 +166,12 @@ const Home: React.FC = () => {
       {/* Statistics Strip */}
       <div className="bg-[#DFFF00] border-y-4 border-[#2B427A]">
         <div className="max-w-7xl mx-auto px-4 py-10">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-8 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#2B427A]/20">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#2B427A]/20 text-center md:text-left">
                 {/* Stat 1 */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 transition-transform hover:scale-110 duration-300">
-                        <Users className="w-8 h-8"/>
-                    </div>
-                    <div className="text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-center gap-5 px-4">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><Users className="w-8 h-8"/></div>
+                    <div className="text-left">
+                        {/* Display Animated Count */}
                         <div className="text-4xl font-black text-[#2B427A] leading-none tabular-nums">
                             <AnimatedCounter end={stats.participants} />
                         </div>
@@ -181,11 +179,9 @@ const Home: React.FC = () => {
                     </div>
                 </div>
                 {/* Stat 2 */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 transition-transform hover:scale-110 duration-300">
-                        <Calendar className="w-8 h-8"/>
-                    </div>
-                    <div className="text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-center gap-5 px-4 pt-4 md:pt-0">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><Calendar className="w-8 h-8"/></div>
+                    <div className="text-left">
                         <div className="text-4xl font-black text-[#2B427A] leading-none tabular-nums">
                             <AnimatedCounter end={stats.prokers} />
                         </div>
@@ -193,11 +189,9 @@ const Home: React.FC = () => {
                     </div>
                 </div>
                 {/* Stat 3 */}
-                <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 transition-transform hover:scale-110 duration-300">
-                        <TrendingUp className="w-8 h-8"/>
-                    </div>
-                    <div className="text-center md:text-left">
+                <div className="flex items-center justify-center md:justify-center gap-5 px-4 pt-4 md:pt-0">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000]"><TrendingUp className="w-8 h-8"/></div>
+                    <div className="text-left">
                         <div className="text-4xl font-black text-[#2B427A] leading-none tabular-nums">
                             <AnimatedCounter end={100} suffix="%" />
                         </div>
