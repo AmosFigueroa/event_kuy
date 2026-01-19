@@ -104,13 +104,13 @@ const Home: React.FC = () => {
                 <span className="text-[#2B427A] font-black text-sm uppercase tracking-wide">WEB PORTAL EVENT BISDIG</span>
             </div>
             
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter mb-6 leading-none drop-shadow-lg">
-                EVENT <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#DFFF00] to-[#0B1CDE]">BISDIG</span><br/>
-                KITA <span className="text-[#DFFF00]">BERSAMA</span>
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter mb-6 leading-none drop-shadow-lg uppercase">
+                Official Event Portal <br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#DFFF00] to-[#0B1CDE]">HMP Bisdig</span>
             </h1>
             
-            <p className="text-xl md:text-2xl text-blue-100 mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
-                Platform manajemen acara resmi Himpunan Mahasiswa Bisnis Digital. Temukan peluang, bangun relasi, dan kembangkan skillmu di sini.
+            <p className="text-xl md:text-2xl text-blue-100 mb-12 max-w-3xl mx-auto font-medium leading-relaxed">
+                Temukan, ikuti, dan kelola seluruh kegiatan Himpunan Mahasiswa Bisnis Digital di sini. Platform terpadu untuk menciptakan pengalaman organisasi yang tak terlupakan.
             </p>
             
             <div className="flex flex-col sm:flex-row justify-center gap-5">
