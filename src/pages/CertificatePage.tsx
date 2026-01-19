@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, Download, ArrowLeft, Award, FileText } from 'lucide-react';
+import { Loader, Download, ArrowLeft, Award, FileText, Info } from 'lucide-react';
 import { fetchRegistrationById, downloadCertificatePdf } from '../services/api';
 import { Registration, RegistrationStatus } from '../types';
 import CustomAlert from '../components/CustomAlert';
@@ -162,6 +162,13 @@ const CertificatePage: React.FC = () => {
                   </button>
               </div>
           </div>
+      </div>
+      
+      <div className="mt-6 flex gap-2 items-start max-w-md bg-white p-3 rounded-lg border border-gray-200">
+          <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-500 text-left">
+              <strong>Catatan:</strong> Jika unduhan gagal, pastikan Event Organizer telah memasukkan <strong>ID Google Slide</strong> dengan benar di panel Admin.
+          </p>
       </div>
     </div>
   );

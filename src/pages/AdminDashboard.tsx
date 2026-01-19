@@ -26,7 +26,7 @@ const AdminDashboard: React.FC = () => {
 
   // Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // NEW: Mobile Menu State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // Toast State
   const [toast, setToast] = useState<{show: boolean, msg: string}>({show: false, msg: ''});
@@ -421,7 +421,6 @@ const AdminDashboard: React.FC = () => {
     setEditingId(null);
   };
 
-  // ... (handleBannerChange, handleThumbnailChange, handleGenerateDescription etc. omitted for brevity, keeping same logic)
   const handleBannerChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setBannerFile(file); const reader = new FileReader(); reader.onload = (ev) => setBannerPreview(ev.target?.result as string); reader.readAsDataURL(file); } };
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setThumbnailFile(file); const reader = new FileReader(); reader.onload = (ev) => setThumbnailPreview(ev.target?.result as string); reader.readAsDataURL(file); } };
   const handleGenerateDescription = async () => { if (!newEvent.title || !newEvent.category) { showAlert('error', 'Error', 'Mohon isi Judul dan Kategori terlebih dahulu.'); return; } setGeneratingDesc(true); try { const desc = await generateEventDescription( newEvent.title, isCustomCat ? customCategory : newEvent.category || '', `Lokasi: ${newEvent.location || '-'}, Waktu: ${newEvent.time || '-'}` ); setNewEvent(prev => ({ ...prev, description: desc })); } catch (e: any) { showAlert('error', 'AI Error', e.message); } finally { setGeneratingDesc(false); } };
@@ -480,7 +479,6 @@ const AdminDashboard: React.FC = () => {
   };
 
   const renderDesigner = (isEventSpecific: boolean) => {
-      // ... (Designer code kept same)
       const currentConfig = isEventSpecific ? newEvent.certificateConfig : certSettings;
       const elements = currentConfig?.elements || [];
       const bgUrl = isEventSpecific ? (certBgPreview || currentConfig?.backgroundUrl) : (certSettingsBgPreview || currentConfig?.backgroundUrl);
@@ -776,10 +774,11 @@ const AdminDashboard: React.FC = () => {
                     <div className="p-4 bg-gray-50 border-t-2 border-dashed border-[#2B427A]/20 flex gap-2">
                         <button 
                             onClick={() => navigate(`/scanner/${event.id}`)} 
-                            className="p-2 bg-purple-50 text-purple-600 rounded-lg border border-purple-200 hover:bg-purple-100 transition-colors" 
+                            className="flex-1 md:flex-none p-2 bg-purple-50 text-purple-600 rounded-lg border border-purple-200 hover:bg-purple-100 transition-colors flex items-center justify-center gap-2 group" 
                             title="Buka Scanner Tiket"
                         >
-                            <ScanLine className="w-5 h-5"/>
+                            <ScanLine className="w-5 h-5 group-hover:scale-110 transition-transform"/>
+                            <span className="md:hidden lg:inline text-xs font-black uppercase">SCAN</span>
                         </button>
                         <button 
                             onClick={() => {
