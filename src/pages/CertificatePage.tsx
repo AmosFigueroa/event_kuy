@@ -31,7 +31,6 @@ const CertificatePage: React.FC = () => {
 
   // Responsive Scaling State
   const [scale, setScale] = useState(1);
-  const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const certRef = useRef<HTMLDivElement>(null);
 
@@ -73,23 +72,21 @@ const CertificatePage: React.FC = () => {
   // Handle Resize for Responsive Scaling
   useEffect(() => {
     const handleResize = () => {
-        // Detect mobile device
-        const mobile = window.innerWidth < 768;
-        setIsMobile(mobile);
-        
         if (containerRef.current) {
             const parentWidth = containerRef.current.offsetWidth;
             const padding = 32;
             const availableWidth = parentWidth - padding;
             
+            // Calculate scale based on the VISUAL WIDTH (Certificate + Frame)
+            // This ensures the frame fits in the screen
             const newScale = Math.min(availableWidth / VISUAL_WIDTH, 1);
             setScale(newScale);
         }
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize();
-    setTimeout(handleResize, 100);
+    handleResize(); // Initial calculation
+    setTimeout(handleResize, 100); // Recalculate
 
     return () => window.removeEventListener('resize', handleResize);
   }, [loading, registration]);
@@ -99,7 +96,9 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // PERBAIKAN: Force desktop viewport simulation untuk mobile
+        // PERBAIKAN UTAMA: Konfigurasi html2canvas untuk Mobile
+        // 1. windowWidth/Height: Memaksa simulasi viewport desktop (1920x1080)
+        // 2. onclone: Inject CSS untuk mematikan text-size-adjust browser HP
         const canvas = await html2canvas(certRef.current, {
             scale: 3, // High quality scale
             useCORS: true,
@@ -107,12 +106,22 @@ const CertificatePage: React.FC = () => {
             backgroundColor: '#ffffff',
             imageTimeout: 20000,
             allowTaint: false,
-            removeContainer: true,
-            // Force dimensions to prevent mobile inflation
+            removeContainer: true, // Clean up clone
+            // FORCE DESKTOP VIEWPORT
             windowWidth: 1920,
             windowHeight: 1080,
             onclone: (clonedDoc) => {
-                // Inject CSS to reset text inflation on mobile browsers during capture
+                // Cari elemen sertifikat di dalam clone dan pastikan style-nya benar
+                const element = clonedDoc.getElementById('certificate-view');
+                if (element) {
+                    // Reset transform scale dari parent (jika ada)
+                    element.style.transform = 'none';
+                    // Pastikan margin/padding tidak mengganggu
+                    element.style.margin = '0';
+                }
+
+                // INJECT CSS RESET
+                // Ini mencegah browser HP memperbesar font sembarangan (text inflation)
                 const style = clonedDoc.createElement('style');
                 style.innerHTML = `
                     html, body {
@@ -132,6 +141,7 @@ const CertificatePage: React.FC = () => {
 
         const imgData = canvas.toDataURL('image/jpeg', 0.90);
         
+        // Setup PDF A4 Landscape
         const pdf = new jsPDF('l', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -182,12 +192,11 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
+          // Robust Font Scaling for Long Names
           if (el.field === 'userName') {
               const len = textContent.length;
               const baseSize = el.fontSize || 45;
               
-              // Simplified scaling logic that works for both desktop and mobile
-              // since canvas capture simulates desktop anyway.
               if (len <= 20) dynamicFontSize = baseSize;
               else if (len <= 25) dynamicFontSize = baseSize * 0.85;
               else if (len <= 30) dynamicFontSize = baseSize * 0.75;
@@ -221,59 +230,19 @@ const CertificatePage: React.FC = () => {
           content = String(textContent).toLowerCase();
       }
 
-      // Consistent positioning logic
-      if (el.field === 'userName') {
-          return (
-            <div
-              key={el.id}
-              style={{
-                position: 'absolute',
-                left: '30px', 
-                right: '30px',
-                top: el.y,
-                transform: 'translateY(-50%)',
-                zIndex: 10,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <div
-                style={{
-                  color: el.color || '#000000',
-                  fontSize: `${dynamicFontSize}px`,
-                  fontFamily: el.fontFamily || 'Arial, sans-serif',
-                  fontWeight: el.fontWeight || 'bold',
-                  textAlign: 'center',
-                  width: '100%',
-                  textTransform: el.textTransform || 'none',
-                  lineHeight: '1.1',
-                  whiteSpace: 'nowrap',
-                  textOverflow: 'ellipsis',
-                  overflow: 'hidden',
-                  padding: '0 5px',
-                }}
-              >
-                {content}
-              </div>
-            </div>
-          );
-      }
-
+      // Container Style for Positioning
       let containerStyle: React.CSSProperties = {
           left: el.x,
           top: el.y,
           position: 'absolute',
           zIndex: 10,
+          // Use translates for centering logic - standard approach
+          transform: !el.align || el.align === 'center' 
+              ? 'translate(-50%, -50%)' 
+              : el.align === 'left' 
+                  ? 'translate(0, -50%)' 
+                  : 'translate(-100%, -50%)'
       };
-
-      if (el.align === 'center' || !el.align) {
-          containerStyle.transform = 'translate(-50%, -50%)';
-      } else if (el.align === 'left') {
-          containerStyle.transform = 'translateY(-50%)';
-      } else if (el.align === 'right') {
-          containerStyle.transform = 'translate(-100%, -50%)';
-      }
       
       const textStyle: React.CSSProperties = {
           color: el.color || '#000000',
@@ -291,6 +260,7 @@ const CertificatePage: React.FC = () => {
       if (el.strokeWidth && el.strokeWidth > 0 && el.type !== 'image') {
           const sw = el.strokeWidth;
           const sc = el.strokeColor || '#FFFFFF';
+          // Robust text stroke simulation for canvas capture
           textStyle.textShadow = `-${sw}px -${sw}px 0 ${sc}, ${sw}px -${sw}px 0 ${sc}, -${sw}px ${sw}px 0 ${sc}, ${sw}px ${sw}px 0 ${sc}, 0 -${sw}px 0 ${sc}, 0 ${sw}px 0 ${sc}, -${sw}px 0 0 ${sc}, ${sw}px 0 0 ${sc}`;
       }
 
@@ -345,7 +315,7 @@ const CertificatePage: React.FC = () => {
         className="w-full flex justify-center pb-10" 
         ref={containerRef}
       >
-          {/* Scaling Wrapper */}
+          {/* Scaling Wrapper: Only effects preview on screen, does not affect capture */}
           <div style={{ width: VISUAL_WIDTH * scale, height: VISUAL_HEIGHT * scale, position: 'relative' }}>
               
               {/* THE VISUAL FRAME (Scale Applied Here) */}
@@ -380,12 +350,16 @@ const CertificatePage: React.FC = () => {
                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                          border: '1px solid #e5e5e5'
                      }}>
+                         {/* THE ACTUAL CERTIFICATE NODE FOR CAPTURE */}
+                         {/* ID 'certificate-view' used in html2canvas onclone */}
                          <div 
                             ref={certRef}
+                            id="certificate-view"
                             className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative"
                             style={{ 
                                 width: `${CERT_WIDTH}px`, 
                                 height: `${CERT_HEIGHT}px`,
+                                // Important: No transforms here, let parent handle preview scaling
                             }}
                          >
                              {hasConfig ? (
