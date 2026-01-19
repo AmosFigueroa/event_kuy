@@ -44,22 +44,19 @@ function handleRequest(e, method) {
     else if (action === "getRegistrations") data = getRegistrations();
     else if (action === "getRegistration" && method === "POST") data = getRegistration(postData); 
     else if (action === "updateRegistrationStatus" && method === "POST") data = updateRegistrationStatus(postData);
-    else if (action === "sendCertificate" && method === "POST") data = sendCertificate(postData);
+    
+    // NEW: GOOGLE SLIDES CERTIFICATE ROUTE
+    else if (action === "generateSlideCertificate" && method === "POST") data = generateSlideCertificate(postData);
+    
+    else if (action === "sendCertificate" && method === "POST") data = sendCertificate(postData); 
     else if (action === "sendBulkCertificates" && method === "POST") data = sendBulkCertificates(postData);
     
-    // New: Ticket Scanner & Export
     else if (action === "validateTicket" && method === "POST") data = validateTicket(postData);
     else if (action === "exportParticipants" && method === "POST") data = exportParticipants(postData);
 
-    // Payment Settings
     else if (action === "savePaymentSettings" && method === "POST") data = savePaymentSettings(postData);
     else if (action === "getPaymentSettings") data = getPaymentSettings();
     
-    // Certificate Settings (Global Defaults)
-    else if (action === "saveCertificateSettings" && method === "POST") data = saveCertificateSettings(postData);
-    else if (action === "getCertificateSettings") data = getCertificateSettings();
-    
-    // Auth
     else if (action === "signup" && method === "POST") data = signupUser(postData);
     else if (action === "login" && method === "POST") data = loginUser(postData);
     else if (action === "requestOtp" && method === "POST") data = requestOtp(postData);
@@ -78,13 +75,11 @@ function handleRequest(e, method) {
   }
 }
 
-// ... (Auth Functions unchanged) ...
+// ... (Auth Functions & Email Helper kept same) ...
 function signupUser(data) { /*...*/ var sheet = _getSheet("Users"); var email = (data.email || "").toLowerCase().trim(); var name = data.name || "User"; var password = data.password || ""; if (!email || !password) throw new Error("Email dan Password wajib diisi."); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (String(rows[i][1]).toLowerCase() === email) { throw new Error("Email sudah terdaftar. Silakan login."); } } var rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, password); var txtHash = rawHash.map(function(b) { return (b < 0 ? b + 256 : b).toString(16).padStart(2,'0'); }).join(""); sheet.appendRow([ Utilities.getUuid(), email, txtHash, name, new Date().toISOString() ]); return { created: true }; }
 function loginUser(data) { /*...*/ var sheet = _getSheet("Users"); var email = (data.email || "").toLowerCase().trim(); var password = data.password || ""; var rows = sheet.getDataRange().getValues(); var found = null; for (var i = 1; i < rows.length; i++) { if (String(rows[i][1]).toLowerCase() === email) { var rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, password); var txtHash = rawHash.map(function(b) { return (b < 0 ? b + 256 : b).toString(16).padStart(2,'0'); }).join(""); if (txtHash === rows[i][2]) { found = { email: rows[i][1], name: rows[i][3] }; break; } } } if (!found) { throw new Error("Email atau password salah."); } if (ADMIN_EMAILS.indexOf(found.email) > -1) { var otp = Math.floor(100000 + Math.random() * 900000).toString(); CacheService.getScriptCache().put("OTP_" + found.email, otp, 300); var body = `<p>Halo Admin,</p><p>Gunakan kode berikut untuk masuk ke dashboard admin:</p><h1 style="color:#2B427A; letter-spacing: 5px;">${otp}</h1><p>Kode ini berlaku selama 5 menit.</p>`; _sendBrandedEmail(found.email, "Login Admin Bisdig", "VERIFIKASI ADMIN", body); return { valid: false, requireOtp: true }; } return { valid: true, role: "USER", email: found.email, name: found.name }; }
 function requestOtp(data) { /*...*/ var email = (data.email || "").toLowerCase().trim(); if (!email) throw new Error("Email invalid"); var otp = Math.floor(100000 + Math.random() * 900000).toString(); CacheService.getScriptCache().put("OTP_" + email, otp, 300); var body = `<p>Halo,</p><p>Gunakan kode OTP berikut untuk masuk ke akun Anda:</p><h1 style="color:#2B427A; letter-spacing: 5px;">${otp}</h1><p>Jangan berikan kode ini kepada siapa pun.</p>`; _sendBrandedEmail(email, "Kode Masuk Event Bisdig", "VERIFIKASI AKUN", body); return { sent: true }; }
 function loginWithOtp(data) { /*...*/ var email = (data.email || "").toLowerCase().trim(); var cached = CacheService.getScriptCache().get("OTP_" + email); if (!cached || cached !== data.otp) throw new Error("OTP salah atau kadaluarsa."); CacheService.getScriptCache().remove("OTP_" + email); var role = ADMIN_EMAILS.indexOf(email) > -1 ? "ADMIN" : "USER"; return { valid: true, role: role, email: email, name: "User" }; }
-
-// ... Email Helper ...
 function _sendBrandedEmail(to, subject, title, bodyContent, attachmentBlob) { var colorPrimary = "#2B427A"; var colorAccent = "#DFFF00"; var htmlBody = ` <!DOCTYPE html> <html> <head> <meta charset="utf-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>${subject}</title> </head> <body style="margin: 0; padding: 0; background-color: #F8FAFC; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;"> <table width="100%" border="0" cellpadding="0" cellspacing="0" style="background-color: #F8FAFC; padding: 20px 0;"> <tr> <td align="center"> <table width="600" border="0" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; max-width: 90%;"> <tr> <td align="center" style="background-color: ${colorPrimary}; padding: 30px 20px;"> <h1 style="color: ${colorAccent}; margin: 0; font-size: 24px; font-weight: 900; text-transform: uppercase;">EVENT BISDIG</h1> </td> </tr> <tr> <td style="padding: 40px 30px;"> <h2 style="color: ${colorPrimary}; font-size: 20px; font-weight: 800; margin: 0 0 20px 0; text-transform: uppercase;">${title}</h2> <div style="color: #475569; font-size: 16px; line-height: 1.6;"> ${bodyContent} </div> </td> </tr> <tr> <td align="center" style="background-color: #f1f5f9; padding: 20px;"> <p style="margin: 0; font-size: 11px; color: #64748b;">&copy; ${new Date().getFullYear()} HMP Bisnis Digital UPY</p> </td> </tr> </table> </td> </tr> </table> </body> </html> `; var textBody = bodyContent.replace(/<[^>]*>/g, "").trim(); textBody += "\n\nTerima kasih,\nHMP Bisnis Digital UPY"; var options = { htmlBody: htmlBody, name: "Event Bisdig System", noReply: true }; if (attachmentBlob) { options.attachments = [attachmentBlob]; } try { GmailApp.sendEmail(to, subject, textBody, options); } catch(e) { MailApp.sendEmail(to, subject, textBody, options); } }
 function _generateEmailButton(url, text) { return ` <table border="0" cellpadding="0" cellspacing="0" style="margin: 25px 0;"> <tr> <td align="center" style="border-radius: 10px;" bgcolor="#0B1CDE"> <a href="${url}" target="_blank" style="font-size: 16px; font-family: Helvetica, Arial, sans-serif; color: #ffffff; text-decoration: none; border-radius: 10px; padding: 15px 30px; border: 1px solid #0B1CDE; display: inline-block; font-weight: bold;"> ${text} </a> </td> </tr> </table> `; }
 
@@ -92,8 +87,6 @@ function _generateEmailButton(url, text) { return ` <table border="0" cellpaddin
 function getEvents() {
   var sheet = _getSheet("Events");
   var rows = sheet.getDataRange().getValues();
-  
-  // CALCULATE REAL PARTICIPANT COUNTS DYNAMICALLY
   var rSheet = _getSheet("Registrations");
   var rRows = rSheet.getDataRange().getValues();
   var counts = {};
@@ -132,19 +125,19 @@ function getEvents() {
     obj.maxParticipants = row[9];
     obj.currentParticipants = counts[obj.id] || 0;
     
-    // isOpen is now computed from status if status exists, else legacy boolean
     var rawIsOpen = (row[11] === true || String(row[11]).toUpperCase() === "TRUE");
-    var rawStatus = row[17] || ""; // Column 17 is Status (0-index based so col 18 is index 17)
+    var rawStatus = row[17] || ""; 
     
     obj.status = rawStatus ? rawStatus : (rawIsOpen ? 'OPEN' : 'CLOSED');
-    obj.isOpen = (obj.status === 'OPEN' || obj.status === 'EXTENDED'); // Logical open
+    obj.isOpen = (obj.status === 'OPEN' || obj.status === 'EXTENDED'); 
     
     try { obj.formFields = row[12] ? JSON.parse(row[12]) : []; } catch(e) { obj.formFields = []; }
     try { obj.certificateConfig = row[13] ? JSON.parse(row[13]) : null; } catch(e) { obj.certificateConfig = null; }
     obj.thumbnailUrl = row[14] || "";
     obj.enableTicketScanner = row[15] === true || row[15] === "TRUE";
     obj.mapUrl = row[16] || "";
-    obj.groupLink = row[18] || ""; // Column 18 is Group Link (0-index based so col 19 is index 18)
+    obj.groupLink = row[18] || "";
+    obj.certificateSlideId = row[19] || ""; // COLUMN 20 (Index 19)
     
     return obj;
   });
@@ -170,19 +163,6 @@ function createEvent(data) {
     } catch (e) { } 
   } 
   
-  var certConfig = data.certificateConfig || null; 
-  if (certConfig && data.certBackgroundBase64) { 
-    try { 
-      var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + id); 
-      var file = folder.createFile(blob); 
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); 
-      certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); 
-    } catch(e) {} 
-  } 
-  
-  var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]"; 
-  var certConfigJson = certConfig ? JSON.stringify(certConfig) : ""; 
-  
   var isOpen = (data.status === 'OPEN' || data.status === 'EXTENDED');
 
   sheet.appendRow([ 
@@ -197,14 +177,15 @@ function createEvent(data) {
     bannerUrl, 
     data.maxParticipants, 
     0, 
-    isOpen, // Legacy isOpen column
-    formFieldsJson, 
-    certConfigJson, 
+    isOpen, 
+    "[]", 
+    "{}", 
     thumbnailUrl, 
     data.enableTicketScanner,
     data.mapUrl || "",
-    data.status || "OPEN", // New Status Column
-    data.groupLink || ""   // New Group Link Column
+    data.status || "OPEN",
+    data.groupLink || "",
+    data.certificateSlideId || "" // NEW
   ]); 
   return { id: id }; 
 }
@@ -229,22 +210,6 @@ function updateEvent(data) {
           thumbnailUrl = "https://lh3.googleusercontent.com/d/" + folder.createFile(blob).getId(); 
         } catch(e) {} 
       } 
-      var formFieldsJson = data.formFields ? JSON.stringify(data.formFields) : "[]"; 
-      var certConfigJson = rows[i][13]; 
-      var certConfig = data.certificateConfig; 
-      if (certConfig) { 
-        if (data.certBackgroundBase64) { 
-          try { 
-            var blob = Utilities.newBlob(Utilities.base64Decode(data.certBackgroundBase64), "image/png", "cert_bg_" + data.id + "_" + new Date().getTime()); 
-            var file = folder.createFile(blob); 
-            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); 
-            certConfig.backgroundUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); 
-          } catch(e) {} 
-        } else if (!certConfig.backgroundUrl && rows[i][13]) { 
-          try { var oldConf = JSON.parse(rows[i][13]); certConfig.backgroundUrl = oldConf.backgroundUrl; } catch(e){} 
-        } 
-        certConfigJson = JSON.stringify(certConfig); 
-      } 
       
       var isOpen = (data.status === 'OPEN' || data.status === 'EXTENDED');
 
@@ -257,20 +222,18 @@ function updateEvent(data) {
       sheet.getRange(i+1, 8).setValue(data.category); 
       sheet.getRange(i+1, 9).setValue(bannerUrl); 
       sheet.getRange(i+1, 10).setValue(data.maxParticipants); 
-      sheet.getRange(i+1, 12).setValue(isOpen); // Sync boolean
-      sheet.getRange(i+1, 13).setValue(formFieldsJson); 
-      sheet.getRange(i+1, 14).setValue(certConfigJson); 
+      sheet.getRange(i+1, 12).setValue(isOpen);
       sheet.getRange(i+1, 15).setValue(thumbnailUrl); 
       
       // Update extended columns (ensure range exists)
       var maxCols = sheet.getLastColumn();
-      // Ensure we have enough columns
-      if (maxCols < 19) sheet.insertColumnsAfter(maxCols, 19 - maxCols);
+      if (maxCols < 20) sheet.insertColumnsAfter(maxCols, 20 - maxCols);
       
       sheet.getRange(i+1, 16).setValue(data.enableTicketScanner); 
       sheet.getRange(i+1, 17).setValue(data.mapUrl || ""); 
       sheet.getRange(i+1, 18).setValue(data.status || "OPEN"); 
       sheet.getRange(i+1, 19).setValue(data.groupLink || "");
+      sheet.getRange(i+1, 20).setValue(data.certificateSlideId || ""); // NEW
 
       return { id: data.id, updated: true }; 
     } 
@@ -279,32 +242,13 @@ function updateEvent(data) {
 }
 
 function deleteEvent(data) { /*...*/ var sheet = _getSheet("Events"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { sheet.deleteRow(i + 1); return { deleted: true }; } } throw new Error("Event not found"); }
+function toggleEventStatus(data) { var sheet = _getSheet("Events"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { var currentStatus = rows[i][17] || "OPEN"; var newStatus = (currentStatus === 'CLOSED') ? 'OPEN' : 'CLOSED'; var newIsOpen = (newStatus === 'OPEN'); sheet.getRange(i + 1, 12).setValue(newIsOpen); sheet.getRange(i + 1, 18).setValue(newStatus); return { id: data.id, isOpen: newIsOpen, status: newStatus }; } } throw new Error("Event not found"); }
 
-// Toggle simple open/close mapped to statuses
-function toggleEventStatus(data) { 
-  var sheet = _getSheet("Events"); 
-  var rows = sheet.getDataRange().getValues(); 
-  for (var i = 1; i < rows.length; i++) { 
-    if (rows[i][0] == data.id) { 
-      var currentStatus = rows[i][17] || "OPEN";
-      var newStatus = (currentStatus === 'CLOSED') ? 'OPEN' : 'CLOSED';
-      var newIsOpen = (newStatus === 'OPEN');
-      
-      sheet.getRange(i + 1, 12).setValue(newIsOpen); 
-      sheet.getRange(i + 1, 18).setValue(newStatus);
-      return { id: data.id, isOpen: newIsOpen, status: newStatus }; 
-    } 
-  } 
-  throw new Error("Event not found"); 
-}
-
-// ... (Registration & Scanner Functions) ...
 function registerEventParticipant(data) {
   var eSheet = _getSheet("Events");
   var rSheet = _getSheet("Registrations");
   var events = eSheet.getDataRange().getValues();
   
-  // Find Event
   var eventRowIndex = -1;
   var eventTitle = "";
   var maxParticipants = 0;
@@ -321,13 +265,8 @@ function registerEventParticipant(data) {
   }
   
   if (eventRowIndex == -1) throw new Error("Event not found");
+  if (eventStatus === 'CLOSED' || eventStatus === 'COMING_SOON') throw new Error("Pendaftaran acara ini sedang ditutup atau belum dibuka.");
   
-  // Check Status
-  if (eventStatus === 'CLOSED' || eventStatus === 'COMING_SOON') {
-      throw new Error("Pendaftaran acara ini sedang ditutup atau belum dibuka.");
-  }
-  
-  // Calculate Real-Time Participants Count for this event
   var rRows = rSheet.getDataRange().getValues();
   var currentRealCount = 0;
   var emailExists = false;
@@ -335,12 +274,8 @@ function registerEventParticipant(data) {
   if (rRows.length > 1) {
     for(var i=1; i<rRows.length; i++) {
       if(rRows[i][1] == data.eventId) {
-        if (rRows[i][4].toString().toLowerCase() == data.email.toString().toLowerCase()) {
-           emailExists = true;
-        }
-        if (rRows[i][6] !== 'REJECTED') {
-           currentRealCount++;
-        }
+        if (rRows[i][4].toString().toLowerCase() == data.email.toString().toLowerCase()) emailExists = true;
+        if (rRows[i][6] !== 'REJECTED') currentRealCount++;
       }
     }
   }
@@ -383,100 +318,117 @@ function registerEventParticipant(data) {
   }
   
   var customDataJson = JSON.stringify(finalCustomData);
+  rSheet.appendRow([Utilities.getUuid(), data.eventId, eventTitle, data.name, data.email, proofUrl, "PENDING", new Date().toISOString(), customDataJson, "NOT_USED", ""]);
   
-  rSheet.appendRow([
-    Utilities.getUuid(), data.eventId, eventTitle, data.name, data.email, 
-    proofUrl, "PENDING", new Date().toISOString(), customDataJson, "NOT_USED", ""
-  ]);
-  
-  var body = `
-    <p>Halo <strong>${data.name}</strong>, 👋</p>
-    <p>Terima kasih telah mendaftar di acara <strong>"${eventTitle}"</strong>.</p>
-    <p>Data pendaftaran dan bukti pembayaran Anda telah kami terima. Tim kami sedang melakukan verifikasi.</p>
-    <p>Mohon cek email Anda secara berkala untuk info selanjutnya.</p>
-  `;
+  var body = `<p>Halo <strong>${data.name}</strong>, 👋</p><p>Terima kasih telah mendaftar di acara <strong>"${eventTitle}"</strong>.</p><p>Data pendaftaran dan bukti pembayaran Anda telah kami terima. Tim kami sedang melakukan verifikasi.</p><p>Mohon cek email Anda secara berkala untuk info selanjutnya.</p>`;
   _sendBrandedEmail(data.email, "Pendaftaran Diterima", "MENUNGGU VERIFIKASI", body);
 
   return { status: "PENDING" };
 }
 
 function getRegistrations() { /*...*/ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); if (rows.length <= 1) return []; return rows.slice(1).map(function(row) { return { id: row[0], eventId: row[1], eventTitle: row[2], userName: row[3], userEmail: row[4], proofUrl: row[5], status: row[6], registrationDate: row[7], customData: row[8], checkInStatus: row[9] || "NOT_USED", checkInTime: row[10] || "" }; }); }
-function getRegistration(data) { /*...*/ var rSheet = _getSheet("Registrations"); var rRows = rSheet.getDataRange().getValues(); var reg = null; for(var i=1; i<rRows.length; i++) { if(rRows[i][0] == data.id) { reg = { id: rRows[i][0], eventId: rRows[i][1], eventTitle: rRows[i][2], userName: rRows[i][3], userEmail: rRows[i][4], status: rRows[i][6], registrationDate: rRows[i][7], customData: rRows[i][8], checkInStatus: rRows[i][9] || "NOT_USED", checkInTime: rRows[i][10] || "" }; break; } } if (!reg) throw new Error("Pendaftaran tidak ditemukan."); var eSheet = _getSheet("Events"); var eRows = eSheet.getDataRange().getValues(); var certConfig = null; for(var j=1; j<eRows.length; j++) { if(eRows[j][0] == reg.eventId) { try { certConfig = eRows[j][13] ? JSON.parse(eRows[j][13]) : null; } catch(e) {} break; } } if (!certConfig) { var settings = getCertificateSettings(); if (settings.backgroundUrl) { certConfig = settings; } } return { registration: reg, certificateConfig: certConfig }; }
+function getRegistration(data) { /*...*/ var rSheet = _getSheet("Registrations"); var rRows = rSheet.getDataRange().getValues(); var reg = null; for(var i=1; i<rRows.length; i++) { if(rRows[i][0] == data.id) { reg = { id: rRows[i][0], eventId: rRows[i][1], eventTitle: rRows[i][2], userName: rRows[i][3], userEmail: rRows[i][4], status: rRows[i][6], registrationDate: rRows[i][7], customData: rRows[i][8], checkInStatus: rRows[i][9] || "NOT_USED", checkInTime: rRows[i][10] || "" }; break; } } if (!reg) throw new Error("Pendaftaran tidak ditemukan."); var eSheet = _getSheet("Events"); var eRows = eSheet.getDataRange().getValues(); var certConfig = null; for(var j=1; j<eRows.length; j++) { if(eRows[j][0] == reg.eventId) { try { certConfig = eRows[j][13] ? JSON.parse(eRows[j][13]) : null; } catch(e) {} break; } } return { registration: reg, certificateConfig: certConfig }; }
 function validateTicket(data) { /*...*/ var ticketId = data.ticketId; var eventId = data.eventId; if (!ticketId || !eventId) throw new Error("Data scan tidak lengkap."); var eSheet = _getSheet("Events"); var eRows = eSheet.getDataRange().getValues(); var eventActive = false; var eventName = ""; for(var i=1; i<eRows.length; i++) { if(eRows[i][0] == eventId) { var isOpen = (eRows[i][11] === true || String(eRows[i][11]).toUpperCase() === "TRUE"); if (isOpen) { eventActive = true; eventName = eRows[i][1]; } break; } } if (!eventActive) throw new Error("Link scan tidak valid atau Event sudah ditutup/selesai."); var rSheet = _getSheet("Registrations"); var rRows = rSheet.getDataRange().getValues(); var foundIndex = -1; for(var i=1; i<rRows.length; i++) { if (rRows[i][0] == ticketId) { foundIndex = i; break; } } if (foundIndex === -1) throw new Error("Tiket tidak ditemukan dalam database."); var row = rRows[foundIndex]; if (row[1] != eventId) throw new Error("Tiket ini bukan untuk acara ini (" + eventName + ")."); if (row[6] !== "APPROVED") throw new Error("Status tiket belum disetujui (Status: " + row[6] + ")."); if (row[9] === "CHECKED_IN") throw new Error("Tiket SUDAH DIPAKAI pada " + new Date(row[10]).toLocaleString()); var now = new Date().toISOString(); rSheet.getRange(foundIndex + 1, 10).setValue("CHECKED_IN"); rSheet.getRange(foundIndex + 1, 11).setValue(now); var logSheet = _getSheet("ScanLogs"); logSheet.appendRow([ now, ticketId, eventId, eventName, row[3], row[4] ]); return { success: true, participantName: row[3], eventName: row[2], checkInTime: now }; }
+function exportParticipants(data) { var eventId = data.eventId; var rSheet = _getSheet("Registrations"); var rRows = rSheet.getDataRange().getValues(); var headers = ["No", "ID Pendaftaran", "Nama Peserta", "Email", "Acara", "Tanggal Beli", "Status", "Check-In", "Waktu Check-In"]; var customKeys = new Set(); var filteredRows = []; for(var i=1; i<rRows.length; i++) { if (eventId === 'ALL' || rRows[i][1] == eventId) { filteredRows.push(rRows[i]); try { var cData = JSON.parse(rRows[i][8] || "{}"); Object.keys(cData).forEach(function(k) { customKeys.add(k); }); } catch(e) {} } } var customKeysArray = Array.from(customKeys); headers = headers.concat(customKeysArray); function escapeCsv(val) { if (val === null || val === undefined) return ""; var str = String(val); if (str.search(/("|,|\n)/g) >= 0) { str = '"' + str.replace(/"/g, '""') + '"'; } return str; } var csvContent = headers.map(escapeCsv).join(",") + "\n"; filteredRows.forEach(function(row, index) { var line = [ index + 1, row[0], row[3], row[4], row[2], new Date(row[7]).toLocaleDateString(), row[6], row[9] || "NOT_USED", row[10] ? new Date(row[10]).toLocaleString() : "-" ]; var cData = {}; try { cData = JSON.parse(row[8] || "{}"); } catch(e) {} customKeysArray.forEach(function(key) { var val = cData[key] || "-"; line.push(val); }); csvContent += line.map(escapeCsv).join(",") + "\n"; }); return { csv: Utilities.base64Encode(csvContent, Utilities.Charset.UTF_8), filename: "Export_Peserta_" + new Date().getTime() + ".csv" }; }
+function updateRegistrationStatus(data) { /*...*/ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { sheet.getRange(i + 1, 7).setValue(data.status); var email = rows[i][4]; var name = rows[i][3]; var evtTitle = rows[i][2]; var isApproved = data.status === 'APPROVED'; var statusTitle = isApproved ? 'PENDAFTARAN DISETUJUI' : 'PENDAFTARAN DITOLAK'; var body = ""; if (isApproved) { var baseUrl = data.baseUrl || "https://bisdig.upy.ac.id/hmp/"; var cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl; var ticketLink = cleanBaseUrl + "/#/ticket-view/" + data.id; body = `<p>Halo <strong>${name}</strong>,</p><p>Selamat! Pembayaran Anda telah kami verifikasi.</p><p>Tiket Anda untuk acara <strong>"${evtTitle}"</strong> sekarang berstatus <strong>VALID</strong>.</p><p>Klik tombol di bawah ini untuk melihat dan mengunduh E-Ticket Anda:</p>${_generateEmailButton(ticketLink, "LIHAT E-TICKET SAYA")}<br/><p style="font-size:12px; color:gray;">Atau login ke dashboard jika Anda memiliki akun.</p><p>Sampai jumpa di acara!</p>`; } else { body = `<p>Halo <strong>${name}</strong>,</p><p>Mohon maaf, pendaftaran Anda untuk acara <strong>"${evtTitle}"</strong> belum dapat kami setujui.</p><p>Hal ini mungkin disebabkan karena bukti pembayaran tidak valid atau kuota telah penuh.</p><p>Silakan hubungi admin kami jika Anda merasa ini adalah kesalahan.</p>`; } try { _sendBrandedEmail(email, "Status Tiket Event", statusTitle, body); } catch(e){} return { status: data.status }; } } throw new Error("Registration not found"); }
 
-// --- FIXED CSV EXPORT ---
-function exportParticipants(data) {
-  var eventId = data.eventId;
+// --- GOOGLE SLIDES CERTIFICATE GENERATOR (NEW) ---
+function generateSlideCertificate(data) {
+  var regId = data.id;
+  if (!regId) throw new Error("ID Registrasi diperlukan.");
+
+  // 1. Get Registration Data
   var rSheet = _getSheet("Registrations");
   var rRows = rSheet.getDataRange().getValues();
-  
-  // Base Headers
-  var headers = ["No", "ID Pendaftaran", "Nama Peserta", "Email", "Acara", "Tanggal Beli", "Status", "Check-In", "Waktu Check-In"];
-  
-  // Find all unique custom keys first
-  var customKeys = new Set();
-  var filteredRows = [];
-  
-  // Filter rows and collect custom keys
+  var reg = null;
   for(var i=1; i<rRows.length; i++) {
-    if (eventId === 'ALL' || rRows[i][1] == eventId) {
-      filteredRows.push(rRows[i]);
-      try {
-        var cData = JSON.parse(rRows[i][8] || "{}");
-        Object.keys(cData).forEach(function(k) { customKeys.add(k); });
-      } catch(e) {}
+    if(rRows[i][0] == regId) {
+      reg = {
+        id: rRows[i][0],
+        eventId: rRows[i][1],
+        eventTitle: rRows[i][2],
+        name: rRows[i][3],
+        date: rRows[i][7]
+      };
+      break;
     }
   }
+  if (!reg) throw new Error("Data registrasi tidak ditemukan.");
+
+  // 2. Get Event Data (Slide ID)
+  var eSheet = _getSheet("Events");
+  var eRows = eSheet.getDataRange().getValues();
+  var slideId = "";
+  var eventCategory = "Event";
+  var eventDateStr = "";
   
-  var customKeysArray = Array.from(customKeys);
-  headers = headers.concat(customKeysArray);
-  
-  // Construct CSV String
-  // Escape quotes in content by replacing " with "" and wrapping in quotes
-  function escapeCsv(val) {
-    if (val === null || val === undefined) return "";
-    var str = String(val);
-    if (str.search(/("|,|\n)/g) >= 0) {
-      str = '"' + str.replace(/"/g, '""') + '"';
+  for(var j=1; j<eRows.length; j++) {
+    if(eRows[j][0] == reg.eventId) {
+      slideId = eRows[j][19]; // Column 20 (Index 19)
+      eventCategory = eRows[j][7];
+      var d = eRows[j][3];
+      if (d) eventDateStr = new Date(d).toLocaleDateString('id-ID', {day:'numeric', month:'long', year:'numeric'});
+      break;
     }
-    return str;
   }
 
-  var csvContent = headers.map(escapeCsv).join(",") + "\n";
-  
-  filteredRows.forEach(function(row, index) {
-    var line = [
-      index + 1,
-      row[0], // ID
-      row[3], // Name
-      row[4], // Email
-      row[2], // Event Title
-      new Date(row[7]).toLocaleDateString(), // Date
-      row[6], // Status
-      row[9] || "NOT_USED", // Check In Status
-      row[10] ? new Date(row[10]).toLocaleString() : "-" // Check In Time
-    ];
+  if (!slideId) throw new Error("Template Sertifikat (Google Slide) belum diatur untuk acara ini. Hubungi Admin.");
+
+  // 3. Create Temp Copy of Slide
+  try {
+    var templateFile = DriveApp.getFileById(slideId);
+    var tempFolder = _getAdminFolder();
+    var tempFile = templateFile.makeCopy("TEMP_CERT_" + reg.id, tempFolder);
+    var tempId = tempFile.getId();
     
-    // Custom Data
-    var cData = {};
-    try { cData = JSON.parse(row[8] || "{}"); } catch(e) {}
+    // 4. Open Slide & Replace Text
+    var presentation = SlidesApp.openById(tempId);
     
-    customKeysArray.forEach(function(key) {
-      var val = cData[key] || "-";
-      line.push(val);
-    });
+    // Perform Replacements
+    presentation.replaceAllText("{{nama}}", reg.name.toUpperCase());
+    presentation.replaceAllText("{{event}}", reg.eventTitle);
+    presentation.replaceAllText("{{kategori}}", eventCategory);
+    presentation.replaceAllText("{{tanggal}}", eventDateStr);
+    presentation.replaceAllText("{{id}}", reg.id.substring(0,8));
     
-    csvContent += line.map(escapeCsv).join(",") + "\n";
-  });
-  
-  return { 
-    csv: Utilities.base64Encode(csvContent, Utilities.Charset.UTF_8), 
-    filename: "Export_Peserta_" + new Date().getTime() + ".csv" 
-  };
+    presentation.saveAndClose();
+    
+    // 5. Convert to PDF Blob
+    var pdfBlob = tempFile.getAs(MimeType.PDF);
+    var base64 = Utilities.base64Encode(pdfBlob.getBytes());
+    
+    // 6. Cleanup (Delete Temp Slide)
+    tempFile.setTrashed(true);
+    
+    return { 
+      pdfBase64: base64, 
+      filename: "Sertifikat-" + reg.name.replace(/[^a-z0-9]/gi, '_') + ".pdf" 
+    };
+
+  } catch(e) {
+    throw new Error("Gagal generate sertifikat: " + e.message + ". Pastikan Google Slides API aktif di script editor.");
+  }
 }
 
-function updateRegistrationStatus(data) { /*...*/ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); for (var i = 1; i < rows.length; i++) { if (rows[i][0] == data.id) { sheet.getRange(i + 1, 7).setValue(data.status); var email = rows[i][4]; var name = rows[i][3]; var evtTitle = rows[i][2]; var isApproved = data.status === 'APPROVED'; var statusTitle = isApproved ? 'PENDAFTARAN DISETUJUI' : 'PENDAFTARAN DITOLAK'; var body = ""; if (isApproved) { var baseUrl = data.baseUrl || "https://bisdig.upy.ac.id/hmp/"; var cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl; var ticketLink = cleanBaseUrl + "/#/ticket-view/" + data.id; body = `<p>Halo <strong>${name}</strong>,</p><p>Selamat! Pembayaran Anda telah kami verifikasi.</p><p>Tiket Anda untuk acara <strong>"${evtTitle}"</strong> sekarang berstatus <strong>VALID</strong>.</p><p>Klik tombol di bawah ini untuk melihat dan mengunduh E-Ticket Anda:</p>${_generateEmailButton(ticketLink, "LIHAT E-TICKET SAYA")}<br/><p style="font-size:12px; color:gray;">Atau login ke dashboard jika Anda memiliki akun.</p><p>Sampai jumpa di acara!</p>`; } else { body = `<p>Halo <strong>${name}</strong>,</p><p>Mohon maaf, pendaftaran Anda untuk acara <strong>"${evtTitle}"</strong> belum dapat kami setujui.</p><p>Hal ini mungkin disebabkan karena bukti pembayaran tidak valid atau kuota telah penuh.</p><p>Silakan hubungi admin kami jika Anda merasa ini adalah kesalahan.</p>`; } try { _sendBrandedEmail(email, "Status Tiket Event", statusTitle, body); } catch(e){} return { status: data.status }; } } throw new Error("Registration not found"); }
-function sendCertificate(data) { /*...*/ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); var baseUrl = data.baseUrl || "https://bisdig.upy.ac.id/hmp/"; var cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl; var certLink = cleanBaseUrl + "/#/certificate/" + data.id; for(var i=1; i<rows.length; i++) { if(rows[i][0] == data.id) { var name = rows[i][3]; var evtTitle = rows[i][2]; var body = `<p>Halo <strong>${name}</strong>,</p><p>Terima kasih telah berpartisipasi dalam acara <strong>"${evtTitle}"</strong>.</p><p>Sebagai bentuk apresiasi, kami lampirkan e-Sertifikat keikutsertaan Anda.</p>${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}<p>Semoga ilmu yang didapatkan bermanfaat!</p>`; _sendBrandedEmail(rows[i][4], "Sertifikat Acara Telah Terbit", "E-SERTIFIKAT", body); return { sent: true }; } } throw new Error("Not found"); }
+function sendCertificate(data) { 
+  var sheet = _getSheet("Registrations"); 
+  var rows = sheet.getDataRange().getValues(); 
+  var baseUrl = data.baseUrl || "https://bisdig.upy.ac.id/hmp/"; 
+  var cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl; 
+  var certLink = cleanBaseUrl + "/#/certificate/" + data.id; 
+  
+  for(var i=1; i<rows.length; i++) { 
+    if(rows[i][0] == data.id) { 
+      var name = rows[i][3]; 
+      var evtTitle = rows[i][2]; 
+      var body = `<p>Halo <strong>${name}</strong>,</p><p>Terima kasih telah berpartisipasi dalam acara <strong>"${evtTitle}"</strong>.</p><p>Sertifikat Anda telah terbit dan siap diunduh.</p>${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}`; 
+      _sendBrandedEmail(rows[i][4], "Sertifikat Acara Telah Terbit", "E-SERTIFIKAT", body); 
+      return { sent: true }; 
+    } 
+  } 
+  throw new Error("Not found"); 
+}
+
 function sendBulkCertificates(data) { /*...*/ var sheet = _getSheet("Registrations"); var rows = sheet.getDataRange().getValues(); var idsToProcess = data.ids || []; var successCount = 0; var failCount = 0; var idMap = {}; var baseUrl = data.baseUrl || "https://bisdig.upy.ac.id/hmp/"; var cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl; for(var i=1; i<rows.length; i++) { idMap[rows[i][0]] = i; } idsToProcess.forEach(function(id) { var rowIndex = idMap[id]; if(rowIndex) { var row = rows[rowIndex]; if(row[6] === 'APPROVED') { try { var certLink = cleanBaseUrl + "/#/certificate/" + id; var body = `<p>Sertifikat Anda:</p>${_generateEmailButton(certLink, "DOWNLOAD SERTIFIKAT")}`; _sendBrandedEmail(row[4], "Sertifikat Acara Telah Terbit", "SERTIFIKAT", body); successCount++; } catch(e) { failCount++; } } } }); return { sent: successCount, failed: failCount }; }
 function savePaymentSettings(data) { /*...*/ var ss = _getDb(); var sheet = ss.getSheetByName("Settings"); if (!sheet) { sheet = ss.insertSheet("Settings"); sheet.appendRow(["Key", "Value"]); } var qrisUrl = data.currentQrisUrl || ""; if (data.qrisBase64) { try { var folder = _getAdminFolder(); var blob = Utilities.newBlob(Utilities.base64Decode(data.qrisBase64), "image/jpeg", "qris_master"); var file = folder.createFile(blob); file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); qrisUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); } catch(e) {} } var setSetting = function(key, val) { var data = sheet.getDataRange().getValues(); for(var i=0; i<data.length; i++) { if(data[i][0] == key) { sheet.getRange(i+1, 2).setValue(val); return; } } sheet.appendRow([key, val]); }; setSetting("BANK_ACCOUNTS_JSON", JSON.stringify(data.bankAccounts || [])); setSetting("QRIS_URL", qrisUrl); return { success: true, qrisUrl: qrisUrl }; }
 function getPaymentSettings() { /*...*/ var sheet = _getSheet("Settings"); if (!sheet) return { bankAccounts: [], qrisUrl: "" }; var data = sheet.getDataRange().getValues(); var settings = {}; data.forEach(function(r) { settings[r[0]] = r[1]; }); var bankAccounts = []; if (settings["BANK_ACCOUNTS_JSON"]) { try { bankAccounts = JSON.parse(settings["BANK_ACCOUNTS_JSON"]); } catch (e) { } } return { bankAccounts: bankAccounts, qrisUrl: settings["QRIS_URL"] || "" }; }
@@ -490,23 +442,17 @@ function _initDbIfNeeded() {
   var ss = _getDb();
   
   if(!ss.getSheetByName("Events")) {
-    ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig","thumbnail","enableTicketScanner","mapUrl", "status", "groupLink"]);
+    ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig","thumbnail","enableTicketScanner","mapUrl", "status", "groupLink", "certificateSlideId"]);
   } else {
     var eSheet = ss.getSheetByName("Events");
     var lastCol = eSheet.getLastColumn();
-    // Add missing columns if legacy sheet
-    if (lastCol < 16) eSheet.getRange(1, 16).setValue("enableTicketScanner");
-    if (lastCol < 17) eSheet.getRange(1, 17).setValue("mapUrl");
-    if (lastCol < 18) eSheet.getRange(1, 18).setValue("status");
+    // Add missing columns dynamically
     if (lastCol < 19) eSheet.getRange(1, 19).setValue("groupLink");
+    if (lastCol < 20) eSheet.getRange(1, 20).setValue("certificateSlideId");
   }
   
   if(!ss.getSheetByName("Registrations")) {
     ss.insertSheet("Registrations").appendRow(["id","eventId","evtTitle","name","email","proof","status","date","customData","checkInStatus","checkInTime"]);
-  } else {
-    var rSheet = ss.getSheetByName("Registrations");
-    if (rSheet.getLastColumn() < 10) rSheet.getRange(1, 10).setValue("checkInStatus");
-    if (rSheet.getLastColumn() < 11) rSheet.getRange(1, 11).setValue("checkInTime");
   }
   
   if(!ss.getSheetByName("ScanLogs")) {

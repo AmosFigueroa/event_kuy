@@ -23,28 +23,27 @@ export interface FormField {
 
 export interface CertificateElement {
   id: string;
-  type: 'text' | 'dynamic' | 'image'; // Added 'image'
-  field: string; // For text/dynamic: content/key. For image: base64 string or URL
-  label: string; // UI Label for the admin
+  type: 'text' | 'dynamic' | 'image'; 
+  field: string; 
+  label: string; 
   x: number;
   y: number;
-  fontSize?: number; // Optional for image
-  fontFamily?: string; // Optional for image
-  color?: string; // Optional for image
-  fontWeight?: 'normal' | 'bold'; // Optional for image
-  align?: 'left' | 'center' | 'right'; // Horizontal Alignment
-  verticalAlign?: 'top' | 'middle' | 'bottom'; // NEW: Vertical Alignment
+  fontSize?: number; 
+  fontFamily?: string; 
+  color?: string; 
+  fontWeight?: 'normal' | 'bold'; 
+  align?: 'left' | 'center' | 'right'; 
   textTransform?: 'none' | 'uppercase' | 'lowercase';
-  width?: number; // Required for image/centering
-  height?: number; // Added for image
-  strokeWidth?: number; // ADDED: Text Outline Width
-  strokeColor?: string; // ADDED: Text Outline Color
+  width?: number; 
+  height?: number; 
+  strokeWidth?: number; 
+  strokeColor?: string; 
 }
 
 export interface CertificateConfig {
   backgroundUrl: string;
   elements: CertificateElement[];
-  csvDataUrl?: string; // URL to the uploaded CSV JSON data in Drive
+  csvDataUrl?: string; 
 }
 
 export type EventStatus = 'COMING_SOON' | 'OPEN' | 'EXTENDED' | 'CLOSED';
@@ -56,20 +55,25 @@ export interface Event {
   date: string;
   time: string;
   location: string;
-  mapUrl?: string; // Specific Google Maps Link
-  groupLink?: string; // NEW: WhatsApp/Telegram Group Link
+  mapUrl?: string; 
+  groupLink?: string; 
   price: number;
   category: string; 
   bannerUrl: string;
-  thumbnailUrl?: string; // Portrait thumbnail for grids (4:5)
+  thumbnailUrl?: string; 
   maxParticipants: number;
   currentParticipants: number;
   paymentInstructions?: string;
-  isOpen: boolean; // Computed based on status for backward compatibility
-  status: EventStatus; // NEW: Explicit Status
+  isOpen: boolean; 
+  status: EventStatus; 
   formFields?: FormField[];
-  certificateConfig?: CertificateConfig; // Event-specific cert config
-  enableTicketScanner?: boolean; // Toggle for QR Code feature
+  
+  // NEW: Google Slide Template ID (Unique per Event)
+  certificateSlideId?: string; 
+  
+  // Legacy (Optional - kept for backward compatibility)
+  certificateConfig?: CertificateConfig; 
+  enableTicketScanner?: boolean; 
 }
 
 export enum RegistrationStatus {
@@ -87,9 +91,9 @@ export interface Registration {
   proofUrl: string;
   status: RegistrationStatus;
   registrationDate: string;
-  customData?: string; // JSON string of custom form answers
-  checkInStatus?: 'NOT_USED' | 'CHECKED_IN'; // NEW
-  checkInTime?: string; // NEW: ISO String
+  customData?: string; 
+  checkInStatus?: 'NOT_USED' | 'CHECKED_IN'; 
+  checkInTime?: string; 
 }
 
 export interface BankAccount {
@@ -110,7 +114,6 @@ export interface CertificateSettings {
   csvDataUrl?: string;
 }
 
-// Auth Types
 export type UserRole = 'ADMIN' | 'USER';
 
 export interface UserSession {

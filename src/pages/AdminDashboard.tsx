@@ -8,11 +8,6 @@ import { Event, EventCategory, Registration, RegistrationStatus, FormField, Form
 import { useNavigate } from 'react-router-dom';
 import CustomAlert from '../components/CustomAlert';
 
-// Constants for Certificate Canvas (A4 Landscape aspect ratio)
-const CANVAS_WIDTH = 842;
-const CANVAS_HEIGHT = 595;
-const GRID_SIZE = 20; // 20px grid cells
-
 // Chart Colors
 const COLORS = ['#0B1CDE', '#DFFF00', '#EF4444', '#2B427A'];
 
@@ -22,7 +17,6 @@ const AdminDashboard: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [loading, setLoading] = useState(false);
-  const [processingCert, setProcessingCert] = useState<string | null>(null);
   const [isBulkSending, setIsBulkSending] = useState(false);
   const navigate = useNavigate();
   const session = getUserSession();
@@ -88,8 +82,6 @@ const AdminDashboard: React.FC = () => {
   const [activeElementId, setActiveElementId] = useState<string | null>(null);
   const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
   const [initialPos, setInitialPos] = useState<{x: number, y: number} | null>(null);
-  const [showGrid, setShowGrid] = useState(true);
-  const [snapToGrid, setSnapToGrid] = useState(true);
   
   // Bank Account Form State
   const [tempAccount, setTempAccount] = useState<BankAccount>({ id: '', bankName: '', accountNumber: '', accountHolder: '' });
@@ -107,7 +99,8 @@ const AdminDashboard: React.FC = () => {
     enableTicketScanner: false,
     mapUrl: '',
     groupLink: '',
-    status: 'OPEN'
+    status: 'OPEN',
+    certificateSlideId: ''
   });
   const [customCategory, setCustomCategory] = useState(''); 
   const [isCustomCat, setIsCustomCat] = useState(false);
@@ -136,7 +129,7 @@ const AdminDashboard: React.FC = () => {
     }
   }, [navigate]);
 
-  // ... (formatDriveUrl, handleAiAnalysis, loadData, handleStatusUpdate, handleExportData, handleExportAttendance, handleBulkSendCertificates, handleSaveCertSettings, handleSavePaymentSettings, resetWizard, handleBannerChange, handleThumbnailChange, handleGenerateDescription, addFormField, updateFormField, removeFormField, handleCreateOrUpdateEvent unchanged) ...
+  // Helper to fix Drive URLs
   const formatDriveUrl = (url: string) => {
       if (!url) return '';
       if (url.includes('lh3.googleusercontent.com') || !url.includes('google.com')) return url;
@@ -178,16 +171,19 @@ const AdminDashboard: React.FC = () => {
       const evts = results[0].status === 'fulfilled' ? results[0].value : [];
       const regs = results[1].status === 'fulfilled' ? results[1].value : [];
       const payment = results[2].status === 'fulfilled' ? results[2].value : { bankAccounts: [], qrisUrl: '' };
-      const certs = results[3].status === 'fulfilled' ? results[3].value : { backgroundUrl: '', elements: [] };
+      const loadedCert = results[3].status === 'fulfilled' ? results[3].value : { backgroundUrl: '', elements: [] };
 
       setEvents(evts || []);
       setRegistrations(regs || []);
       setPaymentSettings(payment || { bankAccounts: [], qrisUrl: '' });
+      
       const uniqueEmails = new Set(regs?.map(r => r.userEmail.toLowerCase()) || []);
       setUniqueUserCount(uniqueEmails.size);
-      const loadedCert = certs || { backgroundUrl: '', elements: [] };
-      setCertSettings(loadedCert);
-      if (loadedCert.backgroundUrl) setCertSettingsBgPreview(loadedCert.backgroundUrl);
+
+      // Load Cert Settings
+      setCertSettings(loadedCert || { backgroundUrl: '', elements: [] });
+      if (loadedCert?.backgroundUrl) setCertSettingsBgPreview(loadedCert.backgroundUrl);
+
     } catch (error) {
       console.error("Load Data Error:", error);
     } finally {
@@ -329,7 +325,7 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
-  const handleSaveCertSettings = async () => { 
+  const handleSaveCertSettings = async () => {
       setSavingCertSettings(true);
       try {
            let bgBase64 = undefined;
@@ -376,11 +372,11 @@ const AdminDashboard: React.FC = () => {
       maxParticipants: 100,
       formFields: [],
       time: '09:00',
-      certificateConfig: { backgroundUrl: '', elements: [] },
       enableTicketScanner: false,
       mapUrl: '',
       groupLink: '',
-      status: 'OPEN'
+      status: 'OPEN',
+      certificateSlideId: ''
     });
     setBannerFile(null);
     setBannerPreview(null);
@@ -472,6 +468,7 @@ const AdminDashboard: React.FC = () => {
                  reader.readAsDataURL(thumbnailFile);
              });
           }
+          
           let certBgBase64 = undefined;
           if (certBgFile) {
               certBgBase64 = await new Promise<string>((resolve) => {
@@ -480,10 +477,12 @@ const AdminDashboard: React.FC = () => {
                  reader.readAsDataURL(certBgFile);
              });
           }
+          
           const eventPayload = {
               ...newEvent,
               category: isCustomCat ? customCategory : newEvent.category
           };
+          
           if (editingId) {
               await updateEvent({ ...eventPayload, id: editingId }, bannerBase64, certBgBase64, thumbnailBase64);
               showAlert('success', 'Berhasil', 'Acara berhasil diperbarui.');
@@ -519,8 +518,8 @@ const AdminDashboard: React.FC = () => {
               type,
               field: type === 'dynamic' ? 'userName' : (type === 'text' ? 'Teks Baru' : 'https://via.placeholder.com/150'),
               label: 'Element Baru',
-              x: CANVAS_WIDTH / 2, 
-              y: CANVAS_HEIGHT / 2, 
+              x: 421, // Center of A4 width (842)
+              y: 297, // Center of A4 height (595)
               fontSize: 24,
               fontFamily: 'Helvetica',
               align: 'center',
@@ -543,17 +542,7 @@ const AdminDashboard: React.FC = () => {
           if (dragStart && activeElementId && initialPos) {
               const dx = e.clientX - dragStart.x;
               const dy = e.clientY - dragStart.y;
-              
-              let newX = initialPos.x + dx;
-              let newY = initialPos.y + dy;
-
-              // Grid Snapping Logic
-              if (snapToGrid) {
-                  newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
-                  newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
-              }
-
-              const updated = elements.map(el => el.id === activeElementId ? { ...el, x: newX, y: newY } : el);
+              const updated = elements.map(el => el.id === activeElementId ? { ...el, x: initialPos.x + dx, y: initialPos.y + dy } : el);
               updateConfig(updated);
           }
       };
@@ -569,18 +558,7 @@ const AdminDashboard: React.FC = () => {
           <div className="flex flex-col lg:flex-row h-full bg-white rounded-xl overflow-hidden border border-gray-200">
               <div className="w-full lg:w-80 bg-gray-50 border-r border-gray-200 flex flex-col z-30 shadow-xl h-full">
                   <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                      {/* --- TOOLS: ADD & BACKGROUND --- */}
                       <div>
-                          <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">CANVAS TOOLS</h4>
-                          <div className="grid grid-cols-2 gap-2 mb-4">
-                              <button onClick={() => setShowGrid(!showGrid)} className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border ${showGrid ? 'bg-[#0B1CDE] text-white border-[#0B1CDE]' : 'bg-white text-gray-600 border-gray-200'}`}>
-                                  <Grid className="w-3 h-3"/> Grid
-                              </button>
-                              <button onClick={() => setSnapToGrid(!snapToGrid)} className={`p-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border ${snapToGrid ? 'bg-[#0B1CDE] text-white border-[#0B1CDE]' : 'bg-white text-gray-600 border-gray-200'}`}>
-                                  <Magnet className="w-3 h-3"/> Snap
-                              </button>
-                          </div>
-
                           <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">TAMBAH ELEMEN</h4>
                           <div className="space-y-2">
                               <button onClick={() => handleAddElement('dynamic')} className="w-full p-3 bg-white border border-gray-200 text-[#2B427A] rounded-xl text-sm font-bold flex items-center gap-3 hover:border-[#0B1CDE] hover:text-[#0B1CDE] hover:shadow-md transition-all group">
@@ -597,8 +575,9 @@ const AdminDashboard: React.FC = () => {
                               </button>
                           </div>
                       </div>
+
                       <div className="pt-4 border-t border-gray-200">
-                          <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND (A4 LANDSCAPE)</h4>
+                          <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND</h4>
                           <label className="w-full cursor-pointer group">
                                <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-xl bg-white flex flex-col items-center justify-center gap-2 group-hover:border-[#0B1CDE] group-hover:bg-blue-50 transition-all overflow-hidden relative">
                                    {bgUrl ? (
@@ -630,9 +609,10 @@ const AdminDashboard: React.FC = () => {
                                    }
                                }} accept="image/*" />
                           </label>
-                          <p className="text-[10px] text-gray-400 mt-2 font-medium">Rekomedasi: 3508 x 2480 px (A4 @ 300DPI)</p>
+                          <p className="text-[10px] text-gray-400 mt-2 font-medium">Format: JPG/PNG, Orientasi Landscape (A4)</p>
                       </div>
                   </div>
+
                   <div className="bg-white border-t-2 border-gray-200 p-5 flex-shrink-0 max-h-[50%] overflow-y-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] custom-scrollbar">
                       <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
                         <h4 className="text-xs font-black text-[#2B427A] uppercase tracking-wider flex items-center gap-2">
@@ -647,21 +627,9 @@ const AdminDashboard: React.FC = () => {
                             </button>
                         )}
                       </div>
+                      
                       {activeElement ? (
                           <div className="space-y-4 animate-fade-in">
-                              
-                              {/* --- POSITIONING INPUTS --- */}
-                              <div className="grid grid-cols-2 gap-3 mb-2 p-2 bg-gray-50 rounded border border-gray-100">
-                                  <div>
-                                      <label className="text-[10px] font-black text-gray-400 uppercase block">Posisi X</label>
-                                      <input type="number" value={activeElement.x} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, x: Number(e.target.value) } : el))} className="w-full p-1 border rounded text-xs font-bold text-center" />
-                                  </div>
-                                  <div>
-                                      <label className="text-[10px] font-black text-gray-400 uppercase block">Posisi Y</label>
-                                      <input type="number" value={activeElement.y} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, y: Number(e.target.value) } : el))} className="w-full p-1 border rounded text-xs font-bold text-center" />
-                                  </div>
-                              </div>
-
                               <div>
                                   <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Konten / Isi</label>
                                   {activeElement.type === 'dynamic' ? (
@@ -685,6 +653,7 @@ const AdminDashboard: React.FC = () => {
                                       </div>
                                   )}
                               </div>
+
                               <div className="grid grid-cols-2 gap-3">
                                   {activeElement.type !== 'image' && (
                                     <>
@@ -692,6 +661,7 @@ const AdminDashboard: React.FC = () => {
                                           <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Size (px)</label>
                                           <input type="number" value={activeElement.fontSize || 12} onChange={e => updateConfig(elements.map(el => el.id === activeElement.id ? { ...el, fontSize: Number(e.target.value) } : el))} className="w-full p-2 border-2 border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-[#0B1CDE] text-gray-700" />
                                       </div>
+                                      
                                       <div>
                                           <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Warna</label>
                                           <div className="flex items-center gap-2 border-2 border-gray-200 rounded-lg p-1 focus-within:border-[#0B1CDE] bg-white h-[38px]">
@@ -699,6 +669,7 @@ const AdminDashboard: React.FC = () => {
                                                <span className="text-[10px] font-mono font-bold text-gray-500 uppercase truncate">{activeElement.color}</span>
                                           </div>
                                       </div>
+
                                       <div className="col-span-2">
                                            <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Ketebalan</label>
                                            <div className="relative">
@@ -711,6 +682,7 @@ const AdminDashboard: React.FC = () => {
                                       </div>
                                     </>
                                   )}
+
                                   <div className="col-span-2">
                                       <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Posisi (Align)</label>
                                       <div className="relative">
@@ -722,6 +694,7 @@ const AdminDashboard: React.FC = () => {
                                           </select>
                                       </div>
                                   </div>
+
                                   {activeElement.type === 'image' && (
                                       <div className="col-span-2">
                                           <label className="text-[10px] font-black text-gray-400 uppercase mb-1 block">Lebar (px)</label>
@@ -738,84 +711,45 @@ const AdminDashboard: React.FC = () => {
                       )}
                   </div>
               </div>
+
               <div className="flex-1 flex flex-col min-w-0 bg-[#F0F2F5] relative">
                   <div className="flex-1 overflow-auto p-8 flex items-center justify-center relative shadow-inner" 
                       onMouseMove={handleMouseMove} 
                       onMouseUp={handleMouseUp} 
                       onMouseLeave={handleMouseUp}
                   >
-                      {/* Fixed A4 Canvas Container */}
-                      <div className="relative bg-white shadow-2xl transition-shadow overflow-hidden" style={{ width: 842, height: 595, flexShrink: 0 }}>
-                          
-                          {/* GRID & GUIDES LAYER */}
-                          {showGrid && (
-                              <div className="absolute inset-0 pointer-events-none z-0">
-                                  {/* Small Grid */}
-                                  <div style={{ 
-                                        position: 'absolute', inset: 0,
-                                        backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`,
-                                        backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
-                                  }}></div>
-                                  
-                                  {/* Major Grid Lines (every 100px) */}
-                                  <div style={{ 
-                                        position: 'absolute', inset: 0,
-                                        backgroundImage: `linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)`,
-                                        backgroundSize: `100px 100px`
-                                  }}></div>
-
-                                  {/* Center Guides (Red Dashed) */}
-                                  <div className="absolute top-0 bottom-0 left-1/2 border-l border-red-400 border-dashed opacity-50" style={{ transform: 'translateX(-0.5px)' }}></div>
-                                  <div className="absolute left-0 right-0 top-1/2 border-t border-red-400 border-dashed opacity-50" style={{ transform: 'translateY(-0.5px)' }}></div>
-                              </div>
-                          )}
-
+                      <div className="relative bg-white shadow-2xl transition-shadow" style={{ width: 842, height: 595, flexShrink: 0 }}>
                           {bgUrl ? (
                               <img src={bgUrl} className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                           ) : (
                               <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-4xl uppercase select-none border-2 border-dashed border-gray-300 m-4">Area Sertifikat</div>
                           )}
-                          {elements.map(el => {
-                              let translateX = '-50%';
-                              if (el.align === 'left') translateX = '0';
-                              if (el.align === 'right') translateX = '-100%';
-                              let translateY = '-50%';
-                              const transform = `translate(${translateX}, ${translateY})`;
-                              return (
-                                <div 
-                                    key={el.id} 
-                                    onMouseDown={(e) => handleMouseDown(e, el.id)}
-                                    className={`absolute cursor-move select-none group ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
-                                    style={{ 
-                                        left: el.x, top: el.y, 
-                                        transform: transform,
-                                        width: el.width || 'auto',
-                                        // Show bounding box
-                                        outline: activeElementId !== el.id ? '1px dashed rgba(0,0,0,0.1)' : 'none'
-                                    }}
-                                >
-                                    <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
-                                    <div style={{
-                                        fontSize: el.fontSize, 
-                                        fontFamily: el.fontFamily, 
-                                        color: el.color, 
-                                        fontWeight: el.fontWeight,
-                                        textAlign: el.align,
-                                        position: 'relative',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
-                                    </div>
-                                    
-                                    {/* Coordinates Label on Active */}
-                                    {activeElementId === el.id && (
-                                        <div className="absolute -top-6 left-0 bg-[#0B1CDE] text-white text-[9px] px-1 rounded whitespace-nowrap z-50 shadow-sm font-mono">
-                                            x:{Math.round(el.x)} y:{Math.round(el.y)}
-                                        </div>
-                                    )}
-                                </div>
-                              );
-                          })}
+                          
+                          {elements.map(el => (
+                              <div 
+                                key={el.id} 
+                                onMouseDown={(e) => handleMouseDown(e, el.id)}
+                                className={`absolute cursor-move select-none group ${activeElementId === el.id ? 'z-50' : 'z-10'}`}
+                                style={{ 
+                                    left: el.x, top: el.y, 
+                                    transform: el.align === 'center' ? 'translate(-50%, -50%)' : el.align === 'right' ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
+                                    width: el.width || 'auto'
+                                }}
+                              >
+                                  <div className={`absolute -inset-2 border-2 rounded ${activeElementId === el.id ? 'border-[#0B1CDE] bg-[#0B1CDE]/5' : 'border-transparent group-hover:border-gray-300'}`}></div>
+                                  
+                                  <div style={{
+                                      fontSize: el.fontSize, 
+                                      fontFamily: el.fontFamily, 
+                                      color: el.color, 
+                                      fontWeight: el.fontWeight,
+                                      textAlign: el.align,
+                                      position: 'relative'
+                                  }}>
+                                      {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
+                                  </div>
+                              </div>
+                          ))}
                       </div>
                   </div>
               </div>
@@ -823,9 +757,7 @@ const AdminDashboard: React.FC = () => {
       );
   };
 
-  // ... (renderScanHistory, renderRegistrations, renderEventsList, Main Return unchanged) ...
   const renderScanHistory = () => {
-      // Existing logic
       let checkedInRegs = registrations.filter(r => r.checkInStatus === 'CHECKED_IN');
       if (selectedEventFilter !== 'ALL') {
           checkedInRegs = checkedInRegs.filter(r => r.eventId === selectedEventFilter);
@@ -1157,7 +1089,7 @@ const AdminDashboard: React.FC = () => {
                 <div className="w-full md:w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
                     <div className="p-6 border-b border-gray-200"><h2 className="text-xl font-black text-[#2B427A] uppercase leading-tight">{editingId ? 'Edit Acara' : 'Buat Acara'}</h2></div>
                     <div className="flex-1 py-4 overflow-y-auto">
-                        {[{ step: 1, label: 'Info Dasar', icon: LayoutList }, { step: 2, label: 'Detail & Media', icon: FileText }, { step: 3, label: 'Formulir', icon: FormInput }, { step: 4, label: 'Harga & Kuota', icon: UsersIcon }, { step: 5, label: 'Desain Sertifikat', icon: Palette }].map((item) => (
+                        {[{ step: 1, label: 'Info Dasar', icon: LayoutList }, { step: 2, label: 'Detail & Media', icon: FileText }, { step: 3, label: 'Formulir', icon: FormInput }, { step: 4, label: 'Harga & Kuota', icon: UsersIcon }, { step: 5, label: 'Setup Sertifikat', icon: Award }].map((item) => (
                             <button key={item.step} onClick={() => setWizardStep(item.step)} className={`w-full text-left px-6 py-4 flex items-center gap-3 transition-colors border-l-4 ${wizardStep === item.step ? 'bg-white border-[#0B1CDE] text-[#0B1CDE]' : wizardStep > item.step ? 'border-green-500 text-green-600' : 'border-transparent text-gray-400 hover:bg-gray-100'}`}>
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${wizardStep === item.step ? 'border-[#0B1CDE] bg-[#0B1CDE] text-white' : wizardStep > item.step ? 'border-green-500 bg-green-500 text-white' : 'border-gray-300 text-gray-400'}`}>{wizardStep > item.step ? <CheckCircle className="w-4 h-4"/> : item.step}</div>
                                 <span className="font-bold text-sm">{item.label}</span>
@@ -1197,7 +1129,7 @@ const AdminDashboard: React.FC = () => {
                             </div>
                         )}
                         {wizardStep === 2 && (
-                            <div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi (Teks)</label><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Gedung Auditorium / Zoom" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2"><MapPin className="w-4 h-4"/> Link Google Maps</label><input type="text" value={newEvent.mapUrl||''} onChange={e=>setNewEvent({...newEvent, mapUrl:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div className="md:col-span-2"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2 text-green-600"><MessageCircle className="w-4 h-4"/> Link Grup WhatsApp/Telegram</label><input type="text" value={newEvent.groupLink||''} onChange={e=>setNewEvent({...newEvent, groupLink:e.target.value})} className="w-full p-3 border-2 border-green-200 rounded-xl font-bold focus:border-green-500 outline-none bg-green-50" /></div></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">Deskripsi<button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button></label><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label><input type="file" onChange={handleBannerChange} className="w-full text-xs" />{bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}</div><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />{thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}</div></div></div>
+                            <div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Detail & Media</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Lokasi (Teks)</label><input type="text" value={newEvent.location||''} onChange={e=>setNewEvent({...newEvent, location:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" placeholder="Gedung Auditorium / Zoom" /></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2"><MapPin className="w-4 h-4"/> Link Google Maps</label><input type="text" value={newEvent.mapUrl||''} onChange={e=>setNewEvent({...newEvent, mapUrl:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-bold focus:border-[#0B1CDE] outline-none" /></div><div className="md:col-span-2"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex items-center gap-2 text-green-600"><MessageCircle className="w-4 h-4"/> Link Grup WhatsApp/Telegram</label><input type="text" value={newEvent.groupLink||''} onChange={e=>setNewEvent({...newEvent, groupLink:e.target.value})} className="w-full p-3 border-2 border-green-200 rounded-xl font-bold focus:border-green-500 outline-none bg-green-50" /></div></div><div><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase flex justify-between">Deskripsi<button onClick={handleGenerateDescription} disabled={generatingDesc} className="text-xs text-[#0B1CDE] flex items-center gap-1 hover:underline">{generatingDesc ? <Loader className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>} GENERATE WITH AI</button></label><textarea rows={6} value={newEvent.description||''} onChange={e=>setNewEvent({...newEvent, description:e.target.value})} className="w-full p-3 border-2 border-gray-200 rounded-xl font-medium focus:border-[#0B1CDE] outline-none"/></div><div className="bg-[#F0F9FF] p-6 rounded-xl border border-blue-200 flex items-center justify-between"><div><h4 className="font-black text-[#2B427A] uppercase flex items-center gap-2"><QrCode className="w-5 h-5"/> Sistem Tiket QR Code</h4><p className="text-xs text-gray-500 font-bold mt-1">Aktifkan agar peserta mendapatkan QR Code unik untuk Check-In saat acara.</p></div><div className="flex items-center gap-3"><span className={`text-xs font-bold ${newEvent.enableTicketScanner ? 'text-[#0B1CDE]' : 'text-gray-400'}`}>{newEvent.enableTicketScanner ? 'AKTIF' : 'NONAKTIF'}</span><button onClick={() => setNewEvent({...newEvent, enableTicketScanner: !newEvent.enableTicketScanner})} className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${newEvent.enableTicketScanner ? 'bg-[#0B1CDE]' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all duration-300 ${newEvent.enableTicketScanner ? 'left-7' : 'left-1'}`} /></button></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Banner Utama</label><input type="file" onChange={handleBannerChange} className="w-full text-xs" />{bannerPreview ? <img src={bannerPreview} className="mt-4 h-32 w-full object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Banner</div>}</div><div className="p-4 border-2 border-dashed border-gray-300 rounded-xl text-center"><label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Thumbnail (4:5)</label><input type="file" onChange={handleThumbnailChange} className="w-full text-xs" />{thumbnailPreview ? <img src={thumbnailPreview} className="mt-4 h-32 w-auto mx-auto object-cover rounded-lg border"/> : <div className="mt-4 h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-400 text-xs">Preview Thumbnail</div>}</div></div></div>
                         )}
                         {wizardStep === 3 && (
                             <div className="space-y-6 animate-fade-in">
@@ -1209,8 +1141,42 @@ const AdminDashboard: React.FC = () => {
                         {wizardStep === 4 && (
                             <div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Harga & Kuota</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Harga Tiket</label><div className="flex items-center gap-3"><span className="text-2xl font-bold text-gray-400">Rp</span><input type="number" value={newEvent.price} onChange={e=>setNewEvent({...newEvent, price: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div><p className="text-xs text-gray-400 mt-4 font-bold bg-gray-50 p-2 rounded inline-block">Masukkan 0 untuk Acara GRATIS</p></div><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Kuota Peserta</label><div className="flex items-center gap-3"><UsersIcon className="w-8 h-8 text-gray-400"/><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div></div></div></div>
                         )}
+                        
+                        {/* STEP 5: GOOGLE SLIDE INTEGRATION (UPDATED) */}
                         {wizardStep === 5 && (
-                            <div className="space-y-6 animate-fade-in h-full flex flex-col"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Desain Sertifikat</h3><p className="text-sm text-gray-500 mb-4">Ukuran Kertas: A4 Landscape (842x595 pixels).</p><div className="flex-1 border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(true)}</div></div>
+                            <div className="space-y-6 animate-fade-in h-full flex flex-col">
+                                <h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Setup Sertifikat (Google Slide)</h3>
+                                
+                                <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mb-6">
+                                    <h4 className="font-bold text-[#0B1CDE] mb-2 uppercase flex items-center gap-2"><Info className="w-5 h-5"/> Instruksi Setup</h4>
+                                    <ol className="list-decimal list-inside text-sm text-gray-700 space-y-2 font-medium">
+                                        <li>Buat file presentasi baru di <strong>Google Slides</strong>.</li>
+                                        <li>Atur ukuran page menjadi <strong>A4</strong> (File &gt; Page setup &gt; Custom &gt; 29.7 x 21 cm).</li>
+                                        <li>Desain sertifikat Anda. Gunakan placeholder berikut untuk data otomatis:
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {['{{nama}}', '{{event}}', '{{kategori}}', '{{tanggal}}', '{{id}}'].map(tag => (
+                                                    <span key={tag} className="bg-white px-2 py-1 rounded border font-mono text-xs">{tag}</span>
+                                                ))}
+                                            </div>
+                                        </li>
+                                        <li>Salin <strong>ID Slide</strong> dari URL browser Anda. <br/>
+                                            <span className="text-gray-400 text-xs">(Contoh: docs.google.com/presentation/d/<strong>1XyZ...abc</strong>/edit)</span>
+                                        </li>
+                                    </ol>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-black text-[#2B427A] mb-2 uppercase">Google Slide ID</label>
+                                    <input 
+                                        type="text" 
+                                        value={newEvent.certificateSlideId || ''} 
+                                        onChange={e => setNewEvent({...newEvent, certificateSlideId: e.target.value})} 
+                                        className="w-full p-4 border-2 border-gray-300 rounded-xl font-bold focus:border-[#0B1CDE] outline-none text-lg" 
+                                        placeholder="Tempel ID Slide di sini..." 
+                                    />
+                                    <p className="text-xs text-gray-500 mt-2 font-medium">Pastikan script backend memiliki akses ke file slide ini (Service Account / Owner).</p>
+                                </div>
+                            </div>
                         )}
                     </div>
                     <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
@@ -1221,18 +1187,16 @@ const AdminDashboard: React.FC = () => {
             </div>
         )}
 
-        {/* ... (Overview, Settings, etc tabs) ... */}
+        {/* ... (Overview, Settings tabs kept same) ... */}
         {activeTab === 'settings' && (
            <div className="flex flex-col md:flex-row h-[calc(100vh-140px)] bg-white rounded-xl border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] overflow-hidden">
                <div className="w-full md:w-64 bg-gray-50 border-r-2 border-gray-200 flex flex-col">
                    <div className="p-6 border-b border-gray-200"><h3 className="font-black text-[#2B427A] uppercase text-lg">Menu Pengaturan</h3></div>
                    <nav className="flex-1 p-4 space-y-2">
                        <button onClick={() => setSettingsTab('payment')} className={`w-full text-left px-4 py-3 rounded-lg font-bold flex items-center gap-3 transition-colors ${settingsTab === 'payment' ? 'bg-[#2B427A] text-white shadow-[2px_2px_0px_0px_#000]' : 'text-gray-600 hover:bg-gray-200'}`}><CreditCard className="w-5 h-5"/> Pembayaran & QRIS</button>
-                       <button onClick={() => setSettingsTab('certificate')} className={`w-full text-left px-4 py-3 rounded-lg font-bold flex items-center gap-3 transition-colors ${settingsTab === 'certificate' ? 'bg-[#2B427A] text-white shadow-[2px_2px_0px_0px_#000]' : 'text-gray-600 hover:bg-gray-200'}`}><Award className="w-5 h-5"/> Sertifikat Default</button>
                    </nav>
                </div>
                <div className="flex-1 overflow-y-auto p-8 bg-white">
-                   {settingsTab === 'certificate' && (<div className="animate-fade-in h-full flex flex-col"><div className="mb-6 flex justify-between items-center border-b pb-4"><div><h3 className="font-black text-[#2B427A] uppercase mb-1">Desain Sertifikat Default</h3><p className="text-gray-500 text-sm">Ukuran Kertas: A4 Landscape (842x595 pixels).</p></div><button onClick={handleSaveCertSettings} disabled={savingCertSettings} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingCertSettings ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN TEMPLATE</button></div><div className="flex-1 relative border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(false)}</div></div>)}
                    {settingsTab === 'payment' && (
                       <div className="animate-fade-in max-w-4xl mx-auto">
                          <div className="flex justify-between items-center mb-8 border-b pb-4"><h3 className="font-black text-[#2B427A] uppercase">Pengaturan Rekening & QRIS</h3><button onClick={handleSavePaymentSettings} disabled={savingPayment} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingPayment ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN PENGATURAN</button></div>

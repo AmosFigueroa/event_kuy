@@ -22,7 +22,6 @@ export const createSlug = (title: string) => {
 
 export const formatTime = (time: string | undefined): string => {
   if (!time) return '';
-  // Handle Google Sheets Date objects (typically 1899-12-30...) or ISO strings
   if (time.includes('1899-') || (time.includes('T') && time.endsWith('Z'))) {
     try {
       const date = new Date(time);
@@ -40,8 +39,6 @@ const callScript = async (action: string, payload: any = {}, method: 'GET' | 'PO
   if (!baseUrl) throw new Error("API URL is missing");
 
   let url = `${baseUrl}?action=${action}`;
-  
-  // Add timestamp to prevent caching on GET requests
   if (method === 'GET') {
       url += `&_t=${new Date().getTime()}`;
   }
@@ -50,12 +47,10 @@ const callScript = async (action: string, payload: any = {}, method: 'GET' | 'PO
     method: method,
   };
 
-  // Only add headers and body for POST requests to avoid CORS preflight on GET
   if (method === 'POST') {
     options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
     options.body = JSON.stringify(payload);
   } else {
-    // For GET, append payload to URL query params
     Object.keys(payload).forEach(key => {
         url += `&${key}=${encodeURIComponent(payload[key])}`;
     });
@@ -93,7 +88,6 @@ export const fetchEvents = async (): Promise<Event[]> => {
   } catch (e) { return []; }
 };
 
-// Updated: Supports certBackgroundBase64 now
 export const createEvent = (eventData: Partial<Event>, bannerBase64: string | undefined, certBackgroundBase64?: string, thumbnailBase64?: string) => 
     callScript('createEvent', { ...eventData, bannerBase64, certBackgroundBase64, thumbnailBase64 }, 'POST');
 
@@ -117,31 +111,34 @@ export const fetchUserRegistrations = async (email: string) => {
   return all.filter(r => r.userEmail && r.userEmail.toLowerCase() === email.toLowerCase());
 };
 
-// Updated: Returns registration + certConfig
 export const fetchRegistrationById = async (id: string): Promise<{registration: Registration, certificateConfig: CertificateConfig | null}> => {
     return await callScript('getRegistration', { id }, 'POST');
 };
 export const updateRegistrationStatus = (id: string, status: string) => {
-    // Pass current window origin to backend so email links are correct
     const baseUrl = window.location.origin + window.location.pathname;
     return callScript('updateRegistrationStatus', { id, status, baseUrl }, 'POST');
 };
+
+// --- CERTIFICATES ---
 export const sendCertificate = (id: string) => {
-    // Pass current window origin to backend so email links are correct
     const baseUrl = window.location.origin + window.location.pathname;
     return callScript('sendCertificate', { id, baseUrl }, 'POST');
 };
 export const sendBulkCertificates = (ids: string[]) => {
-    // Pass current window origin to backend so email links are correct
     const baseUrl = window.location.origin + window.location.pathname;
     return callScript('sendBulkCertificates', { ids, baseUrl }, 'POST');
+};
+
+// NEW: Server-Side PDF Generation from Google Slides
+export const downloadCertificatePdf = async (id: string): Promise<{ pdfBase64: string, filename: string }> => {
+    return await callScript('generateSlideCertificate', { id }, 'POST');
 };
 
 // --- Payment Settings ---
 export const savePaymentSettings = (settings: PaymentSettings, qrisBase64?: string) => callScript('savePaymentSettings', { ...settings, qrisBase64 }, 'POST');
 export const fetchPaymentSettings = async (): Promise<PaymentSettings> => callScript('getPaymentSettings');
 
-// --- Legacy Certificate Settings (Deprecated but kept for type safety if needed) ---
+// --- Legacy Certificate Settings ---
 export const saveCertificateSettings = (settings: any, templateBase64?: string) => callScript('saveCertificateSettings', { ...settings, templateBase64 }, 'POST');
 export const fetchCertificateSettings = async (): Promise<any> => callScript('getCertificateSettings');
 
