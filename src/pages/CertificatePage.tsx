@@ -169,21 +169,27 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // CONTENT SCALING LOGIC (Independent of screen size)
-          // Prevents long names from overlapping other text in the certificate
+          // INTELLIGENT CONTENT SCALING
+          // Prevents overlap by reducing font size for long text
           if (el.field === 'userName') {
               const len = textContent.length;
-              // Safe width in the 842px canvas (approx 70%)
-              const maxSafeWidth = BASE_WIDTH * 0.7; 
-              // Rough char width estimation (0.6 * fontSize)
-              const estWidth = len * (dynamicFontSize * 0.6);
               
-              if (estWidth > maxSafeWidth) {
-                  const scaleFactor = maxSafeWidth / estWidth;
+              // Standard A4 width is 842px. 
+              // Assume safe text area is roughly 80% (670px) if not defined.
+              const maxSafeWidth = el.width || (BASE_WIDTH * 0.8);
+              
+              // Estimate width: char count * (font size * approx char width ratio 0.6)
+              const estimatedWidth = len * (dynamicFontSize * 0.6);
+              
+              if (estimatedWidth > maxSafeWidth) {
+                  // Scale down proportionally to fit
+                  const scaleFactor = maxSafeWidth / estimatedWidth;
                   dynamicFontSize = Math.floor(dynamicFontSize * scaleFactor);
               }
-              // Hard limits
-              if (len > 35) dynamicFontSize = Math.min(dynamicFontSize, 24);
+              
+              // Fallback hard limits for extremely long names
+              if (len > 40) dynamicFontSize = Math.min(dynamicFontSize, 20);
+              else if (len > 30) dynamicFontSize = Math.min(dynamicFontSize, 28);
           }
 
       } else if (el.type === 'text') {
@@ -235,7 +241,7 @@ const CertificatePage: React.FC = () => {
                 textAlign: el.align || 'center',
                 width: el.width ? `${el.width}px` : 'auto',
                 transform: transform, 
-                whiteSpace: 'nowrap', // Force single line
+                whiteSpace: 'nowrap', // FORCE SINGLE LINE (Prevents vertical overlap)
                 ...strokeStyle
             }}
         >
