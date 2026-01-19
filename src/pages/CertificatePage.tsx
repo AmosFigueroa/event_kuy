@@ -85,8 +85,8 @@ const CertificatePage: React.FC = () => {
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize(); // Initial calculation
-    setTimeout(handleResize, 100); // Recalculate
+    handleResize(); 
+    setTimeout(handleResize, 100);
 
     return () => window.removeEventListener('resize', handleResize);
   }, [loading, registration]);
@@ -96,56 +96,54 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // PERBAIKAN UTAMA: Konfigurasi html2canvas untuk Mobile
-        // 1. windowWidth/Height: Memaksa simulasi viewport desktop (1920x1080)
-        // 2. onclone: Inject CSS untuk mematikan text-size-adjust browser HP
+        // PERBAIKAN: Konfigurasi html2canvas yang dioptimalkan
         const canvas = await html2canvas(certRef.current, {
-            scale: 3, // High quality scale
+            scale: 2, // Scale 2 cukup untuk kualitas tinggi namun file size wajar (sebelumnya 4)
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
-            imageTimeout: 20000,
+            imageTimeout: 30000,
             allowTaint: false,
-            removeContainer: true, // Clean up clone
-            // FORCE DESKTOP VIEWPORT
-            windowWidth: 1920,
-            windowHeight: 1080,
+            // Memaksa dimensi window render untuk konsistensi Mobile vs Desktop
+            windowWidth: CERT_WIDTH + 100, 
+            windowHeight: CERT_HEIGHT + 100,
             onclone: (clonedDoc) => {
-                // Cari elemen sertifikat di dalam clone dan pastikan style-nya benar
-                const element = clonedDoc.getElementById('certificate-view');
-                if (element) {
-                    // Reset transform scale dari parent (jika ada)
-                    element.style.transform = 'none';
-                    // Pastikan margin/padding tidak mengganggu
-                    element.style.margin = '0';
-                }
-
-                // INJECT CSS RESET
-                // Ini mencegah browser HP memperbesar font sembarangan (text inflation)
+                // FORCE CSS RESET UNTUK MOBILE
+                // Ini mencegah teks menjadi raksasa di HP (Text Inflation)
                 const style = clonedDoc.createElement('style');
                 style.innerHTML = `
-                    html, body {
-                        -webkit-text-size-adjust: 100% !important; 
-                        text-size-adjust: 100% !important; 
-                        width: 1920px !important;
-                        height: 1080px !important;
+                    * {
+                        -webkit-text-size-adjust: 100% !important;
+                        text-size-adjust: 100% !important;
+                        -moz-text-size-adjust: 100% !important;
                     }
-                    * { 
-                        -webkit-text-size-adjust: 100% !important; 
-                        text-size-adjust: 100% !important; 
+                    /* Pastikan elemen sertifikat di clone tidak memiliki transform scale */
+                    #certificate-view-clone {
+                        transform: none !important;
+                        margin: 0 !important;
                     }
                 `;
                 clonedDoc.head.appendChild(style);
+
+                // Pastikan elemen spesifik direset transform-nya
+                const element = clonedDoc.getElementById('certificate-view');
+                if (element) {
+                    element.style.transform = 'none';
+                    element.style.margin = '0 auto';
+                }
             }
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.90);
+        // PERBAIKAN: Gunakan JPEG dengan kualitas 0.85 untuk kompresi file size
+        // PNG menghasilkan file yang sangat besar untuk foto/background kompleks.
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
         
         // Setup PDF A4 Landscape
         const pdf = new jsPDF('l', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
 
+        // 'FAST' compression helps rendering speed
         pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
         
         const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
@@ -192,19 +190,20 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // Robust Font Scaling for Long Names
+          // Auto-resize logic for Long Names (userName)
+          // Aggressive scaling to prevent overlap
           if (el.field === 'userName') {
               const len = textContent.length;
               const baseSize = el.fontSize || 45;
               
               if (len <= 20) dynamicFontSize = baseSize;
               else if (len <= 25) dynamicFontSize = baseSize * 0.85;
-              else if (len <= 30) dynamicFontSize = baseSize * 0.75;
-              else if (len <= 35) dynamicFontSize = baseSize * 0.65;
-              else if (len <= 45) dynamicFontSize = baseSize * 0.55;
-              else dynamicFontSize = baseSize * 0.45;
+              else if (len <= 30) dynamicFontSize = baseSize * 0.70;
+              else if (len <= 35) dynamicFontSize = baseSize * 0.60;
+              else if (len <= 45) dynamicFontSize = baseSize * 0.50;
+              else dynamicFontSize = baseSize * 0.40;
               
-              dynamicFontSize = Math.max(dynamicFontSize, 12);
+              dynamicFontSize = Math.max(dynamicFontSize, 10);
           }
 
       } else if (el.type === 'text') {
@@ -253,14 +252,14 @@ const CertificatePage: React.FC = () => {
           width: el.type === 'image' ? `${el.width || 100}px` : 'auto',
           maxWidth: el.type === 'image' ? undefined : (el.width || 'auto'),
           textTransform: el.textTransform || 'none',
-          lineHeight: '1.2',
-          whiteSpace: 'nowrap'
+          lineHeight: '1.1',
+          whiteSpace: 'nowrap', // PENTING: Mencegah teks turun ke bawah dan menimpa elemen lain
+          overflow: 'visible' 
       };
 
       if (el.strokeWidth && el.strokeWidth > 0 && el.type !== 'image') {
           const sw = el.strokeWidth;
           const sc = el.strokeColor || '#FFFFFF';
-          // Robust text stroke simulation for canvas capture
           textStyle.textShadow = `-${sw}px -${sw}px 0 ${sc}, ${sw}px -${sw}px 0 ${sc}, -${sw}px ${sw}px 0 ${sc}, ${sw}px ${sw}px 0 ${sc}, 0 -${sw}px 0 ${sc}, 0 ${sw}px 0 ${sc}, -${sw}px 0 0 ${sc}, ${sw}px 0 0 ${sc}`;
       }
 
