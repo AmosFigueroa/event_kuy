@@ -1,7 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, AlertCircle, ShieldCheck, User, Lock, Eye, EyeOff, Loader, CheckCircle, ArrowLeft, RefreshCw } from 'lucide-react';
 import { loginUser, registerAccount, loginWithOtp, requestLoginOtp, resetPassword } from '../services/api';
+import CustomAlert from '../components/CustomAlert';
 
 const ADMIN_EMAILS = [
   "bisnisdigitalhmp@gmail.com",
@@ -26,8 +28,23 @@ const LoginPage: React.FC = () => {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
+  
+  // Alert State replacement for inline error/success
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'info';
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({ isOpen: false, type: 'info', title: '', message: '' });
+
+  const showAlert = (type: 'success' | 'error' | 'info', title: string, message: string, onConfirm?: () => void) => {
+    setAlertState({ isOpen: true, type, title, message, onConfirm });
+  };
+
+  const closeAlert = () => {
+    setAlertState(prev => ({ ...prev, isOpen: false, onConfirm: undefined }));
+  };
   
   const navigate = useNavigate();
 
@@ -38,7 +55,6 @@ const LoginPage: React.FC = () => {
         if (ADMIN_EMAILS.includes(formattedEmail)) {
             setIsAdminMode(true);
             setPassword(''); 
-            setError(''); // Clear error when switching modes
         } else {
             setIsAdminMode(false);
         }
@@ -58,19 +74,27 @@ const LoginPage: React.FC = () => {
 
   const handleSendOtp = async (isReset = false) => {
     if (!email) {
-        setError("Masukkan email terlebih dahulu.");
+        showAlert('error', 'Email Kosong', "Masukkan email terlebih dahulu.");
         return;
     }
     setSendingOtp(true);
-    setError('');
-    setSuccessMsg('');
     try {
         await requestLoginOtp(email, isReset ? 'RESET' : 'LOGIN');
         setTimer(60);
-        setSuccessMsg("PIN/OTP telah dikirim ke email Anda.");
+        
+        // Show Success Popup
+        showAlert(
+            'success', 
+            'Kode Terkirim!', 
+            'Kode OTP telah dikirim ke email Anda. Silakan cek Inbox atau folder Spam.',
+            () => { if (isReset) setResetStep(1); }
+        );
+        
+        // Auto move if user ignores popup, but popup confirms action
         if (isReset) setResetStep(1);
+
     } catch (err: any) {
-        setError(err.message || "Gagal mengirim PIN.");
+        showAlert('error', 'Gagal Mengirim', err.message || "Gagal mengirim PIN. Coba lagi nanti.");
     } finally {
         setSendingOtp(false);
     }
@@ -79,20 +103,26 @@ const LoginPage: React.FC = () => {
   const handleResetConfirm = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!otp || !newPassword) {
-          setError("OTP dan Password Baru wajib diisi.");
+          showAlert('error', 'Data Belum Lengkap', "OTP dan Password Baru wajib diisi.");
           return;
       }
       setLoading(true);
       try {
           await resetPassword(email, otp, newPassword);
-          setSuccessMsg("Password berhasil diubah. Silakan login.");
-          setIsResetting(false);
-          setResetStep(0);
-          setOtp('');
-          setNewPassword('');
-          setPassword(''); // Clear old password input
+          showAlert(
+              'success', 
+              'Password Berhasil Diubah', 
+              'Silakan login kembali menggunakan password baru Anda.',
+              () => {
+                  setIsResetting(false);
+                  setResetStep(0);
+                  setOtp('');
+                  setNewPassword('');
+                  setPassword(''); 
+              }
+          );
       } catch (err: any) {
-          setError(err.message || "Gagal mereset password.");
+          showAlert('error', 'Gagal Reset', err.message || "Kode OTP salah atau kadaluarsa.");
       } finally {
           setLoading(false);
       }
@@ -103,21 +133,22 @@ const LoginPage: React.FC = () => {
     if (!email) return;
 
     setLoading(true);
-    setError('');
-    setSuccessMsg('');
 
     try {
       // 1. REGISTER FLOW
       if (isRegistering) {
         if (!name || !email || !password) { 
-            setError("Lengkapi semua kolom pendaftaran."); 
+            showAlert('error', 'Data Kurang', "Lengkapi semua kolom pendaftaran.");
             setLoading(false); 
             return; 
         }
         await registerAccount(name, email, password);
-        setIsRegistering(false);
-        setSuccessMsg("Akun berhasil dibuat! Silakan login.");
-        setPassword(''); // Clear password for login
+        
+        showAlert('success', 'Registrasi Berhasil', 'Akun Anda berhasil dibuat. Silakan login.', () => {
+            setIsRegistering(false);
+            setPassword(''); 
+        });
+        
         setLoading(false);
         return;
       } 
@@ -126,12 +157,20 @@ const LoginPage: React.FC = () => {
 
       // 2. ADMIN LOGIN FLOW (Email + OTP)
       if (isAdminMode) {
-         if (!otp) { setError("Masukkan PIN Admin (Kode OTP)."); setLoading(false); return; }
+         if (!otp) { 
+             showAlert('error', 'PIN Kosong', "Masukkan PIN Admin (Kode OTP).");
+             setLoading(false); 
+             return; 
+         }
          result = await loginWithOtp(email, otp);
       } 
       // 3. USER LOGIN FLOW (Email + Password)
       else {
-         if (!password) { setError("Masukkan password."); setLoading(false); return; }
+         if (!password) { 
+             showAlert('error', 'Password Kosong', "Masukkan password Anda.");
+             setLoading(false); 
+             return; 
+         }
          result = await loginUser(email, password);
       }
       
@@ -152,12 +191,21 @@ const LoginPage: React.FC = () => {
         }
         window.location.reload();
       } else {
-         setError("Login gagal. Periksa kembali kredensial Anda.");
+         showAlert('error', 'Login Gagal', "Periksa kembali email dan password Anda.");
       }
       
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Gagal menghubungkan ke server.");
+      
+      // Handle special case where admin needs OTP
+      if (err.message && err.message.includes('requireOtp')) {
+          // This usually comes from the backend logic if we were handling the old flow, 
+          // but here we handle it via isAdminMode check. 
+          // Just in case backend throws specific instruction:
+          showAlert('info', 'Verifikasi Admin', "Kode OTP telah dikirim ke email Admin.");
+      } else {
+          showAlert('error', 'Gagal Masuk', err.message || "Terjadi kesalahan koneksi.");
+      }
     } finally {
       setLoading(false);
     }
@@ -166,6 +214,15 @@ const LoginPage: React.FC = () => {
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden transition-colors duration-500 ${isAdminMode && !isResetting ? 'bg-[#FFFBF0]' : 'bg-[#2B427A]'}`}>
       
+      <CustomAlert 
+        isOpen={alertState.isOpen} 
+        type={alertState.type} 
+        title={alertState.title} 
+        message={alertState.message} 
+        onClose={closeAlert} 
+        onConfirm={alertState.onConfirm}
+      />
+
       {/* Background Shapes (Similar to Home) */}
       {(!isAdminMode || isResetting) && (
           <>
@@ -201,20 +258,6 @@ const LoginPage: React.FC = () => {
         </div>
 
         <div className="p-8 pt-6">
-          {error && (
-            <div className="mb-6 bg-red-100 border-2 border-red-500 text-red-700 p-3 rounded-xl flex items-center gap-2 text-sm font-black animate-pulse shadow-[4px_4px_0px_0px_rgba(239,68,68,0.2)]">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              {error}
-            </div>
-          )}
-          
-          {successMsg && (
-            <div className="mb-6 bg-green-100 border-2 border-green-600 text-green-700 p-3 rounded-xl flex items-center gap-2 text-sm font-black shadow-[4px_4px_0px_0px_rgba(22,163,74,0.2)]">
-              <CheckCircle className="w-5 h-5 flex-shrink-0" />
-              {successMsg}
-            </div>
-          )}
-
           {isResetting ? (
               // --- RESET PASSWORD FLOW ---
               <form onSubmit={handleResetConfirm} className="space-y-5 animate-fade-in">
@@ -227,7 +270,7 @@ const LoginPage: React.FC = () => {
                               required 
                               value={email}
                               readOnly={resetStep === 1}
-                              onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                              onChange={(e) => { setEmail(e.target.value); }}
                               className={`w-full pl-12 pr-4 py-3 rounded-xl outline-none font-bold border-2 ${resetStep === 1 ? 'bg-gray-100 border-gray-300 text-gray-500' : 'bg-white border-[#2B427A] focus:border-[#0B1CDE]'}`}
                               placeholder="Masukkan email terdaftar"
                           />
@@ -239,9 +282,9 @@ const LoginPage: React.FC = () => {
                           type="button"
                           onClick={() => handleSendOtp(true)}
                           disabled={sendingOtp}
-                          className="w-full py-4 bg-[#0B1CDE] text-white rounded-xl font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-none flex items-center justify-center gap-2 border-2 border-black"
+                          className="w-full py-4 bg-[#0B1CDE] text-white rounded-xl font-black text-lg shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-none flex items-center justify-center gap-2 border-2 border-black disabled:opacity-70 disabled:cursor-not-allowed"
                       >
-                          {sendingOtp ? <Loader className="w-6 h-6 animate-spin"/> : 'KIRIM KODE RESET'}
+                          {sendingOtp ? <><Loader className="w-6 h-6 animate-spin"/> MENGIRIM KODE...</> : 'KIRIM KODE RESET'}
                       </button>
                   ) : (
                       <>
@@ -292,7 +335,7 @@ const LoginPage: React.FC = () => {
 
                   <button 
                       type="button" 
-                      onClick={() => { setIsResetting(false); setResetStep(0); setError(''); setSuccessMsg(''); }}
+                      onClick={() => { setIsResetting(false); setResetStep(0); }}
                       className="w-full text-center text-gray-500 font-bold hover:text-[#2B427A] flex items-center justify-center gap-2 mt-4"
                   >
                       <ArrowLeft className="w-4 h-4"/> Kembali ke Login
@@ -313,7 +356,7 @@ const LoginPage: React.FC = () => {
                         required={isRegistering} 
                         placeholder="Nama Lengkap"
                         value={name}
-                        onChange={(e) => { setName(e.target.value); setError(''); }}
+                        onChange={(e) => { setName(e.target.value); }}
                         className="w-full pl-12 pr-4 py-3 bg-white border-2 border-[#2B427A] rounded-xl focus:border-[#0B1CDE] focus:shadow-[4px_4px_0px_0px_#0B1CDE] outline-none font-bold text-[#2B427A] transition-all placeholder:text-gray-300"
                       />
                     </div>
@@ -332,7 +375,7 @@ const LoginPage: React.FC = () => {
                       required 
                       placeholder="email@contoh.com"
                       value={email}
-                      onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                      onChange={(e) => { setEmail(e.target.value); }}
                       className={`w-full pl-12 pr-4 py-3 rounded-xl outline-none font-bold transition-all border-2 ${
                           isAdminMode 
                           ? 'bg-blue-50 border-[#0B1CDE] text-[#0B1CDE] focus:shadow-[4px_4px_0px_0px_#0B1CDE]' 
@@ -363,7 +406,7 @@ const LoginPage: React.FC = () => {
                                 required 
                                 placeholder="••••••"
                                 value={otp}
-                                onChange={(e) => { setOtp(e.target.value.replace(/\D/g,'').slice(0,6)); setError(''); }}
+                                onChange={(e) => { setOtp(e.target.value.replace(/\D/g,'').slice(0,6)); }}
                                 className="w-full pl-12 pr-12 py-3 bg-white border-2 border-[#0B1CDE] rounded-xl focus:shadow-[4px_4px_0px_0px_#0B1CDE] outline-none font-black text-[#2B427A] tracking-widest transition-all text-xl"
                             />
                             <button 
@@ -388,7 +431,7 @@ const LoginPage: React.FC = () => {
                         required 
                         placeholder="••••••••"
                         value={password}
-                        onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                        onChange={(e) => { setPassword(e.target.value); }}
                         className="w-full pl-12 pr-12 py-3 bg-white border-2 border-[#2B427A] rounded-xl focus:border-[#0B1CDE] focus:shadow-[4px_4px_0px_0px_#0B1CDE] outline-none font-black text-[#2B427A] transition-all"
                       />
                       <button 
@@ -404,7 +447,7 @@ const LoginPage: React.FC = () => {
                         <div className="text-right mt-2">
                             <button 
                                 type="button" 
-                                onClick={() => { setIsResetting(true); setError(''); setSuccessMsg(''); setResetStep(0); }}
+                                onClick={() => { setIsResetting(true); setResetStep(0); }}
                                 className="text-xs font-bold text-gray-500 hover:text-[#0B1CDE] hover:underline"
                             >
                                 Lupa Password?
@@ -421,7 +464,7 @@ const LoginPage: React.FC = () => {
                   className={`w-full py-4 rounded-xl font-black text-lg transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-1 hover:shadow-none flex items-center justify-center gap-2 border-2 border-black
                       ${isAdminMode 
                           ? 'bg-[#0B1CDE] text-white hover:bg-[#0916B0]' 
-                          : 'bg-[#DFFF00] text-[#2B427A] hover:bg-[#ccff00]'}`}
+                          : 'bg-[#DFFF00] text-[#2B427A] hover:bg-[#ccff00]'} disabled:opacity-70 disabled:cursor-not-allowed`}
                 >
                   {loading ? <Loader className="w-6 h-6 animate-spin"/> : (isAdminMode ? 'LOGIN ADMIN' : (isRegistering ? 'DAFTAR SEKARANG' : 'MASUK'))}
                 </button>
@@ -438,8 +481,6 @@ const LoginPage: React.FC = () => {
                         type="button" 
                         onClick={() => {
                             setIsRegistering(!isRegistering);
-                            setError('');
-                            setSuccessMsg('');
                         }}
                         className={`font-black hover:underline ${isAdminMode ? 'text-[#0B1CDE]' : 'text-[#2B427A]'}`}
                     >
