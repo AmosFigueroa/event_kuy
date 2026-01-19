@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Instagram, Youtube, Mail, Globe, Music } from 'lucide-react';
 import { APP_NAME } from '../constants';

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Calendar, MapPin, Users, ArrowRight, Tag, Clock } from 'lucide-react';
 import { Event } from '../types';
 import { Link } from 'react-router-dom';
