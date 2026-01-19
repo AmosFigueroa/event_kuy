@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
-import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard, QrCode, Download } from 'lucide-react';
-import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession, createSlug } from '../services/api';
+import { Search, Ticket, Clock, CheckCircle, XCircle, AlertTriangle, ExternalLink, Calendar, MapPin, ArrowRight, Loader, History, LayoutDashboard, QrCode, Download, MessageCircle } from 'lucide-react';
+import { fetchUserRegistrations, fetchEvents, sendCertificate, getUserSession, createSlug, formatTime } from '../services/api';
 import { Registration, RegistrationStatus, Event } from '../types';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
@@ -264,7 +263,7 @@ const UserDashboard: React.FC = () => {
                               </div>
                               <div>
                                   <p style={{ fontSize: '9px', fontWeight: 800, color: '#94A3B8' }}>WAKTU</p>
-                                  <p style={{ fontSize: '11px', fontWeight: 800, color: '#2B427A' }}>{ticket.eventDetails?.time} WIB</p>
+                                  <p style={{ fontSize: '11px', fontWeight: 800, color: '#2B427A' }}>{formatTime(ticket.eventDetails?.time)} WIB</p>
                               </div>
                           </div>
                       </div>
@@ -309,8 +308,18 @@ const UserDashboard: React.FC = () => {
                       <div className="space-y-2 text-sm text-gray-600 font-bold mt-4">
                          {ticket.eventDetails && (
                            <>
-                             <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#0B1CDE]" /> {new Date(ticket.eventDetails.date).toDateString()} | {ticket.eventDetails.time}</div>
-                             <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-[#0B1CDE]" /> {ticket.eventDetails.location}</div>
+                             <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-[#0B1CDE]" /> {new Date(ticket.eventDetails.date).toDateString()} | {formatTime(ticket.eventDetails.time)}</div>
+                             <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-[#0B1CDE]" /> 
+                                <a 
+                                    href={ticket.eventDetails.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.eventDetails.location)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="hover:text-[#0B1CDE] hover:underline transition-colors"
+                                >
+                                    {ticket.eventDetails.location}
+                                </a>
+                             </div>
                            </>
                          )}
                          <div className="pt-2 text-xs text-gray-400 font-mono uppercase tracking-widest">ID: {ticket.id.substring(0,8)}...</div>
@@ -348,6 +357,18 @@ const UserDashboard: React.FC = () => {
 
                             {/* ACTIONS */}
                             <div className="w-full space-y-2 mt-2">
+                                {/* NEW: Group Link Button */}
+                                {ticket.eventDetails?.groupLink && (
+                                    <a 
+                                        href={ticket.eventDetails.groupLink}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full flex items-center justify-center gap-2 text-sm bg-green-500 text-white border-2 border-green-600 hover:bg-green-600 px-4 py-2 rounded-lg font-black transition-all shadow-sm"
+                                    >
+                                        <MessageCircle className="w-4 h-4" /> GABUNG GRUP
+                                    </a>
+                                )}
+
                                 <button 
                                     onClick={() => handleDownloadTicket(ticket)}
                                     disabled={downloadingTicket === ticket.id}

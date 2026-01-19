@@ -72,8 +72,9 @@ const callScript = async (action: string, payload: any = {}, method: 'GET' | 'PO
 // --- Auth ---
 export const loginUser = (email: string, password: string) => callScript('login', { email, password }, 'POST');
 export const registerAccount = (name: string, email: string, password: string) => callScript('signup', { name, email, password }, 'POST');
-export const requestLoginOtp = (email: string) => callScript('requestOtp', { email }, 'POST');
+export const requestLoginOtp = (email: string, type?: string) => callScript('requestOtp', { email, type }, 'POST');
 export const loginWithOtp = (email: string, otp: string) => callScript('loginOtp', { email, otp }, 'POST');
+export const resetPassword = (email: string, otp: string, newPassword: string) => callScript('resetPassword', { email, otp, newPassword }, 'POST');
 export const logout = () => { localStorage.removeItem('user_session'); window.location.href = '/'; };
 export const getUserSession = (): UserSession | null => {
   const session = localStorage.getItem('user_session');

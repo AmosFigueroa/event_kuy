@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -31,7 +30,6 @@ const App: React.FC = () => {
             <Route path="/payment-success" element={<PaymentSuccessPage />} />
             <Route path="/certificate/:id" element={<CertificatePage />} />
             <Route path="/scanner/:eventId" element={<TicketScannerPage />} />
-            {/* New Public Route */}
             <Route path="/ticket-view/:id" element={<PublicTicketPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

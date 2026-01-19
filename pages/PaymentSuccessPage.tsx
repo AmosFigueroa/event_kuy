@@ -1,12 +1,28 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
+import { Check, MessageCircle } from 'lucide-react';
+import { fetchEvents } from '../services/api';
 
 const PaymentSuccessPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { price } = location.state || { price: 0 };
+  const { price, eventId } = (location.state as any) || { price: 0, eventId: null };
+  const [groupLink, setGroupLink] = useState<string | null>(null);
+
+  useEffect(() => {
+      const getLink = async () => {
+          if (eventId) {
+              try {
+                  const events = await fetchEvents();
+                  const evt = events.find(e => e.id === eventId);
+                  if (evt && evt.groupLink) {
+                      setGroupLink(evt.groupLink);
+                  }
+              } catch(e) {}
+          }
+      };
+      getLink();
+  }, [eventId]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 font-sans">
@@ -38,6 +54,18 @@ const PaymentSuccessPage: React.FC = () => {
                 Pendaftaran diterima. Cek email untuk info selanjutnya.
             </p>
         </div>
+
+        {/* Group Link Button */}
+        {groupLink && (
+            <a 
+                href={groupLink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-green-500 text-white rounded-xl font-black text-lg border-2 border-green-600 hover:bg-green-600 transition-all flex items-center justify-center gap-2 mb-3 shadow-md"
+            >
+                <MessageCircle className="w-5 h-5"/> GABUNG GRUP WHATSAPP
+            </a>
+        )}
 
         {/* Footer Button */}
         <button 

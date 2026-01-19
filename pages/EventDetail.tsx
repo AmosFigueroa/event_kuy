@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Calendar, MapPin, Upload, Users, Check, AlertCircle, ArrowLeft, Tag, Copy, Loader, Rocket, User, Mail, Edit3, Type, Clock, QrCode, Maximize2, X, Download, CheckCircle, Info, LogIn, Paperclip, FileText } from 'lucide-react';
-import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings, getUserSession } from '../services/api';
+import { fetchEvents, registerForEvent, createSlug, fetchPaymentSettings, getUserSession, formatTime } from '../services/api';
 import { Event, PaymentSettings } from '../types';
 import CustomAlert from '../components/CustomAlert';
 
@@ -117,7 +117,8 @@ const EventDetail: React.FC = () => {
                   customData: customData 
               }, base64);
               
-              navigate('/payment-success', { state: { price: event.price } });
+              // PASS EVENT ID TO SUCCESS PAGE
+              navigate('/payment-success', { state: { price: event.price, eventId: event.id } });
           } catch (apiErr: any) {
               const errMsg = apiErr.message || "Kesalahan jaringan.";
               setError(errMsg);
@@ -165,6 +166,8 @@ const EventDetail: React.FC = () => {
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin h-10 w-10 border-4 border-[#2B427A] border-t-transparent rounded-full"></div></div>;
   if (!event) return <div className="min-h-screen flex items-center justify-center font-black text-[#2B427A]">ACARA TIDAK DITEMUKAN</div>;
 
+  const mapLink = event.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}`;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 relative">
       <CustomAlert 
@@ -200,8 +203,18 @@ const EventDetail: React.FC = () => {
           <div className="lg:col-span-2 space-y-6 md:space-y-8">
              <div className="bg-white rounded-xl p-6 md:p-8 border-2 border-[#2B427A] shadow-[6px_6px_0px_0px_#2B427A] md:shadow-[8px_8px_0px_0px_#2B427A]">
                 <div className="flex flex-col sm:flex-row flex-wrap gap-3 md:gap-4 mb-6 md:mb-8 pb-6 md:pb-8 border-b-2 border-dashed border-[#2B427A]/20">
-                    <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><Calendar className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{new Date(event.date).toLocaleDateString()} | {event.time}</span></div>
-                    <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{event.location}</span></div>
+                    <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><Calendar className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{new Date(event.date).toLocaleDateString()} | {formatTime(event.time)}</span></div>
+                    <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm">
+                        <a 
+                            href={mapLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-[#0B1CDE] hover:underline transition-colors flex items-center gap-2"
+                        >
+                            <MapPin className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE] flex-shrink-0" />
+                            <span>{event.location}</span>
+                        </a>
+                    </div>
                     <div className="flex items-center gap-2 bg-[#F0F9FF] px-3 py-2 rounded-lg text-[#2B427A] font-bold text-sm"><Users className="w-4 h-4 md:w-5 md:h-5 text-[#0B1CDE]" /><span>{event.currentParticipants}/{event.maxParticipants}</span></div>
                 </div>
                 <h2 className="text-xl md:text-2xl font-black text-[#2B427A] mb-3 md:mb-4 uppercase">Deskripsi</h2>
@@ -223,9 +236,13 @@ const EventDetail: React.FC = () => {
                       <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-gray-300">
                           <Clock className="w-10 h-10 text-gray-400" />
                       </div>
-                      <h3 className="text-xl font-black text-gray-600 uppercase mb-2">Pendaftaran Ditutup</h3>
+                      <h3 className="text-xl font-black text-gray-600 uppercase mb-2">
+                          {event.status === 'COMING_SOON' ? 'SEGERA HADIR' : 'Pendaftaran Ditutup'}
+                      </h3>
                       <p className="text-gray-500 text-sm mb-6 px-4 leading-relaxed font-medium">
-                          Terima kasih atas antusiasme Anda. Kuota telah terpenuhi atau batas waktu pendaftaran untuk acara ini telah berakhir.
+                          {event.status === 'COMING_SOON' 
+                            ? 'Nantikan informasi pendaftaran untuk acara ini segera!' 
+                            : 'Terima kasih atas antusiasme Anda. Kuota telah terpenuhi atau batas waktu pendaftaran telah berakhir.'}
                       </p>
                       <button 
                           onClick={() => navigate('/events')}

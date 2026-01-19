@@ -1,7 +1,6 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchRegistrationById, fetchEvents } from '../services/api';
+import { fetchRegistrationById, fetchEvents, formatTime } from '../services/api';
 import { Registration, Event, RegistrationStatus } from '../types';
 import QRCode from 'react-qr-code';
 import html2canvas from 'html2canvas';
@@ -152,12 +151,19 @@ const PublicTicketPage: React.FC = () => {
                             <div className="flex items-center gap-3">
                                 <Calendar className="w-4 h-4 text-[#0B1CDE]"/>
                                 <span className="text-xs font-bold text-gray-700">
-                                    {event ? new Date(event.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '-'} | {event?.time} WIB
+                                    {event ? new Date(event.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '-'} | {formatTime(event?.time)} WIB
                                 </span>
                             </div>
                             <div className="flex items-center gap-3">
                                 <MapPin className="w-4 h-4 text-[#0B1CDE]"/>
-                                <span className="text-xs font-bold text-gray-700 truncate">{event?.location}</span>
+                                <a 
+                                    href={event?.mapUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event?.location || '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs font-bold text-gray-700 truncate hover:text-[#0B1CDE] hover:underline transition-colors"
+                                >
+                                    {event?.location}
+                                </a>
                             </div>
                         </div>
 

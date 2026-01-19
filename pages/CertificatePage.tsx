@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Loader, Download, ArrowLeft, Award, FileText, Info } from 'lucide-react';

@@ -774,11 +774,10 @@ const AdminDashboard: React.FC = () => {
                     <div className="p-4 bg-gray-50 border-t-2 border-dashed border-[#2B427A]/20 flex gap-2">
                         <button 
                             onClick={() => navigate(`/scanner/${event.id}`)} 
-                            className="flex-1 md:flex-none p-2 bg-purple-50 text-purple-600 rounded-lg border border-purple-200 hover:bg-purple-100 transition-colors flex items-center justify-center gap-2 group" 
+                            className="flex-1 flex items-center justify-center gap-2 py-2 bg-purple-50 text-purple-600 font-black rounded-lg border border-purple-200 hover:bg-purple-100 transition-colors uppercase text-xs" 
                             title="Buka Scanner Tiket"
                         >
-                            <ScanLine className="w-5 h-5 group-hover:scale-110 transition-transform"/>
-                            <span className="md:hidden lg:inline text-xs font-black uppercase">SCAN</span>
+                            <ScanLine className="w-4 h-4"/> SCAN
                         </button>
                         <button 
                             onClick={() => {
