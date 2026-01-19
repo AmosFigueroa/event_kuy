@@ -96,9 +96,9 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // PERBAIKAN: Konfigurasi html2canvas yang lebih stabil
+        // PERBAIKAN: Konfigurasi html2canvas yang lebih stabil dan hemat ukuran
         const canvas = await html2canvas(certRef.current, {
-            scale: 2, // Scale 2 sudah cukup tajam untuk A4 (setara ~150 DPI) dan ukuran file kecil
+            scale: 2, // Scale 2 sudah cukup tajam untuk A4 (setara ~150 DPI) dan ukuran file jauh lebih kecil
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
@@ -108,7 +108,7 @@ const CertificatePage: React.FC = () => {
             windowWidth: 1920, 
             windowHeight: 1080,
             onclone: (clonedDoc) => {
-                // CSS Reset untuk Mobile: Mencegah browser HP membesarkan font sembarangan
+                // CSS Reset untuk Mobile: Mencegah browser HP membesarkan font sembarangan (Text Inflation)
                 const style = clonedDoc.createElement('style');
                 style.innerHTML = `
                     * {
@@ -133,8 +133,8 @@ const CertificatePage: React.FC = () => {
             }
         });
 
-        // PERBAIKAN: Gunakan JPEG quality 0.80 agar file size KECIL (< 500KB) tapi tetap tajam
-        const imgData = canvas.toDataURL('image/jpeg', 0.80);
+        // PERBAIKAN: Gunakan JPEG quality 0.85 untuk kompresi file size drastis dibanding PNG
+        const imgData = canvas.toDataURL('image/jpeg', 0.85);
         
         const pdf = new jsPDF('l', 'mm', 'a4');
         const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -186,26 +186,28 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // PERBAIKAN: Logika Scaling Font yang Lebih Agresif
+          // PERBAIKAN: Logika Scaling Font yang Lebih Agresif untuk NAMA
           // Tujuannya agar nama panjang tidak menabrak elemen lain
           if (el.field === 'userName') {
               const len = textContent.length;
-              const baseSize = el.fontSize || 45;
+              // Base size constraint relative to standard canvas width (842)
+              // If width is defined in config, use that as constraint, else default roughly 600px safe area
+              const maxSafeWidth = el.width || 600;
+              // Approx char width factor (varies by font but 0.6em is a safe guess for bold uppercase)
+              const estimatedWidth = len * (dynamicFontSize * 0.6);
               
-              if (len <= 18) {
-                  dynamicFontSize = baseSize;
-              } else if (len <= 25) {
-                  dynamicFontSize = baseSize * 0.8; // Kecilkan 20%
-              } else if (len <= 30) {
-                  dynamicFontSize = baseSize * 0.65; // Kecilkan 35%
-              } else if (len <= 40) {
-                  dynamicFontSize = baseSize * 0.5; // Kecilkan 50%
-              } else {
-                  dynamicFontSize = baseSize * 0.4; // Kecilkan 60%
+              if (estimatedWidth > maxSafeWidth) {
+                  // Scale down proportionally
+                  const scaleFactor = maxSafeWidth / estimatedWidth;
+                  dynamicFontSize = Math.floor(dynamicFontSize * scaleFactor);
               }
               
-              // Batas minimal agar tetap terbaca
-              dynamicFontSize = Math.max(dynamicFontSize, 12);
+              // Hard limits based on char count as backup
+              if (len > 35) dynamicFontSize = Math.min(dynamicFontSize, 24);
+              else if (len > 25) dynamicFontSize = Math.min(dynamicFontSize, 32);
+              
+              // Absolute minimum
+              dynamicFontSize = Math.max(dynamicFontSize, 14);
           }
 
       } else if (el.type === 'text') {
@@ -247,8 +249,9 @@ const CertificatePage: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: !el.align || el.align === 'center' ? 'center' : (el.align === 'left' ? 'flex-start' : 'flex-end'),
-          width: el.width ? `${el.width}px` : (el.type === 'dynamic' ? '90%' : 'auto'), // Batasi lebar dynamic text
-          maxWidth: '100%'
+          // Use width if defined, otherwise auto but constrained
+          width: el.width ? `${el.width}px` : 'auto', 
+          maxWidth: el.width ? `${el.width}px` : '80%', // Safety max width
       };
       
       const textStyle: React.CSSProperties = {
@@ -258,7 +261,7 @@ const CertificatePage: React.FC = () => {
           fontWeight: el.fontWeight || 'bold',
           textAlign: el.align || 'center',
           textTransform: el.textTransform || 'none',
-          lineHeight: '1', // PENTING: Line height 1 agar tidak memakan ruang vertikal
+          lineHeight: '1.1', // Slightly tight line height
           // PERBAIKAN UTAMA: White Space Nowrap mencegah text turun ke baris bawah
           whiteSpace: 'nowrap', 
           overflow: 'visible' 
