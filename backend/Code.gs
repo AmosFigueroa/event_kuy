@@ -3,6 +3,12 @@
  * EventHorizon Backend - Google Apps Script
  */
 
+// --- KONFIGURASI DATABASE ---
+// Jika data event hilang/reset, cari file "EventHorizon_DB" di Google Drive Anda.
+// Salin ID-nya (bagian acak di URL spreadsheet) dan tempel di bawah ini.
+// Contoh: var MANUAL_DB_ID = "1AbCdEfGhIjK...";
+var MANUAL_DB_ID = ""; 
+
 var SCRIPT_PROP = PropertiesService.getScriptProperties();
 var ADMIN_EMAILS = [
   "bisnisdigitalhmp@gmail.com",
@@ -434,12 +440,43 @@ function savePaymentSettings(data) { /*...*/ var ss = _getDb(); var sheet = ss.g
 function getPaymentSettings() { /*...*/ var sheet = _getSheet("Settings"); if (!sheet) return { bankAccounts: [], qrisUrl: "" }; var data = sheet.getDataRange().getValues(); var settings = {}; data.forEach(function(r) { settings[r[0]] = r[1]; }); var bankAccounts = []; if (settings["BANK_ACCOUNTS_JSON"]) { try { bankAccounts = JSON.parse(settings["BANK_ACCOUNTS_JSON"]); } catch (e) { } } return { bankAccounts: bankAccounts, qrisUrl: settings["QRIS_URL"] || "" }; }
 function saveCertificateSettings(data) { /*...*/ var ss = _getDb(); var sheet = ss.getSheetByName("Settings"); var templateUrl = data.backgroundUrl || ""; if (data.templateBase64) { try { var folder = _getAdminFolder(); var blob = Utilities.newBlob(Utilities.base64Decode(data.templateBase64), "image/png", "cert_default_" + new Date().getTime()); var file = folder.createFile(blob); file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); templateUrl = "https://lh3.googleusercontent.com/d/" + file.getId(); } catch(e) {} } var setSetting = function(key, val) { var rows = sheet.getDataRange().getValues(); for(var i=0; i<rows.length; i++) { if(rows[i][0] == key) { sheet.getRange(i+1, 2).setValue(val); return; } } sheet.appendRow([key, val]); }; setSetting("CERT_TEMPLATE_URL", templateUrl); setSetting("CERT_ELEMENTS_JSON", JSON.stringify(data.elements || [])); return { success: true, templateUrl: templateUrl }; }
 function getCertificateSettings() { /*...*/ var sheet = _getSheet("Settings"); var data = sheet.getDataRange().getValues(); var s = {}; data.forEach(function(r) { s[r[0]] = r[1]; }); var elements = []; if (s["CERT_ELEMENTS_JSON"]) { try { elements = JSON.parse(s["CERT_ELEMENTS_JSON"]); } catch(e) {} } return { backgroundUrl: s["CERT_TEMPLATE_URL"] || "", elements: elements, csvDataUrl: s["CERT_CSV_DATA_URL"] || "" }; }
-function _getDb() { var dbId = SCRIPT_PROP.getProperty("DB_ID"); if (dbId) try { return SpreadsheetApp.openById(dbId); } catch(e){} var ss = SpreadsheetApp.create("EventHorizon_DB"); SCRIPT_PROP.setProperty("DB_ID", ss.getId()); return ss; }
-function _getSheet(name) { var ss = _getDb(); var s = ss.getSheetByName(name); if(!s) { _initDbIfNeeded(); s = ss.getSheetByName(name); } return s; }
+
+function _getDb() { 
+  // 1. Cek Manual Hardcode
+  if (MANUAL_DB_ID) {
+    try { 
+      return SpreadsheetApp.openById(MANUAL_DB_ID); 
+    } catch(e) {
+      // Jika ID manual salah, log error dan lanjut ke prop
+      console.error("MANUAL_DB_ID tidak valid: " + e.toString());
+    }
+  }
+
+  // 2. Cek Script Properties
+  var dbId = SCRIPT_PROP.getProperty("DB_ID"); 
+  if (dbId) {
+    try { 
+      return SpreadsheetApp.openById(dbId); 
+    } catch(e) {
+      console.error("DB_ID Property tidak valid/file hilang.");
+    }
+  } 
+  
+  // 3. Buat Baru jika tidak ditemukan sama sekali
+  var ss = SpreadsheetApp.create("EventHorizon_DB"); 
+  SCRIPT_PROP.setProperty("DB_ID", ss.getId()); 
+  
+  // Inisialisasi sheet dasar agar tidak error saat pertama kali
+  _initDbIfNeeded(ss);
+  
+  return ss; 
+}
+
+function _getSheet(name) { var ss = _getDb(); var s = ss.getSheetByName(name); if(!s) { _initDbIfNeeded(ss); s = ss.getSheetByName(name); } return s; }
 
 // --- INIT DB UPDATED ---
-function _initDbIfNeeded() {
-  var ss = _getDb();
+function _initDbIfNeeded(optionalSS) {
+  var ss = optionalSS || _getDb();
   
   if(!ss.getSheetByName("Events")) {
     ss.insertSheet("Events").appendRow(["id","title","desc","date","time","loc","price","cat","banner","max","cur","isOpen","formFields","certificateConfig","thumbnail","enableTicketScanner","mapUrl", "status", "groupLink", "certificateSlideId"]);
