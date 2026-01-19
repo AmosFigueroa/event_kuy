@@ -1,14 +1,14 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from 'recharts';
-import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, TrendingUp, Activity, DollarSign as DollarIcon, ArrowUpFromLine, ArrowDownFromLine, Link as LinkIcon, MessageCircle, Grid, Magnet } from 'lucide-react';
+import { Plus, Search, CheckCircle, XCircle, Clock, Sparkles, Image as ImageIcon, Copy, Award, Loader, RefreshCw, LayoutDashboard, Calendar as CalendarIcon, Users as UsersIcon, Settings as SettingsIcon, Trash2, Power, Eye, CreditCard, ChevronRight, ChevronLeft, PlusCircle, MinusCircle, Upload, Filter, Trash, Edit2, Pencil, Save, PlusSquare, Move, Type, MapPin, Tag, AlignLeft, AlignCenter, AlignRight, DollarSign, Hash, MousePointer2, FileText, Image as ImgIcon, FileSpreadsheet, Scaling, X, Send, QrCode, ScanLine, Download, ChevronDown, ChevronUp, LayoutList, FormInput, Palette, FileCheck, Info, Bot, ExternalLink, Paperclip, Database, Type as TypeIcon, ImagePlus, Bold, AlignJustify, UserCheck, CheckSquare, ListChecks, TrendingUp, Activity, DollarSign as DollarIcon, ArrowUpFromLine, ArrowDownFromLine, Link as LinkIcon, MessageCircle, Grid, Magnet, Crosshair } from 'lucide-react';
 import { createEvent, fetchEvents, fetchRegistrations, getApiUrl, setApiUrl, updateRegistrationStatus, sendCertificate, getUserSession, createSlug, deleteEvent, toggleEventStatus, savePaymentSettings, fetchPaymentSettings, updateEvent, fetchCertificateSettings, saveCertificateSettings, sendBulkCertificates, fetchParticipantsCsv } from '../services/api';
 import { generateEventDescription, analyzePaymentProof, PaymentAnalysisResult } from '../services/geminiService';
 import { Event, EventCategory, Registration, RegistrationStatus, FormField, FormFieldType, PaymentSettings, BankAccount, CertificateConfig, CertificateElement, EventStatus } from '../types';
 import { useNavigate } from 'react-router-dom';
 import CustomAlert from '../components/CustomAlert';
 
-// Constants for Certificate Canvas (A4 Landscape aspect ratio)
+// Constants for Certificate Canvas (A4 Landscape aspect ratio at ~72 DPI for screen)
 const CANVAS_WIDTH = 842;
 const CANVAS_HEIGHT = 595;
 const GRID_SIZE = 20; // 20px grid cells
@@ -89,7 +89,7 @@ const AdminDashboard: React.FC = () => {
   const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
   const [initialPos, setInitialPos] = useState<{x: number, y: number} | null>(null);
   const [showGrid, setShowGrid] = useState(true);
-  const [snapToGrid, setSnapToGrid] = useState(true);
+  const [snapToGrid, setSnapToGrid] = useState(false); // Default off for precision
   
   // Bank Account Form State
   const [tempAccount, setTempAccount] = useState<BankAccount>({ id: '', bankName: '', accountNumber: '', accountHolder: '' });
@@ -547,7 +547,7 @@ const AdminDashboard: React.FC = () => {
               let newX = initialPos.x + dx;
               let newY = initialPos.y + dy;
 
-              // Grid Snapping
+              // Grid Snapping Logic
               if (snapToGrid) {
                   newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
                   newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
@@ -598,7 +598,7 @@ const AdminDashboard: React.FC = () => {
                           </div>
                       </div>
                       <div className="pt-4 border-t border-gray-200">
-                          <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND</h4>
+                          <h4 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">BACKGROUND (A4 LANDSCAPE)</h4>
                           <label className="w-full cursor-pointer group">
                                <div className="w-full h-32 border-2 border-dashed border-gray-300 rounded-xl bg-white flex flex-col items-center justify-center gap-2 group-hover:border-[#0B1CDE] group-hover:bg-blue-50 transition-all overflow-hidden relative">
                                    {bgUrl ? (
@@ -630,7 +630,7 @@ const AdminDashboard: React.FC = () => {
                                    }
                                }} accept="image/*" />
                           </label>
-                          <p className="text-[10px] text-gray-400 mt-2 font-medium">Format: JPG/PNG, Orientasi Landscape (A4)</p>
+                          <p className="text-[10px] text-gray-400 mt-2 font-medium">Rekomedasi: 3508 x 2480 px (A4 @ 300DPI)</p>
                       </div>
                   </div>
                   <div className="bg-white border-t-2 border-gray-200 p-5 flex-shrink-0 max-h-[50%] overflow-y-auto shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] custom-scrollbar">
@@ -744,16 +744,30 @@ const AdminDashboard: React.FC = () => {
                       onMouseUp={handleMouseUp} 
                       onMouseLeave={handleMouseUp}
                   >
+                      {/* Fixed A4 Canvas Container */}
                       <div className="relative bg-white shadow-2xl transition-shadow overflow-hidden" style={{ width: 842, height: 595, flexShrink: 0 }}>
                           
-                          {/* GRID LAYER */}
+                          {/* GRID & GUIDES LAYER */}
                           {showGrid && (
-                              <div className="absolute inset-0 pointer-events-none z-0" 
-                                style={{ 
-                                    backgroundImage: `linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)`,
-                                    backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
-                                }}
-                              ></div>
+                              <div className="absolute inset-0 pointer-events-none z-0">
+                                  {/* Small Grid */}
+                                  <div style={{ 
+                                        position: 'absolute', inset: 0,
+                                        backgroundImage: `linear-gradient(to right, #f3f4f6 1px, transparent 1px), linear-gradient(to bottom, #f3f4f6 1px, transparent 1px)`,
+                                        backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`
+                                  }}></div>
+                                  
+                                  {/* Major Grid Lines (every 100px) */}
+                                  <div style={{ 
+                                        position: 'absolute', inset: 0,
+                                        backgroundImage: `linear-gradient(to right, #e5e7eb 1px, transparent 1px), linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)`,
+                                        backgroundSize: `100px 100px`
+                                  }}></div>
+
+                                  {/* Center Guides (Red Dashed) */}
+                                  <div className="absolute top-0 bottom-0 left-1/2 border-l border-red-400 border-dashed opacity-50" style={{ transform: 'translateX(-0.5px)' }}></div>
+                                  <div className="absolute left-0 right-0 top-1/2 border-t border-red-400 border-dashed opacity-50" style={{ transform: 'translateY(-0.5px)' }}></div>
+                              </div>
                           )}
 
                           {bgUrl ? (
@@ -787,15 +801,16 @@ const AdminDashboard: React.FC = () => {
                                         color: el.color, 
                                         fontWeight: el.fontWeight,
                                         textAlign: el.align,
-                                        position: 'relative'
+                                        position: 'relative',
+                                        whiteSpace: 'nowrap'
                                     }}>
                                         {el.type === 'image' ? <img src={el.field} style={{width: '100%', height: 'auto', pointerEvents: 'none'}} /> : (el.type === 'dynamic' ? `{${el.field}}` : el.field)}
                                     </div>
                                     
                                     {/* Coordinates Label on Active */}
                                     {activeElementId === el.id && (
-                                        <div className="absolute -top-6 left-0 bg-[#0B1CDE] text-white text-[9px] px-1 rounded whitespace-nowrap">
-                                            x:{el.x} y:{el.y}
+                                        <div className="absolute -top-6 left-0 bg-[#0B1CDE] text-white text-[9px] px-1 rounded whitespace-nowrap z-50 shadow-sm font-mono">
+                                            x:{Math.round(el.x)} y:{Math.round(el.y)}
                                         </div>
                                     )}
                                 </div>
@@ -1195,7 +1210,7 @@ const AdminDashboard: React.FC = () => {
                             <div className="space-y-6 animate-fade-in"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Harga & Kuota</h3><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Harga Tiket</label><div className="flex items-center gap-3"><span className="text-2xl font-bold text-gray-400">Rp</span><input type="number" value={newEvent.price} onChange={e=>setNewEvent({...newEvent, price: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div><p className="text-xs text-gray-400 mt-4 font-bold bg-gray-50 p-2 rounded inline-block">Masukkan 0 untuk Acara GRATIS</p></div><div className="bg-white p-8 rounded-xl border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A]"><label className="block text-sm font-black text-[#2B427A] mb-4 uppercase">Kuota Peserta</label><div className="flex items-center gap-3"><UsersIcon className="w-8 h-8 text-gray-400"/><input type="number" value={newEvent.maxParticipants} onChange={e=>setNewEvent({...newEvent, maxParticipants: Number(e.target.value)})} className="flex-1 text-4xl font-black text-[#0B1CDE] outline-none border-b-2 border-gray-200 focus:border-[#0B1CDE] py-2" /></div></div></div></div>
                         )}
                         {wizardStep === 5 && (
-                            <div className="space-y-6 animate-fade-in h-full flex flex-col"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Desain Sertifikat</h3><p className="text-sm text-gray-500 mb-4">Buat desain sertifikat khusus untuk acara ini.</p><div className="flex-1 border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(true)}</div></div>
+                            <div className="space-y-6 animate-fade-in h-full flex flex-col"><h3 className="text-2xl font-black text-[#2B427A] uppercase mb-6 border-b pb-2">Desain Sertifikat</h3><p className="text-sm text-gray-500 mb-4">Ukuran Kertas: A4 Landscape (842x595 pixels).</p><div className="flex-1 border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(true)}</div></div>
                         )}
                     </div>
                     <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
@@ -1217,7 +1232,7 @@ const AdminDashboard: React.FC = () => {
                    </nav>
                </div>
                <div className="flex-1 overflow-y-auto p-8 bg-white">
-                   {settingsTab === 'certificate' && (<div className="animate-fade-in h-full flex flex-col"><div className="mb-6 flex justify-between items-center border-b pb-4"><div><h3 className="font-black text-[#2B427A] uppercase mb-1">Desain Sertifikat Default</h3><p className="text-gray-500 text-sm">Template ini akan digunakan jika acara tidak memiliki desain spesifik.</p></div><button onClick={handleSaveCertSettings} disabled={savingCertSettings} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingCertSettings ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN TEMPLATE</button></div><div className="flex-1 relative border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(false)}</div></div>)}
+                   {settingsTab === 'certificate' && (<div className="animate-fade-in h-full flex flex-col"><div className="mb-6 flex justify-between items-center border-b pb-4"><div><h3 className="font-black text-[#2B427A] uppercase mb-1">Desain Sertifikat Default</h3><p className="text-gray-500 text-sm">Ukuran Kertas: A4 Landscape (842x595 pixels).</p></div><button onClick={handleSaveCertSettings} disabled={savingCertSettings} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingCertSettings ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN TEMPLATE</button></div><div className="flex-1 relative border border-gray-200 rounded-xl overflow-hidden">{renderDesigner(false)}</div></div>)}
                    {settingsTab === 'payment' && (
                       <div className="animate-fade-in max-w-4xl mx-auto">
                          <div className="flex justify-between items-center mb-8 border-b pb-4"><h3 className="font-black text-[#2B427A] uppercase">Pengaturan Rekening & QRIS</h3><button onClick={handleSavePaymentSettings} disabled={savingPayment} className="px-5 py-2 bg-[#0B1CDE] text-white rounded-lg font-bold flex items-center gap-2 hover:bg-[#2B427A]">{savingPayment ? <Loader className="w-4 h-4 animate-spin"/> : <Save className="w-4 h-4"/>} SIMPAN PENGATURAN</button></div>

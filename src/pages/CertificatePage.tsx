@@ -186,28 +186,26 @@ const CertificatePage: React.FC = () => {
           textContent = getElementContent(el.field);
           content = textContent;
 
-          // PERBAIKAN: Logika Scaling Font yang Lebih Agresif untuk NAMA
+          // PERBAIKAN: Logika Scaling Font yang Lebih Agresif
           // Tujuannya agar nama panjang tidak menabrak elemen lain
           if (el.field === 'userName') {
               const len = textContent.length;
-              // Base size constraint relative to standard canvas width (842)
-              // If width is defined in config, use that as constraint, else default roughly 600px safe area
-              const maxSafeWidth = el.width || 600;
-              // Approx char width factor (varies by font but 0.6em is a safe guess for bold uppercase)
-              const estimatedWidth = len * (dynamicFontSize * 0.6);
+              const baseSize = el.fontSize || 45;
               
-              if (estimatedWidth > maxSafeWidth) {
-                  // Scale down proportionally
-                  const scaleFactor = maxSafeWidth / estimatedWidth;
-                  dynamicFontSize = Math.floor(dynamicFontSize * scaleFactor);
+              if (len <= 18) {
+                  dynamicFontSize = baseSize;
+              } else if (len <= 25) {
+                  dynamicFontSize = baseSize * 0.8; // Kecilkan 20%
+              } else if (len <= 30) {
+                  dynamicFontSize = baseSize * 0.65; // Kecilkan 35%
+              } else if (len <= 40) {
+                  dynamicFontSize = baseSize * 0.5; // Kecilkan 50%
+              } else {
+                  dynamicFontSize = baseSize * 0.4; // Kecilkan 60%
               }
               
-              // Hard limits based on char count as backup
-              if (len > 35) dynamicFontSize = Math.min(dynamicFontSize, 24);
-              else if (len > 25) dynamicFontSize = Math.min(dynamicFontSize, 32);
-              
-              // Absolute minimum
-              dynamicFontSize = Math.max(dynamicFontSize, 14);
+              // Batas minimal agar tetap terbaca
+              dynamicFontSize = Math.max(dynamicFontSize, 12);
           }
 
       } else if (el.type === 'text') {
@@ -249,9 +247,8 @@ const CertificatePage: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: !el.align || el.align === 'center' ? 'center' : (el.align === 'left' ? 'flex-start' : 'flex-end'),
-          // Use width if defined, otherwise auto but constrained
-          width: el.width ? `${el.width}px` : 'auto', 
-          maxWidth: el.width ? `${el.width}px` : '80%', // Safety max width
+          width: el.width ? `${el.width}px` : (el.type === 'dynamic' ? '90%' : 'auto'), // Batasi lebar dynamic text
+          maxWidth: '100%'
       };
       
       const textStyle: React.CSSProperties = {
@@ -261,7 +258,7 @@ const CertificatePage: React.FC = () => {
           fontWeight: el.fontWeight || 'bold',
           textAlign: el.align || 'center',
           textTransform: el.textTransform || 'none',
-          lineHeight: '1.1', // Slightly tight line height
+          lineHeight: '1', // PENTING: Line height 1 agar tidak memakan ruang vertikal
           // PERBAIKAN UTAMA: White Space Nowrap mencegah text turun ke baris bawah
           whiteSpace: 'nowrap', 
           overflow: 'visible' 
