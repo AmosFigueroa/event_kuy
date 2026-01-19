@@ -45,6 +45,8 @@ export interface CertificateConfig {
   csvDataUrl?: string; // URL to the uploaded CSV JSON data in Drive
 }
 
+export type EventStatus = 'COMING_SOON' | 'OPEN' | 'EXTENDED' | 'CLOSED';
+
 export interface Event {
   id: string;
   title: string;
@@ -53,6 +55,7 @@ export interface Event {
   time: string;
   location: string;
   mapUrl?: string; // NEW: Specific Google Maps Link
+  groupLink?: string; // NEW: WhatsApp/Telegram Group Link
   price: number;
   category: string; 
   bannerUrl: string;
@@ -61,8 +64,10 @@ export interface Event {
   currentParticipants: number;
   paymentInstructions?: string;
   isOpen: boolean;
+  status: EventStatus; // NEW: Detailed status
   formFields?: FormField[];
   certificateConfig?: CertificateConfig; // NEW: Event-specific cert config
+  certificateSlideId?: string; // NEW: Google Slide Template ID
   enableTicketScanner?: boolean; // NEW: Toggle for QR Code feature
 }
 

@@ -1,18 +1,15 @@
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, Download, ArrowLeft, Award, CheckCircle } from 'lucide-react';
-import { fetchRegistrationById } from '../services/api';
-import { Registration, RegistrationStatus, CertificateConfig, CertificateElement } from '../types';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { Loader, Download, ArrowLeft, Award, FileText, Info } from 'lucide-react';
+import { fetchRegistrationById, downloadCertificatePdf } from '../services/api';
+import { Registration, RegistrationStatus } from '../types';
 import CustomAlert from '../components/CustomAlert';
 
 const CertificatePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [registration, setRegistration] = useState<Registration | null>(null);
-  const [certConfig, setCertConfig] = useState<CertificateConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
@@ -29,36 +26,17 @@ const CertificatePage: React.FC = () => {
     setAlertState({ isOpen: true, type, title, message });
   };
 
-  // Responsive Scaling State
-  const [scale, setScale] = useState(1);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const certRef = useRef<HTMLDivElement>(null);
-
-  // Constants MUST match AdminDashboard canvas size to ensure WYSIWYG
-  const CERT_WIDTH = 842; 
-  const CERT_HEIGHT = 595;
-  
-  // Frame Configuration (Visual Only)
-  const FRAME_BORDER = 24; // Tebal bingkai hitam
-  const FRAME_MAT = 60;    // Tebal area putih (paspartu/matting)
-  const TOTAL_PADDING = FRAME_BORDER + FRAME_MAT;
-  
-  const VISUAL_WIDTH = CERT_WIDTH + (TOTAL_PADDING * 2);
-  const VISUAL_HEIGHT = CERT_HEIGHT + (TOTAL_PADDING * 2);
-
   useEffect(() => {
     if (!id) return;
     const load = async () => {
       try {
         const response = await fetchRegistrationById(id);
         const data = response.registration;
-        const config = response.certificateConfig;
 
         if (data.status !== RegistrationStatus.APPROVED) {
             setError("Sertifikat belum tersedia atau pendaftaran belum disetujui.");
         } else {
             setRegistration(data);
-            setCertConfig(config);
         }
       } catch (e: any) {
         setError("Data sertifikat tidak ditemukan.");
@@ -69,161 +47,42 @@ const CertificatePage: React.FC = () => {
     load();
   }, [id]);
 
-  // Handle Resize for Responsive Scaling
-  useEffect(() => {
-    const handleResize = () => {
-        if (containerRef.current) {
-            const parentWidth = containerRef.current.offsetWidth;
-            const padding = 24; // Total horizontal padding of container
-            const availableWidth = parentWidth - padding;
-            
-            // Calculate scale based on the VISUAL WIDTH (Certificate + Frame)
-            // This ensures the frame fits in the screen
-            const newScale = Math.min(availableWidth / VISUAL_WIDTH, 1);
-            setScale(newScale);
-        }
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Initial calculation
-
-    // Recalculate after a slight delay to ensure layout is settled
-    setTimeout(handleResize, 100);
-
-    return () => window.removeEventListener('resize', handleResize);
-  }, [loading]);
-
   const handleDownload = async () => {
-    if (!certRef.current || !registration) return;
+    if (!id) return;
     setDownloading(true);
 
     try {
-        // High resolution scale for PDF generation (3x of 842px is plenty for A4)
-        // Note: We capture certRef, which is INSIDE the frame, so the frame is NOT captured.
-        const canvas = await html2canvas(certRef.current, {
-            scale: 4, 
-            useCORS: true,
-            logging: false,
-            backgroundColor: '#ffffff'
-        });
-
-        const imgData = canvas.toDataURL('image/png');
-        // A4 Landscape size in mm
-        const pdf = new jsPDF('l', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
-
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        // Trigger Server-Side Generation via GAS (Google Slides)
+        const result = await downloadCertificatePdf(id);
         
-        // FORMAT NAMA FILE: sertifikat_namaevent_namapeserta_nourutan
-        const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_');
-        const eventName = sanitize(registration.eventTitle);
-        const participantName = sanitize(registration.userName);
-        const refNumber = registration.id.substring(0, 8); // Menggunakan 8 digit pertama ID sebagai nomor urut/referensi
-
-        const fileName = `sertifikat_${eventName}_${participantName}_${refNumber}.pdf`;
-
-        pdf.save(fileName);
-        showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh.');
-    } catch (e) {
-        showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh sertifikat.');
+        if (result && result.pdfBase64) {
+            // Convert Base64 to Blob
+            const byteCharacters = atob(result.pdfBase64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: "application/pdf" });
+            
+            // Create Download Link
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = result.filename || `Sertifikat-${id}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh dari sistem Google Slide.');
+        } else {
+            throw new Error("Gagal menerima file PDF dari server.");
+        }
+    } catch (e: any) {
+        showAlert('error', 'Gagal', 'Pastikan Template ID Slide sudah diatur di Admin: ' + e.message);
         console.error(e);
     } finally {
         setDownloading(false);
     }
-  };
-
-  const getElementContent = (field: string) => {
-      if (!registration) return '';
-      // Force Uppercase for Name as requested
-      if (field === 'userName') return registration.userName.toUpperCase();
-      
-      if (field === 'eventTitle') return registration.eventTitle;
-      if (field === 'date') return new Date(registration.registrationDate).toLocaleDateString('id-ID'); 
-      if (field === 'id') return registration.id;
-      if (field === 'certificateNumber') return `NO: ${registration.id.substring(0,8).toUpperCase()}`;
-      
-      if (field.startsWith('custom:')) {
-          const key = field.split(':')[1];
-          try {
-              const customData = registration.customData ? JSON.parse(registration.customData) : {};
-              return customData[key] || '-';
-          } catch(e) { return '-'; }
-      }
-      return field;
-  };
-
-  const renderElement = (el: CertificateElement) => {
-      let content: React.ReactNode = el.field;
-      let textContent = '';
-      let dynamicFontSize = el.fontSize || 12;
-
-      if (el.type === 'dynamic') {
-          textContent = getElementContent(el.field);
-          content = textContent;
-
-          // Auto-resize logic for Long Names (userName)
-          if (el.field === 'userName') {
-              const len = textContent.length;
-              if (len > 40) {
-                  dynamicFontSize = dynamicFontSize * 0.5; // Very long name
-              } else if (len > 30) {
-                  dynamicFontSize = dynamicFontSize * 0.65; // Long name
-              } else if (len > 20) {
-                  dynamicFontSize = dynamicFontSize * 0.8; // Medium name
-              }
-          }
-
-      } else if (el.type === 'text') {
-          textContent = el.field;
-          content = textContent;
-      } else if (el.type === 'image') {
-          content = <img src={el.field} alt="element" style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />;
-      }
-
-      // Enforce Uppercase via JS Logic (Stronger than CSS for PDF capture)
-      if (el.type !== 'image' && el.textTransform === 'uppercase') {
-          content = String(textContent).toUpperCase();
-      } else if (el.type !== 'image' && el.textTransform === 'lowercase') {
-          content = String(textContent).toLowerCase();
-      }
-
-      // Determine Transform based on Alignment to ensure position stays predictable
-      let transform = 'translate(-50%, -50%)'; // Default (Center)
-      if (el.align === 'left') transform = 'translate(0, -50%)';
-      if (el.align === 'right') transform = 'translate(-100%, -50%)';
-
-      const strokeStyle = el.strokeWidth && el.strokeWidth > 0 
-        ? { 
-            WebkitTextStrokeWidth: `${el.strokeWidth}px`, 
-            WebkitTextStrokeColor: el.strokeColor || '#FFFFFF',
-            // Paint order ensures the stroke doesn't eat the text fill too much
-            paintOrder: 'stroke fill'
-          } 
-        : {};
-
-      return (
-        <div
-            key={el.id}
-            className="absolute z-10"
-            style={{
-                left: el.x,
-                top: el.y,
-                color: el.color || '#000000',
-                fontSize: el.type === 'image' ? undefined : `${dynamicFontSize}px`,
-                fontFamily: el.fontFamily || 'Helvetica',
-                fontWeight: el.fontWeight || 'bold',
-                textAlign: el.align || 'center',
-                width: el.width ? `${el.width}px` : 'auto',
-                transform: transform, 
-                whiteSpace: el.type === 'image' ? 'normal' : 'nowrap',
-                textTransform: el.textTransform || 'none',
-                ...strokeStyle
-            }}
-        >
-            {content}
-        </div>
-      );
   };
 
   if (loading) return (
@@ -241,8 +100,6 @@ const CertificatePage: React.FC = () => {
       </div>
   );
 
-  const hasConfig = certConfig && certConfig.backgroundUrl;
-
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-8 px-4 flex flex-col items-center">
       <CustomAlert 
@@ -253,106 +110,63 @@ const CertificatePage: React.FC = () => {
         onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))} 
       />
 
-      <div className="w-full max-w-5xl mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-         <button onClick={() => navigate('/')} className="flex items-center gap-2 text-[#2B427A] font-bold hover:text-[#0B1CDE] self-start md:self-auto">
-             <ArrowLeft className="w-5 h-5"/> Kembali
-         </button>
-         <button 
-            onClick={handleDownload} 
-            disabled={downloading}
-            className="w-full md:w-auto flex items-center justify-center gap-2 bg-[#DFFF00] text-[#2B427A] px-6 py-3 rounded-lg font-black border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-1 hover:shadow-none transition-all disabled:opacity-50"
-         >
-             {downloading ? <Loader className="w-5 h-5 animate-spin"/> : <Download className="w-5 h-5"/>} DOWNLOAD PDF
-         </button>
-      </div>
-
-      <div 
-        className="w-full flex justify-center pb-10" 
-        ref={containerRef}
-      >
-          {/* Scaling Wrapper */}
-          <div style={{ width: VISUAL_WIDTH * scale, height: VISUAL_HEIGHT * scale, position: 'relative' }}>
-              
-              {/* THE VISUAL FRAME (Scale Applied Here) */}
-              {/* HTML2CANVAS Targets the CHILD (certRef), so this frame is ignored during download */}
-              <div 
-                style={{
-                    width: VISUAL_WIDTH,
-                    height: VISUAL_HEIGHT,
-                    transform: `scale(${scale})`,
-                    transformOrigin: 'top left',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    
-                    // OUTER FRAME (BLACK)
-                    backgroundColor: '#18181b', 
-                    padding: `${FRAME_BORDER}px`,
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 10px 15px -3px rgba(0,0,0,0.5)', 
-                    borderRadius: '2px' 
-                }}
-              >
-                 {/* MATTING (WHITE BOARD) */}
-                 <div style={{
-                     width: '100%',
-                     height: '100%',
-                     backgroundColor: '#fdfdfd', // Paper white matting
-                     display: 'flex',
-                     alignItems: 'center',
-                     justifyContent: 'center',
-                     boxShadow: 'inset 0px 0px 20px rgba(0,0,0,0.15)' // Inner shadow for depth
-                 }}>
-                     
-                     {/* BORDER WRAP AROUND IMAGE (To separate from Matting) */}
-                     <div style={{
-                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                         border: '1px solid #e5e5e5'
-                     }}>
-                         {/* The Actual Certificate Node (Clean for PDF) */}
-                         <div 
-                            ref={certRef}
-                            className="bg-white flex-shrink-0 text-center overflow-hidden flex flex-col items-center justify-center relative"
-                            style={{ 
-                                width: `${CERT_WIDTH}px`, 
-                                height: `${CERT_HEIGHT}px`, 
-                                // No scale here, it inherits from parent or is captured natively
-                            }}
-                         >
-                             {hasConfig ? (
-                                 <>
-                                     <div className="absolute inset-0 z-0">
-                                         <img 
-                                            src={certConfig.backgroundUrl} 
-                                            alt="Certificate Background" 
-                                            className="w-full h-full object-cover" 
-                                            crossOrigin="anonymous" 
-                                         />
-                                     </div>
-                                     {certConfig.elements.map(renderElement)}
-                                 </>
-                             ) : (
-                                 // Default Fallback Template
-                                 <>
-                                    <div className="absolute inset-0 border-[20px] border-[#2B427A] z-10 pointer-events-none"></div>
-                                    <div className="absolute inset-0 border-[24px] border-[#DFFF00] z-0 m-[10px]"></div>
-                                    <div className="relative z-20 w-full h-full flex flex-col items-center justify-center p-20">
-                                        <h1 className="text-6xl font-serif text-[#0B1CDE] font-bold mb-4">SERTIFIKAT</h1>
-                                        <div className="relative px-12 pb-2 mb-8">
-                                             <h2 className="text-5xl font-black uppercase text-[#2B427A]">{registration.userName.toUpperCase()}</h2>
-                                             <div className="w-full h-1 bg-[#DFFF00] mt-2 mx-auto max-w-2xl"></div>
-                                        </div>
-                                        <p className="text-lg text-gray-600 max-w-3xl mx-auto leading-relaxed mb-12">
-                                             Atas partisipasi dalam acara <span className="text-2xl font-black text-[#0B1CDE] block mt-2 uppercase">"{registration.eventTitle}"</span>
-                                        </p>
-                                    </div>
-                                 </>
-                             )}
-                         </div>
-                     </div>
-                 </div>
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border-2 border-[#2B427A] overflow-hidden">
+          {/* Header */}
+          <div className="bg-[#2B427A] p-8 text-center text-white relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(#DFFF00_1px,transparent_1px)] [background-size:20px_20px]"></div>
+              <div className="relative z-10">
+                  <Award className="w-16 h-16 mx-auto mb-4 text-[#DFFF00]" />
+                  <h1 className="text-3xl font-black uppercase tracking-tight mb-2">E-Sertifikat Resmi</h1>
+                  <p className="text-blue-100 text-sm font-medium">Himpunan Mahasiswa Bisnis Digital</p>
               </div>
           </div>
+
+          {/* Content */}
+          <div className="p-8 text-center">
+              <div className="mb-8">
+                  <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">DIBERIKAN KEPADA</p>
+                  <h2 className="text-2xl md:text-3xl font-black text-[#2B427A] mb-4">{registration.userName}</h2>
+                  <div className="w-16 h-1 bg-[#DFFF00] mx-auto mb-4"></div>
+                  <p className="text-gray-600">
+                      Atas partisipasinya dalam acara <br/>
+                      <strong className="text-[#0B1CDE] text-lg">"{registration.eventTitle}"</strong>
+                  </p>
+              </div>
+
+              <div className="bg-blue-50 rounded-xl p-6 border border-blue-100 mb-8">
+                  <div className="flex items-start gap-3 text-left">
+                      <FileText className="w-5 h-5 text-[#0B1CDE] mt-1 flex-shrink-0" />
+                      <div>
+                          <h4 className="font-bold text-[#2B427A] text-sm">Dokumen Siap Unduh</h4>
+                          <p className="text-xs text-gray-500 mt-1">
+                              Sertifikat ini menggunakan format PDF Standar A4 High Resolution yang dihasilkan langsung dari sistem Google Slides.
+                          </p>
+                      </div>
+                  </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                  <button 
+                      onClick={handleDownload} 
+                      disabled={downloading}
+                      className="w-full py-4 bg-[#DFFF00] text-[#2B427A] rounded-xl font-black text-lg border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#0B1CDE] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                      {downloading ? <Loader className="w-6 h-6 animate-spin"/> : <Download className="w-6 h-6"/>}
+                      {downloading ? 'MEMPROSES SLIDE...' : 'DOWNLOAD SERTIFIKAT (PDF)'}
+                  </button>
+                  
+                  <button onClick={() => navigate('/')} className="w-full py-3 text-gray-500 font-bold hover:text-[#2B427A] transition-colors flex items-center justify-center gap-2">
+                      <ArrowLeft className="w-4 h-4"/> Kembali ke Beranda
+                  </button>
+              </div>
+          </div>
+      </div>
+      
+      <div className="mt-6 flex gap-2 items-start max-w-md bg-white p-3 rounded-lg border border-gray-200">
+          <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-500 text-left">
+              <strong>Catatan:</strong> Jika unduhan gagal, pastikan Event Organizer telah memasukkan <strong>ID Google Slide</strong> dengan benar di panel Admin.
+          </p>
       </div>
     </div>
   );
