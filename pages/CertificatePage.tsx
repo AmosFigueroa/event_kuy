@@ -138,7 +138,7 @@ const CertificatePage: React.FC = () => {
                       <div>
                           <h4 className="font-bold text-[#2B427A] text-sm">Dokumen Siap Unduh</h4>
                           <p className="text-xs text-gray-500 mt-1">
-                              Sertifikat ini menggunakan format PDF Standar A4 High Resolution yang dihasilkan langsung dari sistem Google Slides.
+                              Sertifikat ini menggunakan format PDF Standar A4 High Resolution.
                           </p>
                       </div>
                   </div>
@@ -151,7 +151,7 @@ const CertificatePage: React.FC = () => {
                       className="w-full py-4 bg-[#DFFF00] text-[#2B427A] rounded-xl font-black text-lg border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#0B1CDE] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                       {downloading ? <Loader className="w-6 h-6 animate-spin"/> : <Download className="w-6 h-6"/>}
-                      {downloading ? 'MEMPROSES SLIDE...' : 'DOWNLOAD SERTIFIKAT (PDF)'}
+                      {downloading ? 'MEMPROSES SERTIFIKAT ANDA...' : 'DOWNLOAD SERTIFIKAT (PDF)'}
                   </button>
                   
                   <button onClick={() => navigate('/')} className="w-full py-3 text-gray-500 font-bold hover:text-[#2B427A] transition-colors flex items-center justify-center gap-2">
