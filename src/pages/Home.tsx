@@ -1,10 +1,50 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ArrowRight, Info, CheckCircle, HelpCircle, ChevronRight, Mic, Users, TrendingUp, Calendar, ChevronLeft, MapPin } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FAQ_DATA, APP_NAME } from '../constants';
 import { fetchEvents, createSlug } from '../services/api';
 import { Event } from '../types';
+
+// Helper Component for Number Animation
+const AnimatedCounter = ({ end, duration = 2000, suffix = "" }: { end: number, duration?: number, suffix?: string }) => {
+  const [count, setCount] = useState(0);
+  const countRef = useRef(0);
+  const startTimeRef = useRef<number | null>(null);
+  const requestRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // Reset if end changes
+    startTimeRef.current = null;
+    
+    const animate = (currentTime: number) => {
+      if (!startTimeRef.current) startTimeRef.current = currentTime;
+      const progress = Math.min((currentTime - startTimeRef.current) / duration, 1);
+      
+      // Easing function: easeOutExpo (starts fast, slows down at the end)
+      const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+      
+      const nextCount = Math.floor(ease * end);
+      
+      if (countRef.current !== nextCount) {
+        setCount(nextCount);
+        countRef.current = nextCount;
+      }
+
+      if (progress < 1) {
+        requestRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    requestRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [end, duration]);
+
+  return <>{count}{suffix}</>;
+};
 
 const Home: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([]);
@@ -130,31 +170,37 @@ const Home: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-0 md:gap-8 divide-y-2 md:divide-y-0 md:divide-x-2 divide-[#2B427A]/20">
                 {/* Stat 1 */}
                 <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 transition-transform hover:scale-110 duration-300">
                         <Users className="w-8 h-8"/>
                     </div>
                     <div className="text-center md:text-left">
-                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.participants}</div>
+                        <div className="text-4xl font-black text-[#2B427A] leading-none tabular-nums">
+                            <AnimatedCounter end={stats.participants} />
+                        </div>
                         <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PARTISIPAN</div>
                     </div>
                 </div>
                 {/* Stat 2 */}
                 <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 transition-transform hover:scale-110 duration-300">
                         <Calendar className="w-8 h-8"/>
                     </div>
                     <div className="text-center md:text-left">
-                        <div className="text-4xl font-black text-[#2B427A] leading-none">{stats.prokers}</div>
+                        <div className="text-4xl font-black text-[#2B427A] leading-none tabular-nums">
+                            <AnimatedCounter end={stats.prokers} />
+                        </div>
                         <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PROGRAM KERJA</div>
                     </div>
                 </div>
                 {/* Stat 3 */}
                 <div className="flex flex-col md:flex-row items-center justify-center gap-4 p-6">
-                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0">
+                    <div className="p-4 bg-[#2B427A] rounded-xl text-white shadow-[4px_4px_0px_0px_#000] flex-shrink-0 transition-transform hover:scale-110 duration-300">
                         <TrendingUp className="w-8 h-8"/>
                     </div>
                     <div className="text-center md:text-left">
-                        <div className="text-4xl font-black text-[#2B427A] leading-none">100%</div>
+                        <div className="text-4xl font-black text-[#2B427A] leading-none tabular-nums">
+                            <AnimatedCounter end={100} suffix="%" />
+                        </div>
                         <div className="text-sm font-bold text-[#2B427A] uppercase tracking-wider mt-1">PENGEMBANGAN DIRI</div>
                     </div>
                 </div>
