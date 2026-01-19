@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Loader, Download, ArrowLeft, Award, FileText } from 'lucide-react';
+import { Loader, Download, ArrowLeft, Award, FileText, Info } from 'lucide-react';
 import { fetchRegistrationById, downloadCertificatePdf } from '../services/api';
 import { Registration, RegistrationStatus } from '../types';
 import CustomAlert from '../components/CustomAlert';
@@ -52,7 +52,7 @@ const CertificatePage: React.FC = () => {
     setDownloading(true);
 
     try {
-        // Trigger Server-Side Generation via GAS
+        // Trigger Server-Side Generation via GAS (Google Slides)
         const result = await downloadCertificatePdf(id);
         
         if (result && result.pdfBase64) {
@@ -69,14 +69,18 @@ const CertificatePage: React.FC = () => {
             const link = document.createElement('a');
             link.href = window.URL.createObjectURL(blob);
             link.download = result.filename || `Sertifikat-${id}.pdf`;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
             
-            showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh.');
+            showAlert('success', 'Berhasil', 'Sertifikat berhasil diunduh dari sistem Google Slide.');
         } else {
             throw new Error("Gagal menerima file PDF dari server.");
         }
     } catch (e: any) {
-        showAlert('error', 'Gagal', 'Terjadi kesalahan saat mengunduh: ' + e.message);
+        // Show raw error message from backend if possible
+        const errorMessage = e.message || 'Terjadi kesalahan saat mengunduh sertifikat.';
+        showAlert('error', 'Gagal', errorMessage);
         console.error(e);
     } finally {
         setDownloading(false);
@@ -136,7 +140,9 @@ const CertificatePage: React.FC = () => {
                       <FileText className="w-5 h-5 text-[#0B1CDE] mt-1 flex-shrink-0" />
                       <div>
                           <h4 className="font-bold text-[#2B427A] text-sm">Dokumen Siap Unduh</h4>
-                          <p className="text-xs text-gray-500 mt-1">Sertifikat ini menggunakan format PDF Standar A4 High Resolution yang dihasilkan langsung dari sistem.</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                              Sertifikat ini menggunakan format PDF Standar A4 High Resolution yang dihasilkan langsung dari sistem Google Slides.
+                          </p>
                       </div>
                   </div>
               </div>
@@ -148,7 +154,7 @@ const CertificatePage: React.FC = () => {
                       className="w-full py-4 bg-[#DFFF00] text-[#2B427A] rounded-xl font-black text-lg border-2 border-[#2B427A] shadow-[4px_4px_0px_0px_#2B427A] hover:translate-y-[-2px] hover:shadow-[6px_6px_0px_0px_#0B1CDE] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                       {downloading ? <Loader className="w-6 h-6 animate-spin"/> : <Download className="w-6 h-6"/>}
-                      {downloading ? 'MEMPROSES PDF...' : 'DOWNLOAD SERTIFIKAT (PDF)'}
+                      {downloading ? 'MEMPROSES SLIDE...' : 'DOWNLOAD SERTIFIKAT (PDF)'}
                   </button>
                   
                   <button onClick={() => navigate('/')} className="w-full py-3 text-gray-500 font-bold hover:text-[#2B427A] transition-colors flex items-center justify-center gap-2">
@@ -158,9 +164,12 @@ const CertificatePage: React.FC = () => {
           </div>
       </div>
       
-      <p className="mt-6 text-xs text-gray-400 text-center max-w-md">
-          *Jika unduhan gagal, pastikan browser Anda tidak memblokir pop-up. Hubungi panitia jika data sertifikat tidak sesuai.
-      </p>
+      <div className="mt-6 flex gap-2 items-start max-w-md bg-white p-3 rounded-lg border border-gray-200">
+          <Info className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-gray-500 text-left">
+              <strong>Catatan:</strong> Jika unduhan gagal, pastikan Event Organizer telah memasukkan <strong>ID Google Slide</strong> dengan benar di panel Admin.
+          </p>
+      </div>
     </div>
   );
 };

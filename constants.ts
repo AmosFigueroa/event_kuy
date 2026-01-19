@@ -1,7 +1,7 @@
 export const APP_NAME = "Event Bisdig";
 
 // The Google Apps Script Web App URL provided by the user
-export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxVmHhN45gsxkeCyHcey1WNdPwvXx-2pSxUnXBJSnUcKyCqHSLTL_RHFy1K3fUmVedV0A/exec"; 
+export const DEFAULT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWcv-frEvpiVrKXwICJzj47yvSGe6lbJsJIxK8brOEl028xrjlSg7Jltyo0eZw5_InTA/exec"; 
 
 export const FAQ_DATA = [
   {
